@@ -87,7 +87,7 @@ class Envelope(Transformable, Monoid):
         return d.sum()
 
     @staticmethod
-    def general_transform(t: Affine, fn) -> Envelope:  # type: ignore
+    def general_transform(t: Affine, fn) -> Scalar:  # type: ignore
         rt = tx.remove_translation(t)
         inv_t = tx.inv(rt)
         trans_t = tx.transpose_translation(rt)
@@ -112,7 +112,7 @@ class Envelope(Transformable, Monoid):
         return wrapped
 
     @staticmethod
-    def apply_transform(t: Affine, fn, d: V2_t) -> Envelope:
+    def apply_transform(t: Affine, fn, d: V2_t) -> Scalars:
         def apply(x):  # type: ignore
             return fn(x[..., 0, :, :])[..., None]
 
