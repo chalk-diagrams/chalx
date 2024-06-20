@@ -111,14 +111,12 @@ class Envelope(Transformable, Monoid):
 
         return wrapped
 
-    def apply_transform(self, t: Affine) -> Envelope:
-        if self.is_empty:
-            return self
-
+    @staticmethod
+    def apply_transform(t: Affine, fn, d: V2_t) -> Envelope:
         def apply(x):  # type: ignore
-            return self.f(x[..., 0, :, :])[..., None]
+            return fn(x[..., 0, :, :])[..., None]
 
-        return Envelope.general_transform(t, apply)
+        return Envelope.general_transform(t, apply)(d)
 
     def envelope_v(self, v: V2_t) -> V2_t:
         # if self.is_empty:
@@ -159,17 +157,17 @@ class ApplyEnvelope(DiagramVisitor[EnvDistance, V2_t]):
         return False
 
     def visit_primitive(self, diagram: Primitive, t: V2_t) -> EnvDistance:
-        def apply(x):  # type: ignore
-            return diagram.shape.envelope(x[..., 0, :, :])[..., None]
-
-        return EnvDistance(Envelope.general_transform(diagram.transform, apply)(t))
+        return EnvDistance(
+            Envelope.apply_transform(diagram.transform, 
+                                    diagram.shape.envelope,
+                                    t))
 
 
     def visit_apply_transform(self, diagram: ApplyTransform, t: V2_t) -> EnvDistance:
-        def apply(x):  # type: ignore
-            return diagram.diagram.accept(self, x[..., 0, :, :]).d[..., None]
-
-        return EnvDistance(Envelope.general_transform(diagram.transform, apply)(t))
+        return EnvDistance(Envelope.apply_transform(
+            diagram.transform,
+            lambda x: diagram.diagram.accept(self, x).d,
+            t))
 
 
 
