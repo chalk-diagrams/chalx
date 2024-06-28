@@ -58,10 +58,10 @@ class Stylable:
     # def line_width_local(self, width: float) -> Self:
     #     return self.apply_style(Style(line_width_=(WidthType.LOCAL, width)))
 
-    def line_color(self, color: Color) -> Self:
+    def line_color(self, color: ColorLike) -> Self:
         return self.apply_style(Style(line_color_=to_color(color)))
 
-    def fill_color(self, color: Color) -> Self:
+    def fill_color(self, color: ColorLike) -> Self:
         return self.apply_style(Style(fill_color_=to_color(color)))
 
     def fill_opacity(self, opacity: float) -> Self:
@@ -93,6 +93,7 @@ def Style(
     dashing_: Optional[PropLike] = None,
     output_size: Optional[PropLike] = None,
 ) -> StyleHolder:
+    
     b = (
         tx.X.np.zeros(STYLE_SIZE),
         tx.X.np.zeros(STYLE_SIZE, dtype=bool),
@@ -102,6 +103,12 @@ def Style(
         base, mask = b
         index = (Ellipsis, slice(*STYLE_LOCATIONS[key]))
         if value is not None:
+            value = tx.X.np.asarray(value)
+            if len(value.shape) != len(base.shape):
+                n = tx.X.np.zeros(value.shape[:-1] + (STYLE_SIZE,))
+                base, _ = tx.X.np.broadcast_arrays(base, n) 
+                mask, _ = tx.X.np.broadcast_arrays(mask, n) 
+
             base = tx.X.index_update(base, index, value)  # type: ignore
             mask = tx.X.index_update(mask, index, True)  # type: ignore
         return base, mask
@@ -121,6 +128,9 @@ class StyleHolder(Stylable):
 
     base: Scalars
     mask: Mask
+
+    def size(self) -> Tuple[int, ...]:
+        return self.base.shape[:-1]
 
     def split(self, i: int) -> StyleHolder:
         if len(self.base.shape) == 1:
@@ -219,6 +229,42 @@ class StyleHolder(Stylable):
 
         if self.dashing_ is not None:
             ctx.set_dash(self.dashing_[0], self.dashing_[1])
+
+    def to_mpl(self) -> str:
+        style = {}
+        if self.fill_color_ is not None:
+            f = self.fill_color_ 
+            style["facecolor"] = (f[0], f[1], f[2])
+            #style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
+        if self.line_color_ is not None:
+            lc = self.line_color_
+            style["edgecolor"] = (lc[0], lc[1], lc[2])
+        else:
+            style["stroke"] = "black"
+
+        # Set by observation
+        assert self.output_size is not None
+        normalizer = self.output_size[0] * (15 / 500)
+        if self.line_width_ is not None:
+            lw = self.line_width_
+            # if lwt == WidthType.NORMALIZED:
+            #     lw = lw * normalizer
+            # elif lwt == WidthType.LOCAL:
+            #     lw = lw
+        else:
+            lw = LW * normalizer
+
+        style["linewidth"] = lw.reshape(-1)[0]
+
+        if self.fill_opacity_ is not None:
+            style["alpha"] = self.fill_opacity_[0]
+        # if self.dashing_ is not None:
+        #     style += (
+        #         f"stroke-dasharray: {' '.join(map(str, self.dashing_[0]))};"
+        #     )
+
+        return style
+
 
     def to_svg(self) -> str:
         """Converts to SVG.

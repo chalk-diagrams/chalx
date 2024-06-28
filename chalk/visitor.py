@@ -11,6 +11,7 @@ if TYPE_CHECKING:
         Compose,
         Empty,
         Primitive,
+        ComposeAxis
     )
     from chalk.monoid import Monoid
     from chalk.Path import Path
@@ -22,24 +23,21 @@ else:
 
 B = TypeVar("B")
 
-from itertools import product
+# from itertools import product
 
-def to_size(index, shape):
-    if len(index) > len(shape):
-        index = index[len(index)-len(shape):]
-    return tuple(i if s > 1 else 0 for s, i in zip(shape, index))
+# def to_size(index, shape):
+#     if len(index) > len(shape):
+#         index = index[len(index)-len(shape):]
+#     return tuple(i if s > 1 else 0 for s, i in zip(shape, index))
 
-def remove(index, axis):
-    return tuple(i for j, i in enumerate(index) if j != axis)
+# def remove(index, axis):
+#     return tuple(i for j, i in enumerate(index) if j != axis)
 
-def rproduct(rtops):
-    return product(*map(range, rtops))
+# def rproduct(rtops):
+#     return product(*map(range, rtops))
 
 class DiagramVisitor(Generic[A, B]):
     A_type: type[A]
-
-    def collapse_array(self):
-        return True
 
     # def visit_primitive_array(self, diagram: Primitive, arg: B) -> A:
     #     size = diagram.size()
@@ -73,15 +71,15 @@ class DiagramVisitor(Generic[A, B]):
                 [d.accept(self, arg) for d in diagram.diagrams]
             )
 
-    def visit_compose_axis(self, diagram: ComposeAxis, t:V2_t) -> EnvDistance:
+    def visit_compose_axis(self, diagram: ComposeAxis, t:B) -> A:
         # if not self.collapse_array():
         import jax
         from functools import partial
         axis = len(diagram.diagrams.size()) -1
-        fn = diagram.diagrams.accept.__func__
-        ed = jax.vmap(partial(fn, visitor=self, args=t),
-                        in_axes=axis, out_axes=axis)(diagram.diagrams)
-        return ed.reduce(axis)
+        fn = diagram.diagrams.accept.__func__ # type: ignore
+        ed: A = jax.vmap(partial(fn, visitor=self, args=t),
+                        in_axes=axis, out_axes=axis)(diagram.diagrams)                
+        return self.A_type.reduce(ed, axis)
         # else:
         #     "Compose defaults to monoid over children"
         #     size = diagram.size()
@@ -99,8 +97,8 @@ class DiagramVisitor(Generic[A, B]):
         #         return ret[()]
         #     return ret
 
-    def visit_apply_transform_array(self, diagram: Primitive, arg: B) -> A:
-        return self.visit_apply_transform(diagram, arg)
+    # def visit_apply_transform_array(self, diagram: Primitive, arg: B) -> A:
+    #     return self.visit_apply_transform(diagram, arg)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:
         "Defaults to pass over"

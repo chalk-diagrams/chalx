@@ -78,8 +78,8 @@ def scale_uniform_to_x(self: Diagram, x: tx.Floating) -> Diagram:
         Diagram: A diagram object.
     """
     envelope = self.get_envelope()
-    if envelope.is_empty:
-        return self
+    # if envelope.is_empty:
+    #     return self
     α = x / envelope.width
     return self.scale(α)
 
@@ -95,7 +95,7 @@ def scale_uniform_to_y(self: Diagram, y: tx.Floating) -> Diagram:
         Diagram: A diagram object.
     """
     envelope = self.get_envelope()
-    if envelope.is_empty:
-        return self
+    # if envelope.is_empty:
+    #     return self
     α = y / envelope.height
     return self.scale(α)

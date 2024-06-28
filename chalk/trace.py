@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Tuple
 from typing import NamedTuple
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -9,7 +9,6 @@ from chalk.transform import (
     Affine,
     P2_t,
     Ray,
-    TraceDistances,
     Transformable,
     V2_t,
 )
@@ -18,33 +17,37 @@ from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
 
-    from chalk.core import ApplyTransform, Primitive
+    from chalk.core import ApplyTransform, Primitive, Compose, ComposeAxis
     from chalk.types import Diagram
-    from chalk.types import Traceable
 
 
 @dataclass
 class TraceDistances(Monoid):
-    distance: Scalars
-    mask: mask
+    distance: tx.Scalars
+    mask: tx.Mask
 
-    def __iter__(self):
+    def __iter__(self): # type: ignore
         yield self.distance
         yield self.mask
 
-    def __getitem__(self, i):
+    def tuple(self) -> Tuple[tx.Scalars, tx.Mask]: 
+        return self.distance, self.mask
+
+    def __getitem__(self, i: int): # type: ignore
         if i == 0: return self.distance
         if i == 1: return self.mask
     
-    def __add__(self, other: Self) -> Self:
-        return TraceDistances(*tx.X.union(self, other))
+    def __add__(self, other: Self) -> Self: # type: ignore
+        return TraceDistances(*tx.X.union(self.tuple(), other))
 
     @staticmethod
     def empty() -> TraceDistances:
         return TraceDistances(tx.X.np.asarray([]), tx.X.np.asarray([]))
     
-    def reduce(self, axis=0):
-        return tx.X.union_axis((self.distance, self.mask), axis=axis)
+    def reduce(self, axis: int=0) -> TraceDistances:
+        return TraceDistances(
+                *tx.X.union_axis((self.distance, self.mask), axis=axis)
+            )
 
 @dataclass
 class Trace(Monoid, Transformable):
@@ -61,13 +64,13 @@ class Trace(Monoid, Transformable):
             point = point.reshape(1, 3, 1)
         if len(direction.shape) == 2:
             direction = direction.reshape(1, 3, 1)
-        d, m = Trace.apply_transform(lambda x: self.diagram.accept(ApplyTrace(), x), self.affine)(
+        d, m = Trace.transform(lambda x: self.diagram.accept(ApplyTrace(), x), self.affine,
             Ray(point, direction))
         # d, m = self.f(Ray(point, direction))
         ad = tx.X.np.argsort(d + (1 - m) * 1e10, axis=1)
         d = tx.X.np.take_along_axis(d, ad, axis=1)
         m = tx.X.np.take_along_axis(m, ad, axis=1)
-        return d, m
+        return TraceDistances(d, m)
 
     # # Monoid
     # @classmethod
@@ -78,30 +81,35 @@ class Trace(Monoid, Transformable):
     #     return Trace(lambda ray: tx.X.union(self.f(ray), other.f(ray)))
 
     @staticmethod
-    def general_transform(t: Affine, fn) -> Trace:  # type: ignore
+    def general_transform(t: Affine, fn: Callable[[tx.Ray], TraceDistances],
+                           r: tx.Ray) -> TraceDistances:  # type: ignore
         t1 = tx.inv(t)
 
         def wrapped(
             ray: Ray,
         ) -> TraceDistances:
-            trac, mask = fn(
+            td = fn(
                 Ray(
                     t1 @ ray.pt[..., None, :, :],
                     t1 @ ray.v[..., None, :, :],
                 )
             )
-            return tx.X.union_axis((trac, mask), axis=-1)
+            return td.reduce(axis=-1)
 
-        return wrapped
+        return wrapped(r)
+
+    def apply_transform(self, t: Affine) -> Trace:
+        return Trace(self.diagram, t @ self.affine)
 
     # Transformable
     @staticmethod
-    def apply_transform(fn, t: Affine):
+    def transform(fn: Callable[[tx.Ray], TraceDistances], 
+                  t: Affine, r: Ray) -> TraceDistances:
         def apply(ray: Ray):  # type: ignore
             t, m = fn(Ray(ray.pt[..., 0, :, :], ray.v[..., 0, :, :]))
-            return t[..., None], m[..., None]
+            return TraceDistances(t[..., None], m[..., None])
 
-        return Trace.general_transform(t, apply)
+        return Trace.general_transform(t, apply, r)
 
     def trace_v(self, p: P2_t, v: V2_t) -> TraceDistances:
         v = tx.norm(v)
@@ -111,18 +119,18 @@ class Trace(Monoid, Transformable):
         ad = tx.X.np.argsort(dists + (1 - m) * 1e10, axis=1)
         m = tx.X.np.take_along_axis(m, ad, axis=1)
         s = d[:, 0:1]
-        return s[..., None] * v, m[:, 0]
+        return TraceDistances(s[..., None] * v, m[:, 0])
 
     def trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
         u, m = self.trace_v(p, v)
-        return p + u, m
+        return TraceDistances(p + u, m)
 
     def max_trace_v(self, p: P2_t, v: V2_t) -> TraceDistances:
         return self.trace_v(p, -v)
 
     def max_trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
         u, m = self.max_trace_v(p, v)
-        return p + u, m
+        return TraceDistances(p + u, m)
 
     @staticmethod
     def combine(p1: TraceDistances, p2: TraceDistances) -> TraceDistances:
@@ -133,22 +141,18 @@ class Trace(Monoid, Transformable):
         ad = tx.X.np.argsort(ps + (1 - m) * 1e10, axis=1)
         ps = tx.X.np.take_along_axis(ps, ad, axis=1)
         m = tx.X.np.take_along_axis(m, ad, axis=1)
-        return ps, m
+        return TraceDistances(ps, m)
 
-class ApplyTrace(DiagramVisitor[TraceDistances, V2_t]):
+class ApplyTrace(DiagramVisitor[TraceDistances, Ray]):
     A_type = TraceDistances
-    def collapse_array(self):
-        return False
-
-    def visit_primitive(self, diagram: Primitive, t: V2_t) -> TraceDistances:
-
-        return TraceDistances(*Trace.apply_transform(lambda x: diagram.shape.get_trace(x), 
-                                                        diagram.transform)(t))
+    def visit_primitive(self, diagram: Primitive, ray: Ray) -> TraceDistances:
+        return Trace.transform(lambda x: diagram.shape.get_trace(x), 
+                               diagram.transform, ray)
 
 
-    def visit_apply_transform(self, diagram: ApplyTransform, t: V2_t) -> EnvDistance:
-        return TraceDistances(*Trace.apply_transform(lambda x: diagram.diagram.accept(self, x), 
-                                                diagram.transform)(t))
+    def visit_apply_transform(self, diagram: ApplyTransform, ray: Ray) -> TraceDistances:
+        return Trace.transform(lambda x: diagram.diagram.accept(self, x), 
+                                diagram.transform, ray)
 
 
 class GetTrace(DiagramVisitor[Trace, Affine]):

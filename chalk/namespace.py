@@ -149,3 +149,6 @@ class _ArrayAPINameSpace:
     split = onp.split
     double = onp.double
     cross = onp.cross
+    roll = onp.roll
+    broadcast_shapes = onp.broadcast_shapes
+    repeat = onp.repeat

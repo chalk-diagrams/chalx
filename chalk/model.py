@@ -14,8 +14,8 @@ def show_origin(self: Diagram) -> Diagram:
     "Add a red dot at the origin of a diagram for debugging."
 
     envelope = self.get_envelope()
-    if envelope.is_empty:
-        return self
+    # if envelope.is_empty:
+    #     return self
     origin_size = tx.X.np.maximum(
         0.1, tx.X.np.minimum(envelope.height, envelope.width) / 50
     )
@@ -39,8 +39,8 @@ def show_envelope(
 
     self.show_origin()
     envelope = self.get_envelope()
-    if envelope.is_empty:
-        return self
+    # if envelope.is_empty:
+    #     return self
     outer: Diagram = (
         Path.from_points(list(envelope.to_path(angle)))
         .stroke()

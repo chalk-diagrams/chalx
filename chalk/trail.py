@@ -9,9 +9,9 @@ import chalk.transform as tx
 # from chalk.envelope import Envelope
 from chalk.monoid import Monoid
 from chalk.shapes.arc import Segment
-from chalk.trace import Trace
+from chalk.trace import Trace, TraceDistances
 from chalk.transform import Affine, Floating, P2_t, Transformable, V2_t
-from chalk.types import Diagram, Enveloped, Traceable, TrailLike
+from chalk.types import Diagram, Enveloped, TrailLike
 
 if TYPE_CHECKING:
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, unsafe_hash=True)
-class Located(Enveloped, Traceable, Transformable):
+class Located(Enveloped, Transformable):
     trail: Trail
     location: P2_t
 
@@ -33,16 +33,17 @@ class Located(Enveloped, Traceable, Transformable):
     def points(self) -> P2_t:
         return self.trail.points() + self.location
 
-    def envelope(self, t):
+    def envelope(self, t: V2_t) -> tx.Scalars:
         import chalk.envelope
         s = self.located_segments()
         trans = s.transform
-        return chalk.envelope.Envelope.general_transform(trans, lambda x: arc.arc_envelope(s, x))(t)
+        return chalk.envelope.Envelope.general_transform(trans, lambda x: arc.arc_envelope(s, x), t)
 
-    def get_trace(self) -> Trace:
+    def trace(self, r: tx.Ray) -> TraceDistances: 
         s = self.located_segments()
         t = s.transform
-        return Trace.general_transform(t, lambda x: arc.arc_trace(s, x))
+        return TraceDistances(
+            *Trace.general_transform(t, lambda x: arc.arc_trace(s, x), r))
 
     def stroke(self) -> Diagram:
         return self.to_path().stroke()

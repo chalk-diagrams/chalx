@@ -136,6 +136,20 @@ class ToSVGShape(ShapeVisitor[BaseElement]):
             href=shape.url_path, transform=f"translate({dx}, {dy})"
         )
 
+from chalk.backend.patch import Patch
+import chalk.backend.patch
+def to_svg(patch, dwg, ind):
+    line = dwg.path(style="vector-effect: non-scaling-stroke;")
+    v, c = patch.vert[ind], patch.command[ind]
+    i = 0
+    while i < c.shape[0] - 1:
+        if c[i] == chalk.backend.patch.Command.MOVETO.value:
+            line.push(f"M {v[i, 0]} {v[i, 1]}")
+            i += 1
+        if c[i] == chalk.backend.patch.Command.CURVE4.value:
+            line.push(f"C {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]} {v[i+2, 0]} {v[i+2, 1]}")
+            i += 3
+    return line                 
 
 def render_svg_prims(
     prims: List[Primitive], dwg: Drawing, style: StyleHolder
@@ -150,25 +164,70 @@ def render_svg_prims(
 
     dwg.add(outer)
     shape_renderer = ToSVGShape(dwg)
-    for p in prims:
-        for diagram in p:
-            # apply transformation
-            for i in range(diagram.transform.shape[0]):
-                style_new = (
-                    diagram.style.merge(style) if diagram.style else style
-                )
-                style_svg = style_new.to_svg()
-                transform = tx_to_svg(diagram.transform)
-                inner = diagram.shape.accept(shape_renderer, style=style_new)
-                if not style_svg and not transform:
-                    dwg.add(inner)
-                else:
-                    if not style_svg:
-                        style_svg = ";"
-                    g = dwg.g(transform=transform, style=style_svg)
-                    g.add(inner)
-                    dwg.add(g)
 
+    if tx.JAX_MODE:
+        undo = True
+        import numpy as onp
+        import jax
+        prims = jax.tree.map(onp.asarray, prims)
+        tx.set_jax_mode(False)
+
+    # Order the primitives
+    d = {}
+    patches = [Patch.from_prim(prim) for prim in prims]
+
+    for patch, prim in zip(patches, prims):
+        for ind, i in tx.X.np.ndenumerate(prim.order): # type: ignore
+            assert i not in d, f"Order {i} assigned twice"
+            d[i] = (patch, ind)
+
+
+    for j in sorted(d.keys()):
+        patch, ind = d[j]
+        style_new = patch.get_style(style, ind)
+        style_svg = style_new.to_svg()
+
+        inner = to_svg(patch, dwg, ind)
+        g = dwg.g(style=style_svg)
+        g.add(inner)
+        dwg.add(g)
+
+        # if not style_svg and not transform:
+        #     dwg.add(inner)
+        # else:
+        #     if not style_svg:
+        #         style_svg = ";"
+        #     g = dwg.g(transform=transform, style=style_svg)
+        #     g.add(inner)
+        #     dwg.add(g)
+
+    #     style_new = patch.get_style(style, ind)
+    #     patch = matplotlib.patches.PathPatch(Path(patch.vert[ind], patch.command[ind]), **style_new.to_mpl())
+    #     ps.append(patch)
+
+
+    # for j in sorted(d.keys()):
+    #     prim, ind = d[j]
+    #     diagram = prim.split(ind)
+
+    #     for i in range(diagram.transform.shape[0]):
+    #         style_new = (
+    #             diagram.style.merge(style) if diagram.style else style
+    #         )
+    #         style_svg = style_new.to_svg()
+    #         transform = tx_to_svg(diagram.transform)
+    #         inner = diagram.shape.accept(shape_renderer, style=style_new)
+    #         if not style_svg and not transform:
+    #             dwg.add(inner)
+    #         else:
+    #             if not style_svg:
+    #                 style_svg = ";"
+    #             g = dwg.g(transform=transform, style=style_svg)
+    #             g.add(inner)
+    #             dwg.add(g)
+
+    if undo:
+        tx.set_jax_mode(True)
 
 def prims_to_file(
     prims: List[Primitive], path: str, height: float, width: float

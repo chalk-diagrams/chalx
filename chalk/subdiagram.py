@@ -61,8 +61,8 @@ class Subdiagram(Monoid):
         direction of the given vector `v`.
         """
         o = self.get_location()
-        p, m = self.get_trace().trace_p(o, -v)
-        return tx.X.np.where(m, p, tx.X.origin)
+        td = self.get_trace().trace_p(o, -v)
+        return tx.X.np.where(td.mask, td.distance, tx.X.origin)
 
 
 class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):

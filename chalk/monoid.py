@@ -44,7 +44,13 @@ class Monoid:
 
     @classmethod
     def concat(cls, elems: Iterable[Self]) -> Self:
+        elems = list(elems)
+        if len(elems) == 1:
+            return elems[0]
         return associative_reduce(cls.__add__, elems, cls.empty())
+
+    def reduce(self, axis: int=0) -> Self:
+        raise NotImplementedError()
 
 
 A = TypeVar("A")

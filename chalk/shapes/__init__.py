@@ -71,10 +71,10 @@ def rectangle(
         Diagrams
     """
     if radius is None:
-        return Trail.rectangle(width, height).stroke().center_xy()
+        return Trail.rectangle(width, height).stroke().translate(-width/2, -height/2)
     else:
         return (
-            Trail.rounded_rectangle(width, height, radius).stroke().center_xy()
+            Trail.rounded_rectangle(width, height, radius).stroke().translate(-width/2, -height/2)
         )
 
 
@@ -86,7 +86,7 @@ def square(side: float) -> Diagram:
 
 def circle(radius: tx.Floating) -> Diagram:
     "Draws a circle with the specified ``radius``."
-    return Trail.circle().stroke().center_xy().scale(radius)
+    return Trail.circle().stroke().translate(radius, 0).scale(radius)
 
 
 def arc(

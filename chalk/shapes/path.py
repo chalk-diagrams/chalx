@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Tuple
+from typing import Any, Iterable, List, Sequence, Tuple
 
 from chalk import transform as tx
 # from chalk.envelope import Envelope
+from chalk.envelope import EnvDistance
 from chalk.shapes.shape import Shape
 from chalk.trace import Trace, TraceDistances
 from chalk.trail import Located, Trail
 from chalk.transform import P2_t, Transformable
-from chalk.types import Diagram, Enveloped, Traceable
+from chalk.types import Diagram
 from chalk.visitor import C, ShapeVisitor
 
 
@@ -20,10 +21,10 @@ def make_path(
 
 
 @dataclass(unsafe_hash=True, frozen=True)
-class Path(Shape, Enveloped, Traceable, Transformable):
+class Path(Shape, Transformable):
     """Path class."""
 
-    loc_trails: Sequence[Located]
+    loc_trails: Tuple[Located, ...]
 
     def split(self, i: int) -> Path:
         return Path(tuple([loc.split(i) for loc in self.loc_trails]))
@@ -51,12 +52,12 @@ class Path(Shape, Enveloped, Traceable, Transformable):
     #             for loc in self.loc_trails
     #             for i, pt in enumerate(loc.points()) ]
 
-    def envelope(self, t) -> Scalars:
-        return max((loc.envelope(t) for loc in self.loc_trails))
+    def envelope(self, t: tx.V2_t) -> tx.Scalars:
+        return EnvDistance.concat((EnvDistance(loc.envelope(t)) for loc in self.loc_trails)).d
 
-    def get_trace(self, t) -> Trace:
+    def get_trace(self, t: tx.Ray) -> TraceDistances:
         return TraceDistances.concat(
-            (loc.get_trace()(t) for loc in self.loc_trails))
+            (loc.trace(t) for loc in self.loc_trails))
 
     def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C:
         return visitor.visit_path(self, **kwargs)
@@ -86,7 +87,7 @@ class Path(Shape, Enveloped, Traceable, Transformable):
         for seg in segs:
             assert seg[0] == ls[-1]
             ls.append(seg[1])
-        return Path.from_points(tuple(ls), closed)
+        return Path.from_points(ls, closed)
 
     @staticmethod
     def from_list_of_tuples(

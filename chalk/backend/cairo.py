@@ -127,61 +127,95 @@ class ToCairoShape(ShapeVisitor[None]):
         )
         ctx.paint()
 
+from chalk.backend.patch import Patch
+import chalk.backend.patch
+def to_cairo(patch, ctx, ind):
+
+    v, c = patch.vert[ind], patch.command[ind]
+    i = 0
+    while i < c.shape[0] - 1:
+        if c[i] == chalk.backend.patch.Command.MOVETO.value:
+            ctx.move_to(v[i, 0], v[i, 1])
+            i += 1
+        if c[i] == chalk.backend.patch.Command.CURVE4.value:
+            ctx.curve_to(v[i, 0], v[i, 1], v[i+1, 0], v[i+1, 1], v[i+2, 0], v[i+2, 1])
+            i += 3
+
+
+import typeguard
+def rproduct(rtops):
+    from itertools import product
+    return product(*map(range, rtops))
 
 def render_cairo_prims(
-    prims: List[Primitive], ctx: PyCairoContext, even_odd: bool =False
+    prims: List[Primitive], ctx: PyCairoContext, even_odd: bool=False
 ) -> None:
 
     undo = False
     import cairo
-
-    if tx.JAX_MODE:
-        undo = True
-        import jax
-        import numpy as onp
-
-        prims = jax.tree.map(onp.asarray, prims)
-        tx.set_jax_mode(False)
+    import numpy as onp
 
     if even_odd:
         ctx.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
     shape_renderer = ToCairoShape()
-    print("prim", len(prims))
+    style = Style()
+    # Order the primitives
     d = {}
-    for prim in prims:
-        print(prim.order)
-        for ind, i in tx.X.np.ndenumerate(prim.order):
-            d[i] = (prim, ind)
+    patches = [Patch.from_prim(prim) for prim in prims]
     
-    print(list(d.keys()))
+    if tx.JAX_MODE:
+        undo = True
+        import jax
+        print("converting from jax")
+        d = jax.tree.map(onp.asarray, d)
+        tx.set_jax_mode(False)
+
+    for patch, prim in zip(patches, prims):
+        for ind, i in tx.X.np.ndenumerate(onp.asarray(prim.order)): # type: ignore
+            assert i not in d, f"Order {i} assigned twice"
+            d[i] = (patch, ind)
+
     for j in sorted(d.keys()):
-        prim, ind = d[j]
-        print(ind)
-        print(prim.order.shape)
-        print(prim.size())
-        prim = prim.split(ind)
-        print(prim.size())
-        print(prim.transform.shape)
-        for i in range(prim.transform.shape[0]):
-            # apply transformation
-            matrix = tx_to_cairo(prim.transform[i : i + 1])
-            ctx.transform(matrix)
-            assert prim.style is not None
-            ps: StyleHolder = prim.style
-            prim.shape.accept(shape_renderer, ctx=ctx, style=ps)
+        patch, ind = d[j]
+        inner = to_cairo(patch, ctx, ind)
+        style_new = patch.get_style(style, ind)
+        style_new.render(ctx)
+        ctx.stroke()
 
-            # undo transformation
-            matrix.invert()
-            ctx.transform(matrix)
 
-            style = ps
-            if (
-                hasattr(prim.shape, "loc_trails")
-                and prim.shape.loc_trails[0].trail.closed != 1
-            ):
-                style = style.merge(Style(fill_opacity_=0))
-            style.render(ctx)
-            ctx.stroke()
+    # Order the primitives
+    # d = {}
+    # for prim in prims:
+    #     prim_order: onp.ndarray = onp.asarray(prim.order)
+    #     for ind in rproduct(prim_order.shape): # type: ignore
+    #         n = prim_order[ind]
+    #         assert n not in d, "Order assigned twice"
+    #         d[prim_order[ind]] = (prim, ind)
+    
+    # for j in sorted(d.keys()):
+    #     prim, ind = d[j]
+    #     prim = prim.split(ind)
+    #     for i in range(prim.transform.shape[0]):
+    #         # apply transformation
+    #         # matrix = tx_to_cairo(prim.transform[i : i + 1])
+    #         # ctx.transform(matrix)
+    #         # ps: StyleHolder = prim.style
+    #         # if ps is None:
+    #         #     ps = Style()
+
+    #         # prim.shape.accept(shape_renderer, ctx=ctx, style=ps)
+
+    #         # # undo transformation
+    #         # matrix.invert()
+    #         # ctx.transform(matrix)
+
+    #         # style = ps
+    #         # if (
+    #         #     hasattr(prim.shape, "loc_trails")
+    #         #     and prim.shape.loc_trails[0].trail.closed != 1
+    #         # ):
+    #         #     style = style.merge(Style(fill_opacity_=0))
+
     if undo:
         tx.set_jax_mode(True)
 

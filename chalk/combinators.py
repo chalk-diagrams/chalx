@@ -14,9 +14,9 @@ def with_envelope(self: Diagram, other: Diagram) -> Diagram:
     return self.compose(other.get_envelope())
 
 
-def close_envelope(self: Diagram) -> Diagram:
-    env = self.get_envelope()
-    return self.compose(Envelope.from_bounding_box(env.to_bounding_box()))
+# def close_envelope(self: Diagram) -> Diagram:
+#     env = self.get_envelope()
+#     return self.compose(Envelope.from_bounding_box(env.to_bounding_box()))
 
 
 # with_trace, phantom,
@@ -50,34 +50,31 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
     return self#.compose(new_envelope)
 
 
-def frame(self: Diagram, extra: Floating) -> Diagram:
-    """Add outward directed padding for a diagram.
-    This padding is applied uniformly on all sides.
+# def frame(self: Diagram, extra: Floating) -> Diagram:
+#     """Add outward directed padding for a diagram.
+#     This padding is applied uniformly on all sides.
 
-    Args:
-        self (Diagram): Diagram object.
-        extra (float): Amount of padding to add.
+#     Args:
+#         self (Diagram): Diagram object.
+#         extra (float): Amount of padding to add.
 
-    Returns:
-        Diagram: A diagram object.
-    """
-    envelope = self.get_envelope()
+#     Returns:
+#         Diagram: A diagram object.
+#     """
+#     envelope = self.get_envelope()
 
-    def f(d: V2_t) -> Scalars:
-        assert envelope is not None
-        return envelope(d) + extra
+#     def f(d: V2_t) -> Scalars:
+#         assert envelope is not None
+#         return envelope(d) + extra
 
-    new_envelope = Envelope(f, envelope.is_empty)
-    return self.compose(new_envelope)
+#     new_envelope = Envelope(f, envelope.is_empty)
+#     return self.compose(new_envelope)
 
 
 # extrudeEnvelope, intrudeEnvelope
 
 
 def atop(self: Diagram, other: Diagram) -> Diagram:
-    # envelope1 = self.get_envelope()
-    # envelope2 = other.get_envelope()
-    # new_envelope = envelope1 + envelope2
     return self.compose(None, other)
 
 
@@ -104,56 +101,65 @@ def place_at(
 def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
     return concat(d.translate_by(p) for d, p in zip(diagrams, path.points()))
 
-Cat = Union[Iterable[Diagram], Diagram]
-def cat(
-    diagram: Cat, v: V2_t, sep: Optional[Floating] = None
+
+def batch_hcat(
+    diagrams: Diagram, sep: Optional[Floating] = None
 ) -> Diagram:
-    if isinstance(diagram, Diagram):
-        axes = diagram.size()
-        axis = len(axes) - 1
-        assert diagram.size() != ()
-        diagram = diagram._normalize()
-        import jax
-        from functools import partial
-        # def fn(a: Diagram, b: Diagram) -> Diagram:
-        #     @partial(jax.vmap)
-        #     def merge(a, b):
-        #         b.get_envelope()(-v)
-        #         new = a.juxtapose(b, v)
-        #         return new
-        #     return merge(a, b)
-        def call_scan(diagram):
-            @jax.vmap
-            def offset(diagram):
-                env = diagram.get_envelope()
-                right = env(v)
-                left  = env(-v)
-                return right, left
-            right, left = offset(diagram)
-            off = tx.X.np.roll(right, 1) + left
-            off = off.at[0].set(0)
-            off = tx.X.np.cumsum(off, axis=0)
-            @jax.vmap
-            def translate(off, diagram):
-                return diagram.translate_by(v * off[..., None, None])
-            return translate(off, diagram)
-            #return jax.lax.associative_scan(fn, diagram, axis=0).compose_axis()
-        for a in range(axis):
-            call_scan = jax.vmap(call_scan, in_axes=a, out_axes=a)
-        return call_scan(diagram).compose_axis()
+    return batch_cat(diagrams, tx.X.unit_x, sep)
 
-    else:
-        diagrams = iter(diagram)
-        start = next(diagrams, None)
-        sep_dia = hstrut(sep).rotate(tx.angle(v))
-        if start is None:
-            return empty()
+def batch_vcat(
+    diagrams: Diagram, sep: Optional[Floating] = None
+) -> Diagram:
+    return batch_cat(diagrams, tx.X.unit_y, sep)
 
-        def fn(a: Diagram, b: Diagram) -> Diagram:
-            return a.beside(sep_dia, v).beside(b, v)
+def batch_cat(diagram: Diagram, v: V2_t, sep: Optional[Floating] = None):
+    axes = diagram.size()
+    axis = len(axes) - 1
+    assert diagram.size() != ()
+    diagram = diagram._normalize()
+    import jax
+    from functools import partial
+    if sep is None:
+        sep = 0
+    def call_scan(diagram: Diagram) -> Diagram:
+        @jax.vmap
+        def offset(diagram : Diagram) -> Tuple[Scalars, Scalars]:
+            env = diagram.get_envelope()
+            right = env(v)
+            left  = env(-v)
+            return right, left
+        right, left = offset(diagram)
+        off = tx.X.np.roll(right, 1) + left + sep
+        off = off.at[0].set(0)
+        off = tx.X.np.cumsum(off, axis=0)
+        @jax.vmap
+        def translate(off: Scalars, diagram: Diagram) -> Diagram:
+            return diagram.translate_by(v * off[..., None, None])
+        return translate(off, diagram)
 
-        return fn(start, associative_reduce(fn, diagrams, empty()))
+    for a in range(axis):
+        call_scan = jax.vmap(call_scan, in_axes=a, out_axes=a)
+    return call_scan(diagram).compose_axis()
 
+def cat(
+    diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None
+) -> Diagram:
+    diagrams = iter(diagram)
+    start = next(diagrams, None)
+    sep_dia = hstrut(sep).rotate(tx.angle(v))
+    if start is None:
+        return empty()
+
+    def fn(a: Diagram, b: Diagram) -> Diagram:
+        return a.beside(sep_dia, v).beside(b, v)
+
+    return fn(start, associative_reduce(fn, diagrams, empty()))
+
+
+def batch_concat(diagram: Diagram) -> Diagram:
+    size = diagram.size()
+    assert size != ()
+    return diagram.compose_axis()
 
 def concat(diagrams: Iterable[Diagram]) -> Diagram:
     """
@@ -167,13 +173,7 @@ def concat(diagrams: Iterable[Diagram]) -> Diagram:
 
     """
     from chalk.core import BaseDiagram
-
-    if isinstance(diagram, Diagram):
-        size = diagram.size()
-        assert size != ()
-        return diagram.compose_axis()
-    else:
-        return BaseDiagram.concat(diagrams)  # type: ignore
+    return BaseDiagram.concat(diagrams)  # type: ignore
 
 
 def empty() -> Diagram:

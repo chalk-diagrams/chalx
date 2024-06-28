@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple
 
+from chalk.trace import TraceDistances
 import chalk.transform as tx
 from chalk.transform import Affine, Angles, P2_t, Scalars, V2_t
 #from chalk.types import TrailLike
@@ -18,6 +19,17 @@ if TYPE_CHECKING:
 
 Degrees = tx.Scalars
 
+def ensure_3d(x):
+    if len(x.shape) < 3:
+        return x.reshape(-1, *x.shape)
+    return x
+
+def ensure_2d(x):
+    if len(x.shape) < 2:
+        return x.reshape(-1, *x.shape)
+    return x
+
+
 
 @dataclass(frozen=True, unsafe_hash=True)
 class Segment:
@@ -26,8 +38,8 @@ class Segment:
     angles: Angles
 
     @staticmethod
-    def make(transform: Affine, angles: Angles):
-        return Segment(transform.reshape(-1, 3, 3), angles.reshape(-1, 2))
+    def make(transform: Affine, angles: Angles) -> Segment:
+        return Segment(ensure_3d(transform), ensure_2d(angles).astype(float))
 
     def split(self, i: int) -> Segment:
         return Segment.make(self.transform[i], self.angles[i])
@@ -125,6 +137,7 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     )
     return Segment.make(ret, angles)
 
+import jax
 
 def arc_envelope(
     segment: Segment, d: Float[Array, "#A 1 3 1"]
@@ -156,7 +169,7 @@ def set_offset(v: float) -> None:
 
 def arc_trace(
     segment: Segment, ray: tx.Ray
-) -> Tuple[Float[Array, "#A #B 2"], Bool[Array, "#A #B 2"]]:
+) -> TraceDistances:
     """
     Computes the Trace on all the arcs in a Segment.
 
@@ -170,7 +183,7 @@ def arc_trace(
     )
     # Mask out traces that are not in the angle range.
     mask = mask & segment.is_in_mod_360(ray.point(d))
-    return d.transpose(1, 2, 0), mask.transpose(1, 2, 0)
+    return TraceDistances(d.transpose(1, 2, 0), mask.transpose(1, 2, 0))
 
 
 def arc_seg(q: V2_t, height: tx.Floating) -> Trail:

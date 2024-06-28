@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as np
+#import numpy as np
 import os
 os.environ["CHALK_JAX"] = "1"
 # from jaxtyping import install_import_hook
@@ -7,20 +8,291 @@ os.environ["CHALK_JAX"] = "1"
 #     import chalk 
 from chalk import *
 from colour import Color
-import numpy as onp
-import optax
+from random import random
+import chalk
+print("grid")
+grid = rectangle(1, 1).translate(0, 0.5).fill_color("white") #+ (make_path([(0, 0), (1, 0)]) + make_path([(0, 0), (0, -1)])).line_color("black").line_width(5)
 
+chalk.tx.set_jax_mode(True)
+r, b = to_color("red"), to_color("blue")
+def plot():
+    @jax.vmap
+    @jax.vmap
+    def draw(x, y):      
+        rot = np.where(x % 2, 0, 180)
+        @jax.vmap 
+        def tri(j):
+            return triangle(1).translate(0, 1).rotate(360 * j / 6).fill_color("green")
+
+        @jax.vmap 
+        def around(j):
+            return square(1).fill_color("red").line_width(0).translate(0, 1 + 0.5).rotate(360. * j / 6).fill_color("blue")
+        # return (regular_polygon(6, 1) +  around(np.arange(6)).concat() + tri(np.arange(6)).concat()) \
+        #     .translate(x / 2, y * np.sqrt(1 - 0.25))#.fill_color(x/50 * r +  y/ 50 * b)
+        return (around(np.arange(6)).concat() + tri(np.arange(6)).concat()) 
+    
+    return draw(*np.broadcast_arrays(np.arange(1)[:, None], 
+                                     np.arange(1)))
+x = plot().concat().concat()
+# jax.tree_util.tree_map_with_path(lambda p,x: print(p, x.shape), x)
+assert x.size() == ()
+x = grid.scale(10) + x.translate(5, 5).scale(100)
+assert x.size() == ()
+prim = x.get_primitives()
+# for p in prim:
+#     print(p)
+#jax.tree_util.tree_map_with_path(lambda p,x: print(p, x.shape), prim)
+
+chalk.backend.svg.prims_to_file(prim, "test.svg", 1000, 1000)
+
+print("start")
+
+r, b = to_color("red"), to_color("blue")
+def plot():
+    @jax.vmap
+    @jax.vmap
+    def draw(x, y):      
+        rot = np.where(x % 2, 0, 180) 
+        return (regular_polygon(6, 1) + square(1).translate(0, -0.5).translate(0, 1)).translate(x / 2, y * np.sqrt(1 - 0.25)).fill_color(x/50 * r +  y/ 50 * b)
+        
+    return draw(*np.broadcast_arrays(np.arange(10)[:, None], 
+                                     np.arange(10)))
+x = plot().concat().concat()
+
+x = grid.scale(10) + x.scale_y(-1)
+x.get_primitives()
+
+#x.with_envelope(rectangle(10, 10)).render_svg("tile.svg", 512, 512)
+
+exit()
+
+
+r, b = to_color("red"), to_color("blue")
+def plot():
+    @jax.vmap
+    @jax.vmap
+    def draw(x, y):        
+        rot = np.where(x % 2, 0, 180) 
+        return triangle(1).rotate(rot).align_t().translate(x / 2, y * np.sqrt(1 - 0.25)).fill_color(x/50 * r +  y/ 50 * b)
+        
+    return draw(*np.broadcast_arrays(np.arange(20)[:, None], 
+                                     np.arange(20)))
+x = plot().concat().concat()
+
+x = grid.scale_x(100) + x.with_envelope(empty()).scale_y(-1)
+x.render_svg("tile.svg", 512)
+exit()
+
+r, b = to_color("red"), to_color("blue")
+def plot():
+    @jax.vmap
+    @jax.vmap
+    def draw(x, y):
+        
+        return square(1).translate(x, y).fill_color( x/50 * r +  y/ 50 * b)
+        
+    return draw(*np.broadcast_arrays(np.arange(20)[:, None], 
+                                     np.arange(20)))
+x = plot().concat().concat()
+
+x = grid.scale_x(100) + x.with_envelope(empty()).scale_y(-1)
+x.render_svg("tile.svg", 512)
+exit()
+
+
+
+data = [[random(), random(), random(), random(), random()]
+         for _ in range(50)]
+
+
+def plot(data):
+    @jax.vmap
+    def draw(pt, pt2, i):
+        line = make_path([(i, pt[0]), (i+1, pt2[0])]).line_color("black")
+        return line + circle(0.1).translate(i, pt[0]).fill_color("blue")
+        
+    return draw(data, tx.X.np.roll(data, -1, axis=0), np.arange(50))
+
+x = plot(np.array(data))
+
+x = grid.scale_x(100) + x.concat().with_envelope(empty()).scale_y(-1)
+x.render_svg("plot.svg", 512)
+
+
+exit()
+data = [[random(), random(), random(), random(), random()]
+         for _ in range(50)]
+grid = rectangle(1, 1).align_bl().fill_color("white") + (make_path([(0, 0), (1, 0)]) + make_path([(0, 0), (0, -1)])).line_color("black").line_width(5)
+
+def make_segment(start, end):
+    return (seg(V2(1, 0)).rotate(-start) + arc_seg_angle(start, end-start) + seg(V2(-1, 0)).rotate(-end)).close().stroke()
+
+jax.tree_util.tree_map_with_path(lambda p, x: print(p, x.shape), make_segment(0, 1))
+#(make_segment(0, 90).fill_color("orange") + make_segment(90, 100).line_width(2).line_color("green").fill_color("blue")).render("/tmp/t2.png")
+
+def pie(data):
+    pt = data / data.sum(0)[None]
+    pt = np.cumsum(pt, 0)
+    print(pt[:, 0])
+    T = data.shape[0]
+    @jax.vmap
+    def draw(pt, pt2, i):
+        return make_segment(360 * pt[0], 360 * pt2[0]).fill_color(np.ones(3) * ((10 * i) % T / T))
+        
+    return draw(pt, tx.X.np.roll(pt, -1, axis=0), np.arange(T))
+
+x = pie(np.array(data))
+# jax.tree_util.tree_map_with_path(lambda p, x: print(p, x.shape), x)
+
+
+x = grid + x.concat().with_envelope(empty())
+x.render_svg("pie.svg", 512)
+
+exit()
+
+
+def bar(data):
+    @jax.vmap
+    def draw(pt):
+        r, b = to_color("red"), to_color("blue")
+        bar = rectangle(0.1, pt[0])
+        return bar.line_width(1)
+        
+    return draw(data)
+
+x = bar(np.array(data)).align_t().hcat(0.1)
+
+# print("prims")
+x = grid.scale_x(100) + x.with_envelope(empty()).scale_y(-1)
+
+x.render_svg("bar.svg", 512)
+exit()
+
+
+data = [[random(), random(), random(), random(), random()]
+         for _ in range(500)]
+grid = rectangle(1, 1).align_bl().fill_color("white") + (make_path([(0, 0), (1, 0)]) + make_path([(0, 0), (0, -1)])).line_color("black").line_width(5)
+
+
+def scatter(data):
+    @jax.vmap
+    def draw(pt):
+        r, b = to_color("red"), to_color("blue")
+        mark1 = circle(0.01)
+        mark2 = square(2 * 0.01)
+        mark = jax.lax.cond(pt[2] > 0.5, 
+                     lambda: mark1,
+                     lambda: mark2
+                     )
+        color = r * pt[3] + b * (1-pt[3])
+        scale = pt[4]
+        return mark.scale(scale).translate(pt[0], pt[1]).fill_color(color).line_width(1)
+        
+    return draw(data)
+
+
+# print("scatter")
+x = scatter(np.array(data)).concat()
+
+# print("prims")
+x = grid + x.with_envelope(empty()).scale_y(-1)
+
+print("Render")
+# x.render("scatter.png", 512)
+x.render_svg("scatter.svg", 512)
+exit()
+
+
+
+
+
+# Example 1: Vector Arguments
+def example(v):
+    return circle(1.0).fill_color(np.ones(3) * v[:, None] / 6)
+
+d = example(np.arange(1, 6))
+print(d.get_envelope().width)
+d = d.hcat()
+d.render(f"examples/output/intro-jax-1.png", 64)
+
+
+# Example 2: Broadcast Arguments
+def example(v):
+    return circle(v[:, None] / 6) \
+        .fill_color(np.ones(3) * v[:, None, None] / 6)
+
+d = example(np.arange(1, 6)).hcat().vcat()
+d.render(f"examples/output/intro-jax-2.png", 64)
+
+
+# Example 3: Broadcast Compose
+def example(v):
+    return circle(v[:, None] / 6).fill_color("white") + \
+        circle(v[:, None, None] / 6).fill_color("blue")
+d = example(np.arange(1, 6)).hcat().vcat()
+d.render(f"examples/output/intro-jax-3.png", 64)
+
+# Example 4: Vmap
 @jax.vmap
+def example(i):
+    return circle(i / 6).fill_color(i / 6 *  np.ones(3))
+d = example(np.arange(1, 6)).hcat()
+d.render(f"examples/output/intro-jax-4.png", 64)
+
+
+# Example 5: Inner Vmap
+@jax.vmap
+def example(i):
+    @jax.vmap
+    def inner(j):
+        return circle(j / 6 + i / 6)
+    return inner(np.arange(1, 6)).fill_color(i / 6 *  np.ones(3)).hcat()
+d = example(np.arange(1, 6)).vcat()
+d.render(f"examples/output/intro-jax-5.png", 64)
+
+
+
+
+
+
+
+# i =4
+# x = (circle(0.3 * i / 6).fill_color(np.ones(3) * i / 6) + 
+#             square(0.1).fill_color("white"))
+# x = x / circle(0.1).fill_color("blue")
+# x.render("/tmp/t3.png")
+
+
+#@jax.vmap
 def inner(i):
-    # return (circle(0.3).fill_color(np.ones(3) * (6 - i) / 6))
-    return (circle(0.3 * i / 6).fill_color(np.ones(3) * i / 6) + 
+    return (circle(0.3 * i / 6).fill_color(np.ones(3) * i[:, None] / 6)
+             + 
             square(0.1).fill_color("white"))
 
-inside = hcat(inner(np.arange(2, 6)))
-inside.get_trace()(P2(0, 0), V2(1, 0))
-inside.render("/tmp/t.png")
+# inside = hcat(inner(np.arange(2, 6)))
+# inside.render("/tmp/t.png")
+
+# jax.tree_util.tree_map_with_path(lambda p, x: print(p, x.shape), x)
+# print(inner(np.arange(4, 6)).transform.shape)
+# x = circle(1.0).scale(np.array([1, 2]))
+# print(inner(np.arange(4, 6)).size())
+# print(inner(np.arange(4, 6)).transform.shape)
+x = (inner(np.arange(4, 6)) / circle(0.1).fill_color("blue")).hcat()
+x = (inner(np.arange(4, 6)) / circle(0.1).fill_color("blue")).align_t().hcat()
+# jax.tree_util.tree_map_with_path(lambda p, x: print(p, x.shape), x)
+# exit()
+
+x.render("/tmp/t2.png")
+exit()
+
+@jax.vmap
+def width(diagram):
+    return diagram.get_envelope().width
+
+print(width(inner(np.arange(2, 6))))
 
 
+exit()
 
 @jax.vmap
 def outer(j):

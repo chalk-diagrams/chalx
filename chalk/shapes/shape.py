@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Self
 
 import chalk.transform as tx
-# from chalk.envelope import Envelope
-from chalk.trace import Trace
+from chalk.envelope import Envelope
+from chalk.trace import Trace, TraceDistances
 from chalk.trail import Trail
 from chalk.transform import BoundingBox
 from chalk.types import Diagram
@@ -19,16 +19,19 @@ class Shape:
     def get_bounding_box(self) -> BoundingBox:
         raise NotImplementedError
 
-    # def get_envelope(self) -> Envelope:
-    #     return Envelope.from_bounding_box(self.get_bounding_box())
+    def envelope(self, t: tx.V2_t) -> tx.Scalars:
+        return Envelope.from_bounding_box(self.get_bounding_box(), t)
 
-    def get_trace(self) -> Trace:
+    def split(self, i: int) -> Self:
+        return self
+
+    def get_trace(self, t: tx.Ray) -> TraceDistances:
         box = self.get_bounding_box()
         return (
             Trail.rectangle(box.width, box.height)
             .stroke()
             .center_xy()
-            .get_trace()
+            .get_trace()(t.pt, t.v)
         )
 
     def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C:

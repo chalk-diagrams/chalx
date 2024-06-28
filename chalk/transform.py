@@ -14,7 +14,8 @@ import array_api_compat.numpy as onp
 if TYPE_CHECKING:
     from chalk.namespace import _ArrayAPINameSpace
 else:
-    import numpy.array_api as _ArrayAPINameSpace
+    from chalk.namespace import _ArrayAPINameSpace
+    #import numpy.array_api as _ArrayAPINameSpace
 
 
 JAX_MODE = False
@@ -28,7 +29,8 @@ else:
     import jax.numpy as jnp
     from jax import config
     from jaxtyping import Array
-
+    import jax
+    Array = Union[Array, onp.ndarray]  
     JAX_MODE = True
     config.update("jax_enable_x64", True)  # type: ignore
     config.update("jax_debug_nans", True)  # type: ignore
@@ -45,15 +47,10 @@ V2_t = Float[Array, "*#B 3 1"]
 P2_t = Float[Array, "*#B 3 1"]
 Scalars = Float[Array, "*#B"]
 IntLike = Union[Int[Array, "*#B"], int]
-Floating = Union[Scalars, float, int]
+Floating = Union[Scalars, IntLike, float, int]
 Mask = Bool[Array, "*#B"]
 ColorVec = Float[Array, "#*B 3"]
 Property = Float[Array, "#*B"]
-
-TraceDistances = Tuple[Float[Array, "#B S"], Bool[Array, "#B S"]]
-
-
-
 
 class _tx:
 
@@ -61,9 +58,10 @@ class _tx:
     def np(self) -> type[_ArrayAPINameSpace]:
         if JAX_MODE:
 
-            import jax.numpy as jnp
+            from chalk.namespace import _ArrayAPINameSpace
 
-            return jnp # type: ignore
+            return _ArrayAPINameSpace # type: ignore
+            
         else:
             return onp # type: ignore
 
@@ -122,7 +120,7 @@ class _tx:
         return self.np.asarray([0.0, 0.0, 1.0]).reshape((1, 3, 1))
 
     @property
-    def ident(self) -> V2_t:
+    def ident(self) -> Affine:
         return self.np.asarray(
             [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]
         ).reshape((1, 3, 3))
@@ -134,12 +132,12 @@ tx = _tx()
 def ftos(f: Floating) -> Scalars:
     return tx.np.asarray(f, dtype=tx.np.double)#.reshape(-1)
 
-
+@jax.jit
 def V2(x: Floating, y: Floating) -> V2_t:
     x, y, o = tx.np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
     return tx.np.stack([x, y, o], axis=-1)[..., None]
 
-
+@jax.jit
 def P2(x: Floating, y: Floating) -> P2_t:
     x, y, o = tx.np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
     return tx.np.stack([x, y, o], axis=-1)[..., None]
@@ -153,6 +151,10 @@ def length(v: P2_t) -> Scalars:
     return tx.np.sqrt(length2(v))
 
 
+def scale_vec(v: V2_t, d: Floating) -> V2_t:
+    return d[..., None, None] * v
+
+
 def length2(v: V2_t) -> Scalars:
     return (v * v)[..., :2, 0].sum(-1)
 
@@ -164,11 +166,11 @@ def angle(v: P2_t) -> Scalars:
 def rad(v: P2_t) -> Scalars:
     return tx.np.atan2(v[..., 1, 0], v[..., 0, 0])
 
-
+@jax.jit
 def perpendicular(v: V2_t) -> V2_t:
     return tx.np.hstack([-v[..., 1, 0], v[..., 0, 0], v[..., 2, 0]])
 
-
+@jax.jit
 def make_affine(
     a: Floating,
     b: Floating,
@@ -183,7 +185,7 @@ def make_affine(
     x = x.reshape(vals[0].shape + (3, 3))
     return x
 
-
+@jax.jit
 def dot(v1: V2_t, v2: V2_t) -> Scalars:
     return (v1 * v2).sum(-1).sum(-1)
 
@@ -201,35 +203,35 @@ def to_vec(p: P2_t) -> V2_t:
     index = (Ellipsis, 2, 0)
     return tx.index_update(p, index, 0)  # type: ignore
 
-
+@jax.jit
 def polar(angle: Floating, length: Floating = 1.0) -> P2_t:
     rad = to_radians(angle)
     x, y = tx.np.cos(rad), tx.np.sin(rad)
     return V2(x * length, y * length)
 
-
+@jax.jit
 def scale(vec: V2_t) -> Affine:
     x, y = dot(tx.unit_x, vec), dot(tx.unit_y, vec)
     return make_affine(x, 0.0, 0.0, 0.0, y, 0.0)
 
-
+@jax.jit
 def translation(vec: V2_t) -> Affine:
     x, y = dot(tx.unit_x, vec), dot(tx.unit_y, vec)
     return make_affine(1.0, 0.0, x, 0.0, 1.0, y)
 
-
+@jax.jit
 def get_translation(aff: Affine) -> V2_t:
     index = (Ellipsis, slice(0, 2), 0)
     base = tx.np.zeros((aff.shape[:-2]) + (3, 1))
     return tx.index_update(base, index, aff[..., :2, 2])  # type: ignore
 
-
+@jax.jit
 def rotation(rad: Floating) -> Affine:
     rad = ftos(-rad)
     ca, sa = tx.np.cos(rad), tx.np.sin(rad)
     return make_affine(ca, -sa, 0.0, sa, ca, 0.0)
 
-
+@jax.jit
 def inv(aff: Affine) -> Affine:
     det = tx.np.linalg.det(aff)
     # assert tx.np.all(tx.np.abs(det) > 1e-5), f"{det} {aff}"
@@ -253,17 +255,17 @@ def from_radians(θ: Floating) -> Scalars:
 def to_radians(θ: Floating) -> Scalars:
     return (ftos(θ) / 180) * math.pi
 
-
+@jax.jit
 def remove_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 1), 2)
     return tx.index_update(aff, index, 0)  # type: ignore
 
-
+@jax.jit
 def remove_linear(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     return tx.index_update(aff, index, tx.np.eye(2))  # type: ignore
 
-
+@jax.jit
 def transpose_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     swap = aff[..., :2, :2].swapaxes(-1, -2)
@@ -355,7 +357,7 @@ class BoundingBox(Transformable):
     def height(self) -> Scalars:
         return (self.br - self.tl)[..., 1, 0]
 
-
+@jax.jit
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
 ) -> Tuple[Scalars, Mask]:
@@ -425,6 +427,68 @@ def ray_circle_intersection(
     #     ]
 
 
+def arc_to_bezier(theta1, theta2, n=2):
+    """
+    Return a `Path` for the unit circle arc from angles *theta1* to
+    *theta2* (in degrees).
+
+    *theta2* is unwrapped to produce the shortest arc within 360 degrees.
+    That is, if *theta2* > *theta1* + 360, the arc will be from *theta1* to
+    *theta2* - 360 and not a full circle plus some extra overlap.
+
+    If *n* is provided, it is the number of spline segments to make.
+    If *n* is not provided, the number of spline segments is
+    determined based on the delta between *theta1* and *theta2*.
+
+        Masionobe, L.  2003.  `Drawing an elliptical arc using
+        polylines, quadratic or cubic Bezier curves
+        <https://web.archive.org/web/20190318044212/http://www.spaceroots.org/documents/ellipse/index.html>`_.
+    """
+    np = tx.np
+    halfpi = np.pi * 0.5
+    theta1, theta2 = np.broadcast_arrays(theta1, theta2)
+    extra = theta1.shape
+    eta1 = theta1
+    eta2 = theta2 - 360 * np.floor((theta2 - theta1) / 360)
+    # Ensure 2pi range is not flattened to 0 due to floating-point errors,
+    # but don't try to expand existing 0 range.
+    eta2 = np.where((theta2 != theta1) & (eta2 <= eta1), eta2 + 360, eta2)
+    eta1, eta2 = to_radians(eta1), to_radians(eta2)
+
+    deta = (eta2 - eta1) / n
+    t = np.tan(0.5 * deta)
+    alpha = np.sin(deta) * (np.sqrt(4.0 + 3.0 * t * t) - 1) / 3.0
+    alpha = alpha[..., None]
+
+    steps = np.linspace(eta1, eta2, n + 1, axis=-1)
+    cos_eta = np.cos(steps)
+    sin_eta = np.sin(steps)
+
+    xA = cos_eta[..., :-1]
+    yA = sin_eta[..., :-1]
+    xA_dot = -yA
+    yA_dot = xA
+
+    xB = cos_eta[..., 1:]
+    yB = sin_eta[..., 1:]
+    xB_dot = -yB
+    yB_dot = xB
+
+    length = n * 3
+
+    vertices = onp.ones(extra + (length, 3, 1))
+    vertex_offset = 0
+    end = length
+
+    vertices[..., vertex_offset:end:3, 0, 0] = xA + alpha * xA_dot
+    vertices[..., vertex_offset:end:3, 1, 0] = yA + alpha * yA_dot
+    vertices[..., vertex_offset+1:end:3, 0, 0] = xB - alpha * xB_dot
+    vertices[..., vertex_offset+1:end:3, 1, 0] = yB - alpha * yB_dot
+    vertices[..., vertex_offset+2:end:3, 0, 0] = xB
+    vertices[..., vertex_offset+2:end:3, 1, 0] = yB
+    return vertices
+
+
 # Explicit rexport
 X = tx
-__all__ = ["X"]
+__all__ = ["X", "Array"]
