@@ -14,7 +14,7 @@ def align_to(self: Diagram, v: V2_t) -> Diagram:
 def snug(self: Diagram, v: V2_t) -> Diagram:
     "Align based on the trace."
     trace = self.get_trace()
-    d, _ = trace.trace_v(tx.X.origin, v)
+    d, _ = trace.trace_v(tx.origin, v)
     assert d is not None
     t = tx.translation(-d)
     return self.apply_transform(t)
@@ -28,19 +28,19 @@ def center(self: Diagram) -> Diagram:
 
 
 def align_t(self: Diagram) -> Diagram:
-    return align_to(self, -tx.X.unit_y)
+    return align_to(self, -tx.unit_y)
 
 
 def align_b(self: Diagram) -> Diagram:
-    return align_to(self, tx.X.unit_y)
+    return align_to(self, tx.unit_y)
 
 
 def align_r(self: Diagram) -> Diagram:
-    return align_to(self, tx.X.unit_x)
+    return align_to(self, tx.unit_x)
 
 
 def align_l(self: Diagram) -> Diagram:
-    return align_to(self, -tx.X.unit_x)
+    return align_to(self, -tx.unit_x)
 
 
 def align_tl(self: Diagram) -> Diagram:

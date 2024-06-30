@@ -5,7 +5,7 @@ from typing import Any, Self
 
 import chalk.transform as tx
 from chalk.envelope import Envelope
-from chalk.trace import Trace, TraceDistances
+from chalk.trace import TraceDistances
 from chalk.trail import Trail
 from chalk.transform import BoundingBox
 from chalk.types import Diagram

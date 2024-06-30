@@ -71,10 +71,16 @@ def rectangle(
         Diagrams
     """
     if radius is None:
-        return Trail.rectangle(width, height).stroke().translate(-width/2, -height/2)
+        return (
+            Trail.rectangle(width, height)
+            .stroke()
+            .translate(-width / 2, -height / 2)
+        )
     else:
         return (
-            Trail.rounded_rectangle(width, height, radius).stroke().translate(-width/2, -height/2)
+            Trail.rounded_rectangle(width, height, radius)
+            .stroke()
+            .translate(-width / 2, -height / 2)
         )
 
 

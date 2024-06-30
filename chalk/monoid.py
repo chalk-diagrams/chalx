@@ -49,7 +49,7 @@ class Monoid:
             return elems[0]
         return associative_reduce(cls.__add__, elems, cls.empty())
 
-    def reduce(self, axis: int=0) -> Self:
+    def reduce(self, axis: int = 0) -> Self:
         raise NotImplementedError()
 
 

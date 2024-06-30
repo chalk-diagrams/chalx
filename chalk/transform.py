@@ -5,40 +5,34 @@ import math
 # how to make things work with both numpy and jax
 import os
 from dataclasses import dataclass
+from functools import partial
 from types import ModuleType
 from typing import TYPE_CHECKING, Tuple, Union
 
+import array_api_compat.numpy as onp
 from jaxtyping import Bool, Float, Int
 from typing_extensions import Self
-import array_api_compat.numpy as onp
-if TYPE_CHECKING:
-    from chalk.namespace import _ArrayAPINameSpace
-else:
-    from chalk.namespace import _ArrayAPINameSpace
-    #import numpy.array_api as _ArrayAPINameSpace
-
-
-JAX_MODE = False
 
 if not TYPE_CHECKING and not eval(os.environ.get("CHALK_JAX", "0")):
     ops = None
     import numpy as np
+
     Array = np.ndarray
-    jnp = None
+    JAX_MODE = False
+    jit = lambda x: x
+
 else:
-    import jax.numpy as jnp
+    import jax
+
+    jit = jax.jit
+    import jax.numpy as np
     from jax import config
     from jaxtyping import Array
-    import jax
-    Array = Union[Array, onp.ndarray]  
+
+    Array = Array
     JAX_MODE = True
     config.update("jax_enable_x64", True)  # type: ignore
     config.update("jax_debug_nans", True)  # type: ignore
-
-
-def set_jax_mode(v: bool) -> None:
-    global JAX_MODE
-    JAX_MODE = v
 
 
 Affine = Float[Array, "*#B 3 3"]
@@ -52,125 +46,125 @@ Mask = Bool[Array, "*#B"]
 ColorVec = Float[Array, "#*B 3"]
 Property = Float[Array, "#*B"]
 
-class _tx:
 
-    @property
-    def np(self) -> type[_ArrayAPINameSpace]:
-        if JAX_MODE:
+def index_update(arr: Array, index, values) -> Array:  # type:ignore
+    """
+    Update the array `arr` at the given `index` with `values`
+    and return the updated array.
+    Supports both NumPy and JAX arrays.
+    """
+    if isinstance(arr, onp.ndarray):
+        # If the array is a NumPy array
+        new_arr = arr.copy()
+        new_arr[index] = values
+        return new_arr  # type:ignore
+    else:
+        # If the array is a JAX array
+        return arr.at[index].set(values)
 
-            from chalk.namespace import _ArrayAPINameSpace
 
-            return _ArrayAPINameSpace # type: ignore
-            
-        else:
-            return onp # type: ignore
+def union(
+    x: Tuple[Array, Array], y: Tuple[Array, Array]
+) -> Tuple[Array, Array]:
+    if isinstance(x, onp.ndarray):
+        n1 = np.concatenate([x[0], y[0]], axis=1)
+        m = np.concatenate([x[1], y[1]], axis=1)
+        return n1, m
+    else:
+        n1 = np.concatenate([x[0], y[0]], axis=1)
+        m = np.concatenate([x[1], y[1]], axis=1)
+        return n1, m
 
-    @staticmethod
-    def union(
-        x: Tuple[Array, Array], y: Tuple[Array, Array]
-    ) -> Tuple[Array, Array]:
-        if isinstance(x, onp.ndarray):
-            n1 = tx.np.concatenate([x[0], y[0]], axis=1)
-            m = tx.np.concatenate([x[1], y[1]], axis=1)
-            return n1, m
-        else:
-            n1 = tx.np.concatenate([x[0], y[0]], axis=1)
-            m = tx.np.concatenate([x[1], y[1]], axis=1)
-            return n1, m
+def union_axis(x: Tuple[Array, Array], axis: int) -> Tuple[Array, Array]:
+    n = [
+        np.squeeze(x, axis=axis)
+        for x in np.split(x[0], x[0].shape[axis], axis=axis)
+    ]
+    m = [
+        np.squeeze(x, axis=axis)
+        for x in np.split(x[1], x[1].shape[axis], axis=axis)
+    ]
+    ret = functools.reduce(union, zip(n, m))
+    return ret
 
-    @staticmethod
-    def union_axis(x: Tuple[Array, Array], axis: int) -> Tuple[Array, Array]:
-        n = [
-            tx.np.squeeze(x, axis=axis)
-            for x in tx.np.split(x[0], x[0].shape[axis], axis=axis)
-        ]
-        m = [
-            tx.np.squeeze(x, axis=axis)
-            for x in tx.np.split(x[1], x[1].shape[axis], axis=axis)
-        ]
-        ret = functools.reduce(_tx.union, zip(n, m))
-        return ret
+    
+unit_x = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
+unit_y = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
 
-    @staticmethod
-    def index_update(arr, index, values):  # type:ignore
-        """
-        Update the array `arr` at the given `index` with `values`
-        and return the updated array.
-        Supports both NumPy and JAX arrays.
-        """
-        if isinstance(arr, onp.ndarray):
-            # If the array is a NumPy array
-            new_arr = arr.copy()
-            new_arr[index] = values
-            return new_arr
-        else:
-            # If the array is a JAX array
-            return arr.at[index].set(values)
+origin = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
 
-    @property
-    def unit_x(self) -> V2_t:
-        return self.np.asarray([1.0, 0.0, 0.0]).reshape((1, 3, 1))
-
-    @property
-    def unit_y(self) -> V2_t:
-        return self.np.asarray([0.0, 1.0, 0.0]).reshape((1, 3, 1))
-
-    @property
-    def origin(self) -> V2_t:
-        return self.np.asarray([0.0, 0.0, 1.0]).reshape((1, 3, 1))
-
-    @property
-    def ident(self) -> Affine:
-        return self.np.asarray(
+ident = np.asarray(
             [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]
-        ).reshape((1, 3, 3))
+        ).reshape((3, 3))
 
 
-tx = _tx()
 
 
+
+@partial(np.vectorize, signature="()->()")
+@jit
 def ftos(f: Floating) -> Scalars:
-    return tx.np.asarray(f, dtype=tx.np.double)#.reshape(-1)
+    return np.asarray(f, dtype=np.double)
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(),()->(3,1)")
 def V2(x: Floating, y: Floating) -> V2_t:
-    x, y, o = tx.np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
-    return tx.np.stack([x, y, o], axis=-1)[..., None]
+    x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
+    return np.stack([x, y, o], axis=-1)[..., None]
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
-    x, y, o = tx.np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
-    return tx.np.stack([x, y, o], axis=-1)[..., None]
+    x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
+    return np.stack([x, y, o], axis=-1)[..., None]
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->(3,1)")
 def norm(v: V2_t) -> V2_t:
     return v / length(v)[..., None, None]
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->()")
 def length(v: P2_t) -> Scalars:
-    return tx.np.sqrt(length2(v))
+    return np.sqrt(length2(v))
 
 
+@jit
+@partial(np.vectorize, signature="(3,1),()->(3,1)")
 def scale_vec(v: V2_t, d: Floating) -> V2_t:
     return d[..., None, None] * v
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->()")
 def length2(v: V2_t) -> Scalars:
     return (v * v)[..., :2, 0].sum(-1)
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->()")
 def angle(v: P2_t) -> Scalars:
     return from_rad * rad(v)
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->()")
 def rad(v: P2_t) -> Scalars:
-    return tx.np.atan2(v[..., 1, 0], v[..., 0, 0])
+    return np.arctan2(v[..., 1, 0], v[..., 0, 0])
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,1)->(3,1)")
 def perpendicular(v: V2_t) -> V2_t:
-    return tx.np.hstack([-v[..., 1, 0], v[..., 0, 0], v[..., 2, 0]])
+    return np.hstack([-v[..., 1, 0], v[..., 0, 0], v[..., 2, 0]])
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(),(),(),(),(),()->(3,3)")
 def make_affine(
     a: Floating,
     b: Floating,
@@ -180,61 +174,80 @@ def make_affine(
     f: Floating,
 ) -> Affine:
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
-    vals = tx.np.broadcast_arrays(*vals)
-    x = tx.np.stack(vals, axis=-1)
-    x = x.reshape(vals[0].shape + (3, 3))
-    return x
+    vals = np.broadcast_arrays(*vals)
+    x = np.stack(vals, axis=-1)
+    return x.reshape((3, 3))
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,1),(3,1)->()")
 def dot(v1: V2_t, v2: V2_t) -> Scalars:
     return (v1 * v2).sum(-1).sum(-1)
 
 
+@jit
+@partial(np.vectorize, signature="(3,1),(3,1)->()")
 def cross(v1: V2_t, v2: V2_t) -> Scalars:
-    return tx.np.cross(v1, v2)
+    return np.cross(v1, v2)
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->(3,1)")
 def to_point(v: V2_t) -> P2_t:
     index = (Ellipsis, 2, 0)
-    return tx.index_update(v, index, 1)  # type: ignore
+    return index_update(v, index, 1)  # type: ignore
 
 
+@jit
+@partial(np.vectorize, signature="(3,1)->(3,1)")
 def to_vec(p: P2_t) -> V2_t:
     index = (Ellipsis, 2, 0)
-    return tx.index_update(p, index, 0)  # type: ignore
+    return index_update(p, index, 0)  # type: ignore
 
-@jax.jit
-def polar(angle: Floating, length: Floating = 1.0) -> P2_t:
+
+@jit
+@partial(np.vectorize, signature="()->(3,1)")
+def polar(angle: Floating) -> P2_t:
     rad = to_radians(angle)
-    x, y = tx.np.cos(rad), tx.np.sin(rad)
-    return V2(x * length, y * length)
+    x, y = np.cos(rad), np.sin(rad)
+    return V2(x, y)
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,1)->(3,3)")
 def scale(vec: V2_t) -> Affine:
-    x, y = dot(tx.unit_x, vec), dot(tx.unit_y, vec)
+    x, y = dot(unit_x, vec), dot(unit_y, vec)
     return make_affine(x, 0.0, 0.0, 0.0, y, 0.0)
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,1)->(3,3)")
 def translation(vec: V2_t) -> Affine:
-    x, y = dot(tx.unit_x, vec), dot(tx.unit_y, vec)
+    x, y = dot(unit_x, vec), dot(unit_y, vec)
     return make_affine(1.0, 0.0, x, 0.0, 1.0, y)
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,3)->(3,1)")
 def get_translation(aff: Affine) -> V2_t:
     index = (Ellipsis, slice(0, 2), 0)
-    base = tx.np.zeros((aff.shape[:-2]) + (3, 1))
-    return tx.index_update(base, index, aff[..., :2, 2])  # type: ignore
+    base = np.zeros((aff.shape[:-2]) + (3, 1))
+    return index_update(base, index, aff[..., :2, 2])  # type: ignore
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="()->(3,3)")
 def rotation(rad: Floating) -> Affine:
     rad = ftos(-rad)
-    ca, sa = tx.np.cos(rad), tx.np.sin(rad)
+    ca, sa = np.cos(rad), np.sin(rad)
     return make_affine(ca, -sa, 0.0, sa, ca, 0.0)
 
-@jax.jit
+
+@partial(np.vectorize, signature="(3,3)->(3,3)")
+@jit
 def inv(aff: Affine) -> Affine:
-    det = tx.np.linalg.det(aff)
-    # assert tx.np.all(tx.np.abs(det) > 1e-5), f"{det} {aff}"
+    det = np.linalg.det(aff)
+    # assert np.all(np.abs(det) > 1e-5), f"{det} {aff}"
     idet = 1.0 / det
     sa, sb, sc = aff[..., 0, 0], aff[..., 0, 1], aff[..., 0, 2]
     sd, se, sf = aff[..., 1, 0], aff[..., 1, 1], aff[..., 1, 2]
@@ -248,28 +261,38 @@ def inv(aff: Affine) -> Affine:
 from_rad = 180 / math.pi
 
 
+@jit
+@partial(np.vectorize, signature="()->()")
 def from_radians(θ: Floating) -> Scalars:
     return ftos(θ) * from_rad
 
 
+@jit
+@partial(np.vectorize, signature="()->()")
 def to_radians(θ: Floating) -> Scalars:
     return (ftos(θ) / 180) * math.pi
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,3)->(3,3)")
 def remove_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 1), 2)
-    return tx.index_update(aff, index, 0)  # type: ignore
+    return index_update(aff, index, 0)  # type: ignore
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,3)->(3,3)")
 def remove_linear(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 2), slice(0, 2))
-    return tx.index_update(aff, index, tx.np.eye(2))  # type: ignore
+    return index_update(aff, index, np.eye(2))  # type: ignore
 
-@jax.jit
+
+@jit
+@partial(np.vectorize, signature="(3,3)->(3,3)")
 def transpose_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     swap = aff[..., :2, :2].swapaxes(-1, -2)
-    return tx.index_update(aff, index, swap)  # type: ignore
+    return index_update(aff, index, swap)  # type: ignore
 
 
 class Transformable:
@@ -345,8 +368,8 @@ class BoundingBox(Transformable):
     def apply_transform(self, t: Affine) -> Self:  # type: ignore
         tl = t @ self.tl
         br = t @ self.br
-        tl2 = tx.np.minimum(tl, br)
-        br2 = tx.np.maximum(tl, br)
+        tl2 = np.minimum(tl, br)
+        br2 = np.maximum(tl, br)
         return BoundingBox(tl2, br2)  # type: ignore
 
     @property
@@ -357,7 +380,8 @@ class BoundingBox(Transformable):
     def height(self) -> Scalars:
         return (self.br - self.tl)[..., 1, 0]
 
-@jax.jit
+
+@partial(np.vectorize, signature="(3,1),(3,1),()->(),()")
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
 ) -> Tuple[Scalars, Mask]:
@@ -389,32 +413,27 @@ def ray_circle_intersection(
     eps = 1e-10  # rounding error tolerance
 
     mid = (((-eps <= Δ) & (Δ < 0)))[..., None]
-    mask = (Δ < -eps)[..., None] | (mid * tx.np.asarray([1, 0]))
+    mask = (Δ < -eps)[..., None] | (mid * np.asarray([1, 0]))
 
     # Bump NaNs since they are going to me masked out.
-    ret = tx.np.stack(
+    ret = np.stack(
         [
-            (-b - tx.np.sqrt(Δ + 1e9 * mask[..., 0])) / (2 * a),
-            (
-                -b
-                + tx.np.sqrt(
-                    tx.np.where(mid[..., 0], 0, Δ) + 1e9 * mask[..., 1]
-                )
-            )
+            (-b - np.sqrt(Δ + 1e9 * mask[..., 0])) / (2 * a),
+            (-b + np.sqrt(np.where(mid[..., 0], 0, Δ) + 1e9 * mask[..., 1]))
             / (2 * a),
         ],
         -1,
     )
 
-    ret = tx.np.where(mid, (-b / (2 * a))[..., None], ret)
+    ret = np.where(mid, (-b / (2 * a))[..., None], ret)
     return ret.transpose(2, 0, 1), 1 - mask.transpose(2, 0, 1)
 
     # v = -b / (2 * a)
     # print(v.shape)
-    # ret2 = tx.np.stack([v, tx.np.zeros(v.shape) + 10000], -1)
-    # where2 = tx.np.where(((-eps <= Δ) & (Δ < eps))[..., None], ret2, ret)
+    # ret2 = np.stack([v, np.zeros(v.shape) + 10000], -1)
+    # where2 = np.where(((-eps <= Δ) & (Δ < eps))[..., None], ret2, ret)
 
-    # return tx.np.where((Δ < -eps)[..., None], 10000, where2).transpose(2, 0, 1)
+    # return np.where((Δ < -eps)[..., None], 10000, where2).transpose(2, 0, 1)
     # if
     #     # no intersection
     #     return []
@@ -427,6 +446,7 @@ def ray_circle_intersection(
     #     ]
 
 
+@partial(np.vectorize, excluded=[2], signature="(),()->(a,3,1)")
 def arc_to_bezier(theta1, theta2, n=2):
     """
     Return a `Path` for the unit circle arc from angles *theta1* to
@@ -444,8 +464,6 @@ def arc_to_bezier(theta1, theta2, n=2):
         polylines, quadratic or cubic Bezier curves
         <https://web.archive.org/web/20190318044212/http://www.spaceroots.org/documents/ellipse/index.html>`_.
     """
-    np = tx.np
-    halfpi = np.pi * 0.5
     theta1, theta2 = np.broadcast_arrays(theta1, theta2)
     extra = theta1.shape
     eta1 = theta1
@@ -476,19 +494,38 @@ def arc_to_bezier(theta1, theta2, n=2):
 
     length = n * 3
 
-    vertices = onp.ones(extra + (length, 3, 1))
+    vertices = np.ones(extra + (length, 3, 1))
     vertex_offset = 0
     end = length
 
-    vertices[..., vertex_offset:end:3, 0, 0] = xA + alpha * xA_dot
-    vertices[..., vertex_offset:end:3, 1, 0] = yA + alpha * yA_dot
-    vertices[..., vertex_offset+1:end:3, 0, 0] = xB - alpha * xB_dot
-    vertices[..., vertex_offset+1:end:3, 1, 0] = yB - alpha * yB_dot
-    vertices[..., vertex_offset+2:end:3, 0, 0] = xB
-    vertices[..., vertex_offset+2:end:3, 1, 0] = yB
+    vertices = index_update(
+        vertices,
+        (Ellipsis, slice(vertex_offset, end, 3), 0, 0),
+        xA + alpha * xA_dot,
+    )
+    vertices = index_update(
+        vertices,
+        (Ellipsis, slice(vertex_offset, end, 3), 1, 0),
+        yA + alpha * yA_dot,
+    )
+    vertices = index_update(
+        vertices,
+        (Ellipsis, slice(vertex_offset + 1, end, 3), 0, 0),
+        xB - alpha * xB_dot,
+    )
+    vertices = index_update(
+        vertices,
+        (Ellipsis, slice(vertex_offset + 1, end, 3), 1, 0),
+        yB - alpha * yB_dot,
+    )
+    vertices = index_update(
+        vertices, (Ellipsis, slice(vertex_offset + 2, end, 3), 0, 0), xB
+    )
+    vertices = index_update(
+        vertices, (Ellipsis, slice(vertex_offset + 2, end, 3), 1, 0), yB
+    )
     return vertices
 
 
 # Explicit rexport
-X = tx
-__all__ = ["X", "Array"]
+__all__ = ["Array", "np", "jit"]

@@ -9,9 +9,9 @@ if TYPE_CHECKING:
         ApplyStyle,
         ApplyTransform,
         Compose,
+        ComposeAxis,
         Empty,
         Primitive,
-        ComposeAxis
     )
     from chalk.monoid import Monoid
     from chalk.Path import Path
@@ -36,6 +36,7 @@ B = TypeVar("B")
 # def rproduct(rtops):
 #     return product(*map(range, rtops))
 
+
 class DiagramVisitor(Generic[A, B]):
     A_type: type[A]
 
@@ -55,30 +56,33 @@ class DiagramVisitor(Generic[A, B]):
     # def visit_compose_array(self, diagram: Compose, arg: B) -> A:
     #     print("HERE!")
     #     size = diagram.size()
-    #     ret = {key: self.A_type.empty() 
+    #     ret = {key: self.A_type.empty()
     #            for key in rproduct(size)}
     #     for d in diagram.diagrams:
     #         print("d")
     #         d_size = d.size()
     #         a = d.accept(self, arg)
-    #         ret = {k: ret[k] + a[to_size(k, d_size)] 
+    #         ret = {k: ret[k] + a[to_size(k, d_size)]
     #                 for k in rproduct(size)}
     #     return ret
 
     def visit_compose(self, diagram: Compose, arg: B) -> A:
         "Compose defaults to monoid over children"
         return self.A_type.concat(
-                [d.accept(self, arg) for d in diagram.diagrams]
-            )
+            [d.accept(self, arg) for d in diagram.diagrams]
+        )
 
-    def visit_compose_axis(self, diagram: ComposeAxis, t:B) -> A:
+    def visit_compose_axis(self, diagram: ComposeAxis, t: B) -> A:
         # if not self.collapse_array():
-        import jax
         from functools import partial
-        axis = len(diagram.diagrams.size()) -1
-        fn = diagram.diagrams.accept.__func__ # type: ignore
-        ed: A = jax.vmap(partial(fn, visitor=self, args=t),
-                        in_axes=axis, out_axes=axis)(diagram.diagrams)                
+
+        import jax
+
+        axis = len(diagram.diagrams.size()) - 1
+        fn = diagram.diagrams.accept.__func__  # type: ignore
+        ed: A = jax.vmap(
+            partial(fn, visitor=self, args=t), in_axes=axis, out_axes=axis
+        )(diagram.diagrams)
         return self.A_type.reduce(ed, axis)
         # else:
         #     "Compose defaults to monoid over children"
@@ -103,7 +107,7 @@ class DiagramVisitor(Generic[A, B]):
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:
         "Defaults to pass over"
         return diagram.diagram.accept(self, arg)
-        
+
     def visit_apply_style(self, diagram: ApplyStyle, arg: B) -> A:
         "Defaults to pass over"
         return diagram.diagram.accept(self, arg)

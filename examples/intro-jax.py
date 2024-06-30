@@ -3,14 +3,59 @@ import jax.numpy as np
 #import numpy as np
 import os
 os.environ["CHALK_JAX"] = "1"
-# from jaxtyping import install_import_hook
-# with install_import_hook("chalk", "typeguard.typechecked"):
-#     import chalk 
+from jaxtyping import install_import_hook
+with install_import_hook("chalk", "typeguard.typechecked"):
+    import chalk 
 from chalk import *
 from colour import Color
 from random import random
 import chalk
-print("grid")
+
+
+chalk.tx.set_jax_mode(True)
+r, b = to_color("red"), to_color("blue")
+from functools import partial
+def plot():
+    @jax.vmap
+    @jax.vmap
+    def draw(x, y):      
+        rot = np.where(x % 2, 0, 180)
+        @partial(jax.vmap, in_axes=[None, 0]) 
+        def round(shape, j):
+            return shape.rotate(360 * j / 6)
+
+        inner = regular_polygon(4, 1)
+        tri = triangle(1).rotate(360 / 12)
+        tri = inner.juxtapose(tri, V2(-1, 0))
+        layer_1 = round(tri, np.arange(6)).concat()
+        sq = square(1)
+        sq = inner.juxtapose(sq, V2(0, -1))
+        layer_2 = round(sq, np.arange(6)).concat()
+
+        # return (regular_polygon(6, 1) +  around(np.arange(6)).concat() + tri(np.arange(6)).concat()) \
+        #     .translate(x / 2, y * np.sqrt(1 - 0.25))#.fill_color(x/50 * r +  y/ 50 * b)
+        return (inner + layer_1)#.translate(x, y)
+    
+    return draw(*np.broadcast_arrays(np.arange(2)[:, None], 
+                                     np.arange(2)))
+grid = rectangle(1, 1).translate(0, 0.5).fill_color("white") #+ (make_path([(0, 0), (1, 0)]) + make_path([(0, 0), (0, -1)])).line_color("black").line_width(5)
+
+x = plot()
+print(x.size())
+x = x.concat().concat()
+
+assert x.size() == ()
+x = grid.scale(10) + x.translate(5, 5).scale(100)
+assert x.size() == ()
+prim = x.get_primitives()
+
+# for p in prim:
+#     print(p)
+jax.tree_util.tree_map_with_path(lambda p,x: print(p, x.shape), prim)
+#jax.tree_util.tree_map_with_path(lambda p,x: print(p, x.shape), x)
+chalk.backend.svg.prims_to_file(prim, "test.svg", 1000, 1000)
+SVG("test.svg")
+
 grid = rectangle(1, 1).translate(0, 0.5).fill_color("white") #+ (make_path([(0, 0), (1, 0)]) + make_path([(0, 0), (0, -1)])).line_color("black").line_width(5)
 
 chalk.tx.set_jax_mode(True)

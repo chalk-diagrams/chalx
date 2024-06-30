@@ -5,30 +5,32 @@ Contains arithmetic for arc calculations.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Tuple
 
-from chalk.trace import TraceDistances
 import chalk.transform as tx
+from chalk.trace import TraceDistances
 from chalk.transform import Affine, Angles, P2_t, Scalars, V2_t
-#from chalk.types import TrailLike
 
 if TYPE_CHECKING:
 
     from jaxtyping import Array, Bool, Float
+
     from chalk.trail import Trail
 
 Degrees = tx.Scalars
 
-def ensure_3d(x):
+
+def ensure_3d(x: tx.Array) -> tx.Array:
     if len(x.shape) < 3:
         return x.reshape(-1, *x.shape)
     return x
 
-def ensure_2d(x):
+
+def ensure_2d(x: tx.Array) -> tx.Array:
     if len(x.shape) < 2:
         return x.reshape(-1, *x.shape)
     return x
-
 
 
 @dataclass(frozen=True, unsafe_hash=True)
@@ -39,7 +41,12 @@ class Segment:
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
-        return Segment(ensure_3d(transform), ensure_2d(angles).astype(float))
+        return Segment(
+            transform, angles.astype(float)
+        )  # Segment(ensure_3d(transform), ensure_2d(angles).astype(float))
+
+    def promote(self) -> Segment:
+        return Segment(ensure_3d(self.transform), ensure_2d(self.angles))
 
     def split(self, i: int) -> Segment:
         return Segment.make(self.transform[i], self.angles[i])
@@ -57,11 +64,12 @@ class Segment:
         return Segment.make(t @ self.transform, self.angles)
 
     def __add__(self, other: Segment) -> Segment:
+        self, other = self.promote(), other.promote()
         trans = [self.transform, other.transform]
         angles = [self.angles, other.angles]
         return Segment.make(
-            tx.X.np.concatenate(trans, axis=-3),
-            tx.X.np.concatenate(angles, axis=-2),
+            tx.np.concatenate(trans, axis=-3),
+            tx.np.concatenate(angles, axis=-2),
         )
 
     @property
@@ -81,18 +89,6 @@ class Segment:
         return self.angles[..., 1]
 
     @property
-    def r_x(self) -> Scalars:
-        return tx.length(self.t @ tx.X.unit_x)
-
-    @property
-    def r_y(self) -> Scalars:
-        return tx.length(self.t @ tx.X.unit_y)
-
-    @property
-    def rot(self) -> Scalars:
-        return tx.angle(self.t @ tx.X.unit_x)
-
-    @property
     def center(self) -> P2_t:
         return self.t @ tx.P2(0, 0)
 
@@ -100,8 +96,8 @@ class Segment:
         angle0_deg = self.angles[..., 0]
         angle1_deg = self.angles.sum(-1)
 
-        low = tx.X.np.minimum(angle0_deg, angle1_deg)
-        high = tx.X.np.maximum(angle0_deg, angle1_deg)
+        low = tx.np.minimum(angle0_deg, angle1_deg)
+        high = tx.np.maximum(angle0_deg, angle1_deg)
         check = (high - low) % 360
         return ((tx.angle(d) - low) % 360) <= check
 
@@ -115,19 +111,19 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     h = abs(height)
     d = tx.length(q - p)
     # Determine the arc's angle θ and its radius r
-    θ = tx.X.np.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
-    r = d / (2 * tx.X.np.sin(θ))
+    θ = tx.np.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
+    r = d / (2 * tx.np.sin(θ))
 
     # bend left
     bl = height > 0
-    φ = tx.X.np.where(bl, +tx.X.np.pi / 2, -tx.X.np.pi / 2)
-    dy = tx.X.np.where(bl, r - h, h - r)
-    flip = tx.X.np.where(bl, 1, -1)
+    φ = tx.np.where(bl, +tx.np.pi / 2, -tx.np.pi / 2)
+    dy = tx.np.where(bl, r - h, h - r)
+    flip = tx.np.where(bl, 1, -1)
 
     diff = q - p
-    angles = tx.X.np.asarray(
+    angles = tx.np.asarray(
         [flip * -tx.from_radians(θ), flip * 2 * tx.from_radians(θ)]
-    ).reshape(1, 2)
+    )
     ret = (
         tx.translation(p)
         @ tx.rotation(-tx.rad(diff))
@@ -137,25 +133,23 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     )
     return Segment.make(ret, angles)
 
-import jax
 
-def arc_envelope(
-    segment: Segment, d: Float[Array, "#A 1 3 1"]
-) -> Float[Array, "#A #B 3 1"]:
+@partial(tx.np.vectorize, signature="(3,3),(2),(3,1)->()")
+def arc_envelope(trans, angles, d: Float[Array, "#A 3 1"]):
     "Trace is done as simple arc and transformed"
-    angle0_deg = segment.angles[..., 0]
-    angle1_deg = segment.angles.sum(-1)
+    angle0_deg = angles[..., 0]
+    angle1_deg = angles.sum(-1)
 
     is_circle = abs(angle0_deg - angle1_deg) >= 360
     v1 = tx.polar(angle0_deg)
     v2 = tx.polar(angle1_deg)
 
-    return tx.X.np.where(
-        (is_circle | segment.is_in_mod_360(d)),
+    return tx.np.where(
+        (is_circle | Segment(trans, angles).is_in_mod_360(d)),
         # Case 1: P2 at arc
         1 / tx.length(d),
         # Case 2: P2 outside of arc
-        tx.X.np.maximum(tx.dot(d, v1), tx.dot(d, v2)),
+        tx.np.maximum(tx.dot(d, v1), tx.dot(d, v2)),
     )
 
 
@@ -167,9 +161,7 @@ def set_offset(v: float) -> None:
     OFFSET = v
 
 
-def arc_trace(
-    segment: Segment, ray: tx.Ray
-) -> TraceDistances:
+def arc_trace(segment: Segment, ray: tx.Ray) -> TraceDistances:
     """
     Computes the Trace on all the arcs in a Segment.
 
@@ -193,7 +185,7 @@ def arc_seg(q: V2_t, height: tx.Floating) -> Trail:
 def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
     arc_p = tx.to_point(tx.polar(angle))
     return Segment.make(
-        tx.translation(-arc_p), tx.X.np.asarray([angle, dangle])
+        tx.translation(-arc_p), tx.np.asarray([angle, dangle])
     ).to_trail()
 
 

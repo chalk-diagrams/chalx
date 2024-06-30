@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Tuple, Union
 
 from colour import Color
 from typing_extensions import Self
@@ -19,9 +19,9 @@ ColorLike = Union[str, Color, ColorVec]
 
 def to_color(c: ColorLike) -> ColorVec:
     if isinstance(c, str):
-        return tx.X.np.asarray(Color(c).rgb)
+        return tx.np.asarray(Color(c).rgb)
     elif isinstance(c, Color):
-        return tx.X.np.asarray(c.rgb)
+        return tx.np.asarray(c.rgb)
     return c
 
 
@@ -40,13 +40,13 @@ STYLE_LOCATIONS = {
 }
 
 DEFAULTS = {
-    "fill_color": to_color(LC),
-    "fill_opacity": tx.X.np.asarray(1.0),
+    "fill_color": to_color(FC),
+    "fill_opacity": tx.np.asarray(1.0),
     "line_color": to_color(LC),
-    "line_opacity": tx.X.np.asarray(1.0),
-    "line_width": tx.X.np.asarray(LW),
-    "output_size": tx.X.np.asarray(200.0),
-    "dashing": tx.X.np.asarray(0),
+    "line_opacity": tx.np.asarray(1.0),
+    "line_width": tx.np.asarray(LW),
+    "output_size": tx.np.asarray(200.0),
+    "dashing": tx.np.asarray(0),
 }
 STYLE_SIZE = 12
 
@@ -95,22 +95,22 @@ def Style(
 ) -> StyleHolder:
     
     b = (
-        tx.X.np.zeros(STYLE_SIZE),
-        tx.X.np.zeros(STYLE_SIZE, dtype=bool),
+        tx.np.zeros(STYLE_SIZE),
+        tx.np.zeros(STYLE_SIZE, dtype=bool),
     )
 
     def update(b, key: str, value):  # type: ignore
         base, mask = b
         index = (Ellipsis, slice(*STYLE_LOCATIONS[key]))
         if value is not None:
-            value = tx.X.np.asarray(value)
+            value = tx.np.asarray(value)
             if len(value.shape) != len(base.shape):
-                n = tx.X.np.zeros(value.shape[:-1] + (STYLE_SIZE,))
-                base, _ = tx.X.np.broadcast_arrays(base, n) 
-                mask, _ = tx.X.np.broadcast_arrays(mask, n) 
+                n = tx.np.zeros(value.shape[:-1] + (STYLE_SIZE,))
+                base, _ = tx.np.broadcast_arrays(base, n) 
+                mask, _ = tx.np.broadcast_arrays(mask, n) 
 
-            base = tx.X.index_update(base, index, value)  # type: ignore
-            mask = tx.X.index_update(mask, index, True)  # type: ignore
+            base = tx.index_update(base, index, value)  # type: ignore
+            mask = tx.index_update(mask, index, True)  # type: ignore
         return base, mask
 
     b = update(b, "line_width", line_width_)
@@ -129,6 +129,14 @@ class StyleHolder(Stylable):
     base: Scalars
     mask: Mask
 
+    def __getitem__(self, index: Tuple[int, ...]) -> StyleHolder:
+        if Ellipsis in index:
+            return StyleHolder(self.base[index + (slice(None),)], 
+                               self.mask[index + (slice(None),)])
+        else:
+            return StyleHolder(self.base[index + (Ellipsis, slice(None))], 
+                               self.mask[index + (Ellipsis, slice(None))])
+
     def size(self) -> Tuple[int, ...]:
         return self.base.shape[:-1]
 
@@ -140,7 +148,7 @@ class StyleHolder(Stylable):
     def get(self, key: str) -> tx.Scalars:
         self.base = self.base
         v = self.base[slice(*STYLE_LOCATIONS[key])]
-        return tx.X.np.where(
+        return tx.np.where(
             self.mask[slice(*STYLE_LOCATIONS[key])], v, DEFAULTS[key]
         )
 
@@ -175,8 +183,8 @@ class StyleHolder(Stylable):
     @classmethod
     def empty(cls) -> StyleHolder:
         return cls(
-            tx.X.np.zeros((STYLE_SIZE)),
-            tx.X.np.zeros((STYLE_SIZE), dtype=bool),
+            tx.np.zeros((STYLE_SIZE)),
+            tx.np.zeros((STYLE_SIZE), dtype=bool),
         )
 
     @classmethod
@@ -188,7 +196,7 @@ class StyleHolder(Stylable):
 
     def merge(self, other: StyleHolder) -> StyleHolder:
         mask = self.mask | other.mask
-        base = tx.X.np.where(other.mask, other.base, self.base)
+        base = tx.np.where(other.mask, other.base, self.base)
         return StyleHolder(base, mask)
 
     def render(self, ctx: PyCairoContext) -> None:
@@ -230,39 +238,29 @@ class StyleHolder(Stylable):
         if self.dashing_ is not None:
             ctx.set_dash(self.dashing_[0], self.dashing_[1])
 
-    def to_mpl(self) -> str:
+    def to_mpl(self):
         style = {}
         if self.fill_color_ is not None:
             f = self.fill_color_ 
-            style["facecolor"] = (f[0], f[1], f[2])
+            style["facecolor"] = f #(f[0], f[1], f[2])
             #style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
         if self.line_color_ is not None:
             lc = self.line_color_
-            style["edgecolor"] = (lc[0], lc[1], lc[2])
+            style["edgecolor"] = lc # (lc[0], lc[1], lc[2])
         else:
-            style["stroke"] = "black"
+            style["edgecolor"] = "black"
 
         # Set by observation
         assert self.output_size is not None
-        normalizer = self.output_size[0] * (15 / 500)
+        normalizer = self.output_size[0] * (50 / 500)
         if self.line_width_ is not None:
             lw = self.line_width_
-            # if lwt == WidthType.NORMALIZED:
-            #     lw = lw * normalizer
-            # elif lwt == WidthType.LOCAL:
-            #     lw = lw
         else:
             lw = LW * normalizer
 
         style["linewidth"] = lw.reshape(-1)[0]
-
         if self.fill_opacity_ is not None:
             style["alpha"] = self.fill_opacity_[0]
-        # if self.dashing_ is not None:
-        #     style += (
-        #         f"stroke-dasharray: {' '.join(map(str, self.dashing_[0]))};"
-        #     )
-
         return style
 
 

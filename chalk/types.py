@@ -1,23 +1,37 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Tuple,
+    TypeAlias,
+)
 
-from chalk.trace import TraceDistances
+from jaxtyping import AbstractDtype
+
 import chalk.transform as tx
-
 from chalk.monoid import Monoid
 from chalk.style import Stylable, StyleHolder
-
+from chalk.trace import TraceDistances
 from chalk.transform import P2_t, V2_t
 
 if TYPE_CHECKING:
     from chalk.core import Primitive
-    from chalk.path import Path
     from chalk.envelope import Envelope
-    from chalk.trace import Trace
+    from chalk.path import Path
     from chalk.subdiagram import Name, Subdiagram
+    from chalk.trace import Trace
     from chalk.trail import Located, Trail
     from chalk.visitor import A, C, DiagramVisitor, ShapeVisitor
+
+
+class Dia(AbstractDtype):
+    dtypes = ["batched_diagram"]
 
 
 class Enveloped(Protocol):
@@ -31,11 +45,10 @@ class Enveloped(Protocol):
 class Shape(Enveloped, Protocol):
     def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C: ...
 
-    def split(self, i: int) -> Shape:
-        ...
+    def split(self, i: int) -> Shape: ...
 
-    def get_trace(self, r:tx.Ray) -> TraceDistances:
-        ...
+    def get_trace(self, r: tx.Ray) -> TraceDistances: ...
+
 
 class TrailLike(Protocol):
     def to_trail(self) -> Trail: ...
@@ -50,7 +63,18 @@ class TrailLike(Protocol):
         return self.at(tx.P2(0, 0)).stroke()
 
 
+
+
 class Diagram(Stylable, tx.Transformable, Monoid):
+
+    @property
+    def shape(self) -> Tuple[int]:  # type: ignore[empty-body]
+        ...
+
+    @property
+    def dtype(self) -> str:  # type: ignore[empty-body]
+        ...
+
     def apply_transform(self, t: tx.Affine) -> Diagram:  # type: ignore[empty-body]
         ...
 
@@ -126,13 +150,13 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     def _style(self, style: StyleHolder) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def get_envelope(self) -> Envelope: # type: ignore[empty-body]
+    def get_envelope(self) -> Envelope:  # type: ignore[empty-body]
         ...
 
-    def _normalize(self) -> Diagram: # type: ignore[empty-body]
+    def _normalize(self) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def get_trace(self) -> Trace: # type: ignore[empty-body]
+    def get_trace(self) -> Trace:  # type: ignore[empty-body]
         ...
 
     def with_envelope(self, other: Diagram) -> Diagram:  # type: ignore[empty-body]
@@ -157,34 +181,27 @@ class Diagram(Stylable, tx.Transformable, Monoid):
         self, visitor: DiagramVisitor[A, Any], args: Any
     ) -> A: ...
 
-    def get_primitives(self # type: ignore[empty-body]
-                       ) -> List[Primitive]: ... 
+    def get_primitives( # type: ignore[empty-body]
+        self,  
+    ) -> List[Primitive]: ...
 
-    def layout( # type: ignore[empty-body]
+    def layout(  # type: ignore[empty-body]
         self, height: tx.IntLike, width: Optional[tx.IntLike] = None
     ) -> Tuple[List[Primitive], tx.IntLike, tx.IntLike]: ...
 
-    def size(self) -> Tuple[int, ...]: # type: ignore[empty-body]
+    def size(self) -> Tuple[int, ...]:  # type: ignore[empty-body]
         ...
 
-    def compose_axis(self) -> Diagram: # type: ignore[empty-body]
+    def compose_axis(self) -> Diagram:  # type: ignore[empty-body]
         ...
 
-
-from jaxtyping import PyTree, Shaped, Array
-
-Batched = 'BatchDiagram[Shaped[Array], "*B A ..."]'
-Reduced = 'BatchDiagram[Shaped[Array], "*B ..."]'
-B1 = 'BatchDiagram[Shaped[Array], "*#B ..."]'
-B2 = 'BatchDiagram[Shaped[Array], "*#B ..."]'
-B = 'BatchDiagram[Shaped[Array], "*B ..."]'
-
-class BatchDiagram(Diagram, PyTree):
-    def hcat(self: Batched) -> Reduced: # type: ignore[empty-body]
+    def hcat(self: Batched) -> Reduced:  # type: ignore[empty-body]
         ...
-    def vcat(self: Batched) -> Reduced: # type: ignore[empty-body]
+
+    def vcat(self: Batched) -> Reduced:  # type: ignore[empty-body]
         ...
-    def concat(self: Batched) -> Reduced: # type: ignore[empty-body]
+
+    def concat(self: Batched) -> Reduced:  # type: ignore[empty-body]
         ...
 
     def juxtapose_snug(  # type: ignore[empty-body]
@@ -209,3 +226,17 @@ class BatchDiagram(Diagram, PyTree):
         self: B1, other: B2, direction: V2_t
     ) -> B: ...
 
+    def add_axis(self, size: int) -> Diagram: ...  # type: ignore[empty-body]
+
+    def repeat_axis(self, size: int, axis) -> Diagram:  # type: ignore[empty-body]
+        ...
+
+    def broadcast_diagrams(  # type: ignore[empty-body]
+        self, other: Diagram
+    ) -> Tuple[Diagram, Diagram]: ...
+
+Batched = Dia[Diagram, "*B A"]
+Reduced = Dia[Diagram, "*B"]
+B1 = Dia[Diagram, "*#B"]
+B2 = Dia[Diagram, "*#B"]
+B = Dia[Diagram, "*B"]

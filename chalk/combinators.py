@@ -14,11 +14,6 @@ def with_envelope(self: Diagram, other: Diagram) -> Diagram:
     return self.compose(other.get_envelope())
 
 
-# def close_envelope(self: Diagram) -> Diagram:
-#     env = self.get_envelope()
-#     return self.compose(Envelope.from_bounding_box(env.to_bounding_box()))
-
-
 # with_trace, phantom,
 
 
@@ -47,48 +42,29 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
     #     return envelope(d) * extra
 
     # new_envelope = Envelope(f, envelope.is_empty)
-    return self#.compose(new_envelope)
-
-
-# def frame(self: Diagram, extra: Floating) -> Diagram:
-#     """Add outward directed padding for a diagram.
-#     This padding is applied uniformly on all sides.
-
-#     Args:
-#         self (Diagram): Diagram object.
-#         extra (float): Amount of padding to add.
-
-#     Returns:
-#         Diagram: A diagram object.
-#     """
-#     envelope = self.get_envelope()
-
-#     def f(d: V2_t) -> Scalars:
-#         assert envelope is not None
-#         return envelope(d) + extra
-
-#     new_envelope = Envelope(f, envelope.is_empty)
-#     return self.compose(new_envelope)
+    return self  # .compose(new_envelope)
 
 
 # extrudeEnvelope, intrudeEnvelope
 
+from chalk.types import B1, B2, B, Batched, Reduced
 
-def atop(self: Diagram, other: Diagram) -> Diagram:
+
+def atop(self: B1, other: B2) -> B:
     return self.compose(None, other)
 
 
 # beneath
 
 
-def above(self: Diagram, other: Diagram) -> Diagram:
-    return beside(self, other, tx.X.unit_y)
+def above(self: B1, other: B2) -> B:
+    return beside(self, other, tx.unit_y)
 
 
 # appends
 
 
-def beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
+def beside(self: B1, other: B2, direction: V2_t) -> B:
     return atop(self, juxtapose(self, other, direction))
 
 
@@ -102,44 +78,51 @@ def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
     return concat(d.translate_by(p) for d, p in zip(diagrams, path.points()))
 
 
-def batch_hcat(
-    diagrams: Diagram, sep: Optional[Floating] = None
-) -> Diagram:
-    return batch_cat(diagrams, tx.X.unit_x, sep)
+def batch_hcat(diagrams: Batched, sep: Optional[Floating] = None) -> Reduced:
+    return batch_cat(diagrams, tx.unit_x, sep)
 
-def batch_vcat(
-    diagrams: Diagram, sep: Optional[Floating] = None
-) -> Diagram:
-    return batch_cat(diagrams, tx.X.unit_y, sep)
 
-def batch_cat(diagram: Diagram, v: V2_t, sep: Optional[Floating] = None):
+def batch_vcat(diagrams: Batched, sep: Optional[Floating] = None) -> Reduced:
+    return batch_cat(diagrams, tx.unit_y, sep)
+
+
+def batch_cat(
+    diagram: Batched, v: V2_t, sep: Optional[Floating] = None
+) -> Reduced:
     axes = diagram.size()
     axis = len(axes) - 1
     assert diagram.size() != ()
     diagram = diagram._normalize()
-    import jax
     from functools import partial
+
+    import jax
+
     if sep is None:
         sep = 0
+
     def call_scan(diagram: Diagram) -> Diagram:
         @jax.vmap
-        def offset(diagram : Diagram) -> Tuple[Scalars, Scalars]:
+        def offset(diagram: Diagram) -> Tuple[Scalars, Scalars]:
             env = diagram.get_envelope()
             right = env(v)
-            left  = env(-v)
+            left = env(-v)
             return right, left
+
         right, left = offset(diagram)
-        off = tx.X.np.roll(right, 1) + left + sep
+        off = tx.np.roll(right, 1) + left + sep
         off = off.at[0].set(0)
-        off = tx.X.np.cumsum(off, axis=0)
+        off = tx.np.cumsum(off, axis=0)
+
         @jax.vmap
         def translate(off: Scalars, diagram: Diagram) -> Diagram:
             return diagram.translate_by(v * off[..., None, None])
+
         return translate(off, diagram)
 
     for a in range(axis):
         call_scan = jax.vmap(call_scan, in_axes=a, out_axes=a)
     return call_scan(diagram).compose_axis()
+
 
 def cat(
     diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None
@@ -161,6 +144,7 @@ def batch_concat(diagram: Diagram) -> Diagram:
     assert size != ()
     return diagram.compose_axis()
 
+
 def concat(diagrams: Iterable[Diagram]) -> Diagram:
     """
     Concat diagrams atop of each other with atop.
@@ -173,6 +157,7 @@ def concat(diagrams: Iterable[Diagram]) -> Diagram:
 
     """
     from chalk.core import BaseDiagram
+
     return BaseDiagram.concat(diagrams)  # type: ignore
 
 
@@ -218,11 +203,12 @@ def hcat(
         Diagram: New diagram
 
     """
-    return cat(diagrams, tx.X.unit_x, sep)
+    return cat(diagrams, tx.unit_x, sep)
 
 
 def vcat(
-    diagrams: Iterable[Diagram], sep: Optional[Floating] = None) -> Diagram:
+    diagrams: Iterable[Diagram], sep: Optional[Floating] = None
+) -> Diagram:
     """
     Stack diagrams above each other with `above`.
 
@@ -234,7 +220,7 @@ def vcat(
         Diagrams
 
     """
-    return cat(diagrams, tx.X.unit_y, sep)
+    return cat(diagrams, tx.unit_y, sep)
 
 
 # Extra
@@ -254,14 +240,14 @@ def above2(self: Diagram, other: Diagram) -> Diagram:
     Returns:
         Diagram: A diagram object.
     """
-    return beside(other, self, -tx.X.unit_y)
+    return beside(other, self, -tx.unit_y)
 
 
 def juxtapose_snug(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     trace1 = self.get_trace()
     trace2 = other.get_trace()
-    d1, m1 = trace1.trace_v(tx.X.origin, direction)
-    d2, m2 = trace2.trace_v(tx.X.origin, -direction)
+    d1, m1 = trace1.trace_v(tx.origin, direction)
+    d2, m2 = trace2.trace_v(tx.origin, -direction)
     assert m1.all()
     assert m2.all()
     d = d1 - d2

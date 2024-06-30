@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, List, Sequence, Tuple
 
 from chalk import transform as tx
+
 # from chalk.envelope import Envelope
 from chalk.envelope import EnvDistance
 from chalk.shapes.shape import Shape
@@ -39,7 +40,9 @@ class Path(Shape, Transformable):
 
     def apply_transform(self, t: tx.Affine) -> Path:
         return Path(
-            tuple([loc_trail.apply_transform(t) for loc_trail in self.loc_trails])
+            tuple(
+                [loc_trail.apply_transform(t) for loc_trail in self.loc_trails]
+            )
         )
 
     def points(self) -> Iterable[P2_t]:
@@ -53,11 +56,12 @@ class Path(Shape, Transformable):
     #             for i, pt in enumerate(loc.points()) ]
 
     def envelope(self, t: tx.V2_t) -> tx.Scalars:
-        return EnvDistance.concat((EnvDistance(loc.envelope(t)) for loc in self.loc_trails)).d
+        return EnvDistance.concat(
+            (EnvDistance(loc.envelope(t)) for loc in self.loc_trails)
+        ).d
 
     def get_trace(self, t: tx.Ray) -> TraceDistances:
-        return TraceDistances.concat(
-            (loc.trace(t) for loc in self.loc_trails))
+        return TraceDistances.concat((loc.trace(t) for loc in self.loc_trails))
 
     def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C:
         return visitor.visit_path(self, **kwargs)

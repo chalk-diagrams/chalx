@@ -1,6 +1,7 @@
 import jax.numpy as onp
-class _ArrayAPINameSpace:
 
+
+class _ArrayAPINameSpace:
 
     abs = onp.abs
     acos = onp.acos

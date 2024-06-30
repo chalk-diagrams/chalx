@@ -47,7 +47,7 @@ class Subdiagram(Monoid):
     # style: Style
 
     def get_location(self) -> P2_t:
-        return self.transform @ tx.X.origin
+        return self.transform @ tx.origin
 
     def get_envelope(self) -> Envelope:
         return self.diagram.get_envelope().apply_transform(self.transform)
@@ -62,7 +62,7 @@ class Subdiagram(Monoid):
         """
         o = self.get_location()
         td = self.get_trace().trace_p(o, -v)
-        return tx.X.np.where(td.mask, td.distance, tx.X.origin)
+        return tx.np.where(td.mask, td.distance, tx.origin)
 
 
 class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
@@ -93,7 +93,7 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 
 
 def get_subdiagram(self: Diagram, name: Name) -> Optional[Subdiagram]:
-    return self.accept(GetSubdiagram(name), tx.X.ident).data
+    return self.accept(GetSubdiagram(name), tx.ident).data
 
 
 def with_names(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 import chalk.transform as tx
 from chalk.shapes import (
@@ -17,6 +17,8 @@ from chalk.style import Style, StyleHolder
 from chalk.transform import Affine
 from chalk.types import Diagram
 from chalk.visitor import ShapeVisitor
+import chalk.backend.patch
+from chalk.backend.patch import Patch
 
 if TYPE_CHECKING:
     from chalk.core import Primitive
@@ -110,10 +112,11 @@ class ToCairoShape(ShapeVisitor[None]):
         style: StyleHolder = EMPTY_STYLE,
     ) -> None:
 
-
         assert style.output_size
         scale = 0.01 * (15 / 500) * style.output_size
-        render_cairo_prims(shape.arrow_shape.scale(scale).get_primitives(), ctx)
+        render_cairo_prims(
+            shape.arrow_shape.scale(scale).get_primitives(), ctx
+        )
 
     def visit_image(
         self,
@@ -127,9 +130,10 @@ class ToCairoShape(ShapeVisitor[None]):
         )
         ctx.paint()
 
-from chalk.backend.patch import Patch
-import chalk.backend.patch
-def to_cairo(patch, ctx, ind):
+
+
+
+def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
 
     v, c = patch.vert[ind], patch.command[ind]
     i = 0
@@ -138,50 +142,49 @@ def to_cairo(patch, ctx, ind):
             ctx.move_to(v[i, 0], v[i, 1])
             i += 1
         if c[i] == chalk.backend.patch.Command.CURVE4.value:
-            ctx.curve_to(v[i, 0], v[i, 1], v[i+1, 0], v[i+1, 1], v[i+2, 0], v[i+2, 1])
+            ctx.curve_to(
+                v[i, 0],
+                v[i, 1],
+                v[i + 1, 0],
+                v[i + 1, 1],
+                v[i + 2, 0],
+                v[i + 2, 1],
+            )
             i += 3
 
 
-import typeguard
-def rproduct(rtops):
-    from itertools import product
-    return product(*map(range, rtops))
-
 def render_cairo_prims(
-    prims: List[Primitive], ctx: PyCairoContext, even_odd: bool=False
+    prims: List[Primitive], ctx: PyCairoContext, even_odd: bool = False
 ) -> None:
 
-    undo = False
     import cairo
     import numpy as onp
 
     if even_odd:
         ctx.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
-    shape_renderer = ToCairoShape()
+    #shape_renderer = ToCairoShape()
+        
     style = Style()
     # Order the primitives
     d = {}
-    patches = [Patch.from_prim(prim) for prim in prims]
-    
-    if tx.JAX_MODE:
-        undo = True
-        import jax
-        print("converting from jax")
-        d = jax.tree.map(onp.asarray, d)
-        tx.set_jax_mode(False)
+    patches = [Patch.from_prim(prim, style) for prim in prims]
 
     for patch, prim in zip(patches, prims):
-        for ind, i in tx.X.np.ndenumerate(onp.asarray(prim.order)): # type: ignore
+        for ind, i in tx.X.np.ndenumerate(onp.asarray(prim.order)):  # type: ignore
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, ind)
 
+    if tx.JAX_MODE:
+        import jax
+
+        d = jax.tree.map(onp.asarray, d)
+
     for j in sorted(d.keys()):
         patch, ind = d[j]
-        inner = to_cairo(patch, ctx, ind)
-        style_new = patch.get_style(style, ind)
+        to_cairo(patch, ctx, ind)
+        style_new = patch.get_style(ind)
         style_new.render(ctx)
         ctx.stroke()
-
 
     # Order the primitives
     # d = {}
@@ -191,7 +194,7 @@ def render_cairo_prims(
     #         n = prim_order[ind]
     #         assert n not in d, "Order assigned twice"
     #         d[prim_order[ind]] = (prim, ind)
-    
+
     # for j in sorted(d.keys()):
     #     prim, ind = d[j]
     #     prim = prim.split(ind)
@@ -216,16 +219,13 @@ def render_cairo_prims(
     #         # ):
     #         #     style = style.merge(Style(fill_opacity_=0))
 
-    if undo:
-        tx.set_jax_mode(True)
-
 
 def prims_to_file(
     prims: List[Primitive],
     path: str,
     height: float,
     width: float,
-    even_odd: bool=False,
+    even_odd: bool = False,
 ) -> None:
     import cairo
 

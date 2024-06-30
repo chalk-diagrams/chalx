@@ -8,18 +8,18 @@ from typing import Any, Iterator, List, Optional, Sequence, Tuple, TypeVar
 import chalk.align
 import chalk.arrow
 import chalk.backend.cairo
+import chalk.backend.matplotlib
 import chalk.backend.svg
 import chalk.backend.tikz
-import chalk.backend.matplotlib
 import chalk.combinators
 import chalk.model
-from chalk.shapes.path import Path
 import chalk.subdiagram
 import chalk.trace
 import chalk.transform as tx
 import chalk.types
 from chalk.envelope import Envelope
 from chalk.monoid import MList, Monoid
+from chalk.shapes.path import Path
 from chalk.style import StyleHolder
 from chalk.subdiagram import Name
 from chalk.transform import Affine
@@ -46,44 +46,25 @@ def set_svg_draw_height(height: int) -> None:
     SVG_DRAW_HEIGHT = height
 
 
-# @dataclass
-# class FlattenedDiagram:
-#     data: List[Primitive]
-
-#     def __iter__(self) -> Iterator[Diagram]:
-#         return iter(self.unflatten())
-
-#     def diagram(self) -> Diagram:
-#         return Compose(Envelope.empty(), [d for d in self.data])
-
-#     def unflatten(self, no_map: bool = False) -> List[Diagram]:
-#         from chalk.combinators import concat
-
-#         return [
-#             concat(
-#                 [
-#                     Primitive(
-#                         d.shape.split(i) if isinstance(d.shape, Path) and not no_map else d.shape,
-#                         (
-#                             (d.style.split(i) if not no_map else d.style)
-#                             if d.style is not None
-#                             else None
-#                         ),
-#                         d.transform[i] if not no_map else d.transform,
-#                     )
-#                     for d in self.data
-#                 ]
-#             )
-#             for i in range(self.data[0].transform.shape[0])
-#         ]
-
-
 @dataclass(unsafe_hash=True, frozen=True)
 class BaseDiagram(chalk.types.Diagram):
     """Diagram class."""
 
     # Monoid
     __add__ = chalk.combinators.atop
+
+    @property
+    def dtype(self) -> str:
+        return "batched_diagram"
+
+    @property
+    def shape(self) -> Tuple[int, ...]:
+        return self.size()
+
+    def __getitem__(self, ind: Union[int, Tuple[int]]) -> Diagram:
+        import jax
+
+        return jax.tree.map(lambda x: x[ind], self)
 
     def __rmatmul__(self, t: Affine) -> BaseDiagram:  # type: ignore
         return self.apply_transform(t)  # type: ignore
@@ -94,43 +75,35 @@ class BaseDiagram(chalk.types.Diagram):
 
     # Tranformable
     def apply_transform(self, t: Affine) -> Diagram:  # type: ignore
-        if len(t.shape) >= 3 and t.shape[-3] != 1:
-            t = t[..., None, :, :]
-
-        size = self.size()
-        t = tx.X.np.broadcast_to(t, size + (1, 3, 3))
         new_diagram = ApplyTransform(t, Empty())
-        _, other = new_diagram.broadcast_diagrams(self)
-        return ApplyTransform(t, other)
+        new, other = new_diagram.broadcast_diagrams(self)  # type: ignore
+        return ApplyTransform(new.transform, other)
 
     def compose_axis(self) -> Diagram:  # type: ignore
         return ComposeAxis(self)
-        # else:
-        #     return chalk.combinators.concat(
-        #         [ApplyTransform(t[i][None], self) for i in range(t.shape[0])]
-        #     )
 
     # Stylable
-    def apply_style(self, style: StyleHolder) -> Diagram:  # type: ignore        
+    def apply_style(self, style: StyleHolder) -> Diagram:  # type: ignore
         new_diagram = ApplyStyle(style, None)
-        new_diagram, self = new_diagram.broadcast_diagrams(self)
+        new_diagram, self = new_diagram.broadcast_diagrams(self)  # type: ignore
         return ApplyStyle(new_diagram.style, self)
 
     def _style(self, style: StyleHolder) -> Diagram:
         return self.apply_style(style)
 
-    def add_axis(self, size:int) -> Diagram:
+    def add_axis(self, size: int) -> Diagram:
         import jax
-        return jax.tree.map(lambda x: tx.X.np.repeat(x[None], size, axis=0), 
-                            self)
-    
-    def repeat_axis(self, size:int, axis) -> Diagram:
-        import jax
-        return jax.tree.map(lambda x: tx.X.np.repeat(x, size, axis=axis), 
-                            self)
-    
 
-    def broadcast_diagrams(self, other):
+        return jax.tree.map(
+            lambda x: tx.np.repeat(x[None], size, axis=0), self
+        )
+
+    def repeat_axis(self, size: int, axis) -> Diagram:
+        import jax
+
+        return jax.tree.map(lambda x: tx.np.repeat(x, size, axis=axis), self)
+
+    def broadcast_diagrams(self, other: Diagram) -> Tuple[Diagram, Diagram]:
         size = self.size()
         other_size = other.size()
         if size == other_size:
@@ -146,21 +119,25 @@ class BaseDiagram(chalk.types.Diagram):
                 self = self.repeat_axis(other_size[off], len(size) + off)
             elif size[off] != 1 and other_size[off] == 1:
                 other = other.repeat_axis(size[off], len(other_size) + off)
-        assert self.size() == other.size()
+        assert (
+            self.size() == other.size()
+        ), f"{size} {other_size} {self.size()} {other.size()}"
         return self, other
 
     def compose(
-        self, envelope: Optional[Envelope]=None, other: Optional[Diagram] = None
+        self,
+        envelope: Optional[Envelope] = None,
+        other: Optional[Diagram] = None,
     ) -> Diagram:
         if other is None and isinstance(self, Compose):
             return Compose(envelope, tuple(self.diagrams))
         if other is None and isinstance(self, Compose):
             return Compose(envelope, (self,))
-        
+
         other = other if other is not None else Empty()
         # Broadcast
-        self, other = self.broadcast_diagrams(other)
-                    
+        self, other = self.broadcast_diagrams(other)  # type: ignore
+
         if isinstance(self, Empty):
             return other
         elif isinstance(self, Compose) and isinstance(other, Compose):
@@ -225,13 +202,9 @@ class BaseDiagram(chalk.types.Diagram):
     vcat = chalk.combinators.batch_vcat
     concat = chalk.combinators.batch_concat
 
-    # def __getitem__(self, key)
-    #     import jax
-    #     return jax.tree.map(lambda x: x[key], self)
-
     # Infix
     def __or__(self, d: Diagram) -> Diagram:
-        return chalk.combinators.beside(self, d, tx.X.unit_x)
+        return chalk.combinators.beside(self, d, tx.unit_x)
 
     __truediv__ = chalk.combinators.above
     __floordiv__ = chalk.combinators.above2
@@ -256,8 +229,9 @@ class BaseDiagram(chalk.types.Diagram):
     render_png = chalk.backend.cairo.render
     render_svg = chalk.backend.svg.render
     render_mpl = chalk.backend.matplotlib.render
+    plot = chalk.backend.matplotlib.plot
 
-    def render_pdf(self, *args, **kwargs) -> None: # type: ignore
+    def render_pdf(self, *args, **kwargs) -> None:  # type: ignore
         print("Currently PDF rendering is disabled")
 
     def _repr_svg_(self) -> str:
@@ -289,11 +263,10 @@ class BaseDiagram(chalk.types.Diagram):
         raise NotImplementedError
 
     def get_primitives(self) -> List[Primitive]:
-        return self.accept(ToListOrder(), tx.X.ident).ls
-    
+        return self.accept(ToListOrder(), tx.ident).ls
+
     def size(self) -> Tuple[int, ...]:
         return self.accept(ToSize(), Size.empty()).d
-
 
     def layout(
         self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None
@@ -305,26 +278,28 @@ class BaseDiagram(chalk.types.Diagram):
 
         # infer width to preserve aspect ratio
         if width is None:
-            width = tx.X.np.round(
+            width = tx.np.round(
                 height * envelope.width / envelope.height
             ).astype(int)
         else:
             width = width
         assert width is not None
         # determine scale to fit the largest axis in the target frame size
-        α = tx.X.np.where(
+        α = tx.np.where(
             envelope.width - width <= envelope.height - height,
             height / ((1 + pad) * envelope.height),
             width / ((1 + pad) * envelope.width),
         )
+
+        print("inner")
         s = self.scale(α).center_xy().pad(1 + pad)
-        import jax
         e = s.get_envelope()
         assert e is not None
-        s = s.translate(e(-tx.X.unit_x), e(-tx.X.unit_y))
+        s = s.translate(e(-tx.unit_x), e(-tx.unit_y))
 
-        style = StyleHolder.root(tx.X.np.maximum(width, height))
+        style = StyleHolder.root(tx.np.maximum(width, height))
         s = s._style(style)
+        print("outer")
         return s.get_primitives(), height, width
 
 
@@ -337,36 +312,23 @@ class Primitive(BaseDiagram):
     [TODO]: explain what Primitive class is for.
     """
 
-    shape: Shape
+    prim_shape: Shape
     style: Optional[StyleHolder]
     transform: Affine
-    order: Optional[tx.IntLike]=None
+    order: Optional[tx.IntLike] = None
 
     def is_multi(self) -> bool:
         return self.size() != ()
 
     def set_order(self, order: tx.IntLike) -> Primitive:
-        return Primitive(self.shape, self.style, self.transform, order)
+        return Primitive(self.prim_shape, self.style, self.transform, order)
 
     def split(self, ind: int) -> Primitive:
         return Primitive(
-            self.shape.split(ind),
+            self.prim_shape.split(ind),
             self.style.split(ind) if self.style is not None else None,
-            self.transform[ind])
-
-
-    # def __iter__(self) -> Iterator[Primitive]:
-    #     if not self.is_multi():
-    #         yield self
-    #     else:
-    #         d = self
-    #         for i in range(self.transform.shape[0]):
-    #             assert isinstance(d.shape, Path)
-    #             yield Primitive(
-    #                 d.shape.split(i),
-    #                 d.style.split(i) if d.style is not None else None,
-    #                 d.transform[i],
-    #             )
+            self.transform[ind],
+        )
 
     @classmethod
     def from_shape(cls, shape: Shape) -> Primitive:
@@ -379,22 +341,16 @@ class Primitive(BaseDiagram):
         Returns:
             Primitive: A diagram object.
         """
-        return cls(shape, None, tx.X.ident)
+        return cls(shape, None, tx.ident)
 
     def apply_transform(self, t: Affine) -> Primitive:
-        if len(t.shape) >= 3 and t.shape[-3] != 1:
-            t = t[..., None, :, :]
-
         if hasattr(self.transform, "shape"):
             new_transform = t @ self.transform
         else:
             new_transform = t
-        # if t.shape[0] != 1:
-        #     return super().apply_transform(t)  # type: ignore
-        # else:
         new_diagram = ApplyTransform(new_transform, Empty())
-        new_diagram, self = new_diagram.broadcast_diagrams(self)            
-        return Primitive(self.shape, self.style, new_diagram.transform)
+        new_diagram, self = new_diagram.broadcast_diagrams(self)  # type: ignore
+        return Primitive(self.prim_shape, self.style, new_diagram.transform)
 
     def apply_style(self, other_style: StyleHolder) -> Primitive:
         """Applies a style and returns a primitive.
@@ -406,25 +362,22 @@ class Primitive(BaseDiagram):
             Primitive
         """
         if other_style is None:
-            return Primitive(self.shape, None, self.transform, self.order)
+            return Primitive(self.prim_shape, None, self.transform, self.order)
         new_diagram = ApplyStyle(other_style, None)
-        new_diagram, self = new_diagram.broadcast_diagrams(self)            
+        new_diagram, self = new_diagram.broadcast_diagrams(self)  # type: ignore
 
         return Primitive(
-            self.shape,
+            self.prim_shape,
             (
                 self.style.merge(new_diagram.style)
                 if self.style is not None
                 else new_diagram.style
             ),
             self.transform,
-            self.order
+            self.order,
         )
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
-        # if visitor.collapse_array() and self.size() != ():
-        #     return visitor.visit_primitive_array(self, args)
-        # else:
         return visitor.visit_primitive(self, args)
 
 
@@ -450,10 +403,8 @@ class Compose(BaseDiagram):
     diagrams: tuple[Diagram, ...]
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
-        # if visitor.collapse_array() and self.size() != ():
-        #     return visitor.visit_compose_array(self, args)
-        # else:
         return visitor.visit_compose(self, args)
+
 
 @dataclass(unsafe_hash=True, frozen=True)
 class ComposeAxis(BaseDiagram):
@@ -473,21 +424,12 @@ class ApplyTransform(BaseDiagram):
     diagram: Diagram
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
-        # if visitor.collapse_array() and self.size() != ():
-        #     return visitor.visit_apply_transform_array(self, args)
-        # else:
         return visitor.visit_apply_transform(self, args)
-        
-    def apply_transform(self, t: Affine) -> ApplyTransform:
-        # if t.shape[0] != 1:
-        #     return super().apply_transform(t)  # type: ignore
-        if len(t.shape) >= 3 and t.shape[-3] != 1:
-            t = t[..., None, :, :]
 
-        new_transform = t @ self.transform
-        new_diagram = ApplyTransform(new_transform, Empty())
-        _, other = new_diagram.broadcast_diagrams(self.diagram)
-        return ApplyTransform(new_transform, other)
+    def apply_transform(self, t: Affine) -> ApplyTransform:
+        new_diagram = ApplyTransform(t @ self.transform, Empty())
+        new, other = new_diagram.broadcast_diagrams(self.diagram)  # type: ignore
+        return ApplyTransform(new.transform, other)
 
 
 @dataclass(unsafe_hash=True, frozen=True)
@@ -503,9 +445,9 @@ class ApplyStyle(BaseDiagram):
     def apply_style(self, style: Optional[StyleHolder]) -> ApplyStyle:
         if style is None:
             return ApplyStyle(None, self.diagram)
-        
+
         new_style = ApplyStyle(style, None)
-        new_style, self = new_style.broadcast_diagrams(self)
+        new_style, self = new_style.broadcast_diagrams(self)  # type: ignore
 
         app_style = new_style.style.merge(self.style)
         return ApplyStyle(app_style, self.diagram)
@@ -521,6 +463,7 @@ class ApplyName(BaseDiagram):
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_name(self, args)
 
+
 @dataclass(unsafe_hash=True, frozen=True)
 class Qualify(DiagramVisitor[Diagram, None]):
     A_type = Diagram
@@ -533,7 +476,8 @@ class Qualify(DiagramVisitor[Diagram, None]):
 
     def visit_compose(self, diagram: Compose, args: None) -> Diagram:
         return Compose(
-            diagram.envelope, tuple([d.accept(self, None) for d in diagram.diagrams])
+            diagram.envelope,
+            tuple([d.accept(self, None) for d in diagram.diagrams]),
         )
 
     def visit_apply_transform(
@@ -556,47 +500,6 @@ class Qualify(DiagramVisitor[Diagram, None]):
         )
 
 
-# @dataclass
-# class MultiPrimitive:
-#     "A version of primitive that may be batched"
-#     shape: Path
-#     style: Optional[StyleHolder]
-#     transform: Affine
-
-#     def __iter__(self) -> Iterator[Primitive]:
-#         d = self
-#         return (
-#             Primitive(d.shape.split(i),
-#                         d.style.split(i) if d.style is not None else None,
-#                         d.transform[i])
-#             for i in range(self.transform.shape[0])
-#         )
-
-#     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
-#         return visitor.visit_multi_primitive(self, args)
-
-#     @staticmethod
-#     def from_primitive(prim: Primitive) -> MultiPrimitive:
-#         assert isinstance(prim.shape, Path)
-#         return MultiPrimitive(prim.shape, prim.style, prim.transform)
-
-#     def apply_transform(self, t: Affine) -> MultiPrimitive:
-#         if t.shape[0] != 1:
-#             return super().apply_transform(t)  # type: ignore
-
-#         if hasattr(self.transform, "shape"):
-#             new_transform = t @ self.transform
-#         else:
-#             new_transform = t
-#         return MultiPrimitive(self.shape, self.style, new_transform)
-
-#     def apply_style(self, other_style: StyleHolder) -> MultiPrimitive:
-#         return MultiPrimitive(
-#             self.shape,
-#             self.style.merge(other_style) if self.style is not None else other_style,
-#             self.transform
-#         )
-
 @dataclass
 class Size(Monoid):
     d: Tuple[int, ...]
@@ -606,37 +509,30 @@ class Size(Monoid):
         return Size(())
 
     def __add__(self, other: Size) -> Size:
-        return Size(tx.X.np.broadcast_shapes(self.d, other.d))
+        return Size(tx.np.broadcast_shapes(self.d, other.d))
 
-    def remove_axis(self, axis:int) -> Size:
+    def remove_axis(self, axis: int) -> Size:
         return Size(self.d[:-1])
-        #return Size(tuple(i  for (j, i) in enumerate(self.d) if j != axis)) 
-    
+
+
 class ToSize(DiagramVisitor[Size, Size]):
     A_type = Size
 
-    def visit_primitive(
-        self, diagram: Primitive, t: Size
-    ) -> Size:
-        return Size(diagram.transform.shape[:-3])
-    
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, t: Size
-    ) -> Size:
-         return Size(diagram.transform.shape[:-3])
+    def visit_primitive(self, diagram: Primitive, t: Size) -> Size:
+        return Size(diagram.transform.shape[:-2])
 
-    def visit_apply_style(
-        self, diagram: ApplyStyle, t: Size
-    ) -> Size:
-         if diagram.style is None:
-             return diagram.diagram.accept(self, t)
-         return Size(diagram.style.size())
+    def visit_apply_transform(self, diagram: ApplyTransform, t: Size) -> Size:
+        return Size(diagram.transform.shape[:-2])
 
-    def visit_compose_axis(
-        self, diagram: ComposeAxis, t: Size
-    ) -> Size:
+    def visit_apply_style(self, diagram: ApplyStyle, t: Size) -> Size:
+        if diagram.style is None:
+            return diagram.diagram.accept(self, t)
+        return Size(diagram.style.size())
+
+    def visit_compose_axis(self, diagram: ComposeAxis, t: Size) -> Size:
         return diagram.diagrams.accept(self, t).remove_axis(0)
-        
+
+
 @dataclass
 class OrderList(Monoid):
     ls: List[Primitive]
@@ -644,16 +540,23 @@ class OrderList(Monoid):
 
     @staticmethod
     def empty() -> OrderList:
-        return OrderList([], tx.X.np.asarray(0))
-    
+        return OrderList([], tx.np.asarray(0))
+
     def __add__(self, other: OrderList) -> OrderList:
         sc = self.counter
-        sc = add_dim(sc, len(other.counter.shape) - len(self.counter.shape))
-        return OrderList(self.ls + 
-                         [prim.set_order(prim.order + sc) # type:ignore
-                                        for prim in other.ls], 
-                         (sc + other.counter))
-    
+        # sc = add_dim(sc, len(other.counter.shape) - len(self.counter.shape))
+        return OrderList(
+            self.ls
+            + [
+                prim.set_order(
+                    prim.order
+                    + add_dim(sc, len(prim.order.shape) - len(sc.shape))
+                )  # type:ignore
+                for prim in other.ls
+            ],
+            (sc + other.counter),
+        )
+
 
 class ToListOrder(DiagramVisitor[OrderList, Affine]):
     """Compiles a `Diagram` to a list of `Primitive`s. The transformation `t`
@@ -662,78 +565,63 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
 
     A_type = OrderList
 
-    def visit_primitive(
-        self, diagram: Primitive, t: Affine
-    ) -> OrderList:
+    def visit_primitive(self, diagram: Primitive, t: Affine) -> OrderList:
         size = diagram.size()
-        return OrderList([diagram.apply_transform(t).set_order(tx.X.np.zeros(size))], 
-                         tx.X.np.ones(size))
+        return OrderList(
+            [diagram.apply_transform(t).set_order(tx.np.zeros(size))],
+            tx.np.ones(size),
+        )
 
     def visit_apply_transform(
         self, diagram: ApplyTransform, t: Affine
     ) -> OrderList:
         t_new = t @ diagram.transform
         return diagram.diagram.accept(self, t_new)
-    
-    def visit_apply_style(
-        self, diagram: ApplyStyle, t: Affine
-    ) -> OrderList:
+
+    def visit_apply_style(self, diagram: ApplyStyle, t: Affine) -> OrderList:
         a = diagram.diagram.accept(self, t)
         return OrderList(
             [
-                prim.apply_style(diagram.style)
+                prim.apply_style(
+                    add_dim(
+                        diagram.style, len(prim.size()) - len(diagram.size())
+                    )
+                )
                 for prim in a.ls
-            ], a.counter
+            ],
+            a.counter,
         )
 
-
     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> OrderList:
-        import jax
         s = diagram.diagrams.size()
         stride = s[-1]
-        update = tx.X.np.arange(stride)
-        internal = diagram.diagrams.accept(self, t[..., None, :, :, :])
-        ls = [prim.set_order(stride * prim.order # type: ignore
-                             + add_dim(update, len(prim.size()) - len(s)))
-              for prim in internal.ls]
-        counter = tx.X.np.max(internal.counter + update, axis=-1)[..., None]
+        internal = diagram.diagrams.accept(self, t[..., None, :, :])
+        update = tx.np.arange(stride)
+
+        last_counter = tx.np.where(
+            tx.np.arange(stride) == 0,
+            0,
+            tx.np.roll(
+                tx.np.cumsum(internal.counter, axis=-1), 1, axis=-1
+            ),
+        )
+
+        # ls = [prim.set_order(tx.np.cumsum(prim.order, len(s)- 1))
+        #       for prim in internal.ls]
+        ls = [
+            prim.set_order(
+                prim.order  # type: ignore
+                + add_dim(last_counter, len(prim.size()) - len(s))
+            )
+            for prim in internal.ls
+        ]
+
+        counter = tx.np.sum(internal.counter, axis=-1)
+        assert counter.shape == diagram.size()
         return OrderList(ls, counter)
+
 
 def add_dim(m: tx.Array, size: int) -> tx.Array:
     for s in range(size):
         m = m[..., None]
     return m
-
-# class ToList(DiagramVisitor[MList[Primitive], Affine]):
-#     """Compiles a `Diagram` to a list of `Primitive`s. The transformation `t`
-#     is accumulated upwards, from the tree's leaves.
-#     """
-
-#     A_type = MList[Primitive]
-
-#     def visit_primitive(
-#         self, diagram: Primitive, t: Affine
-#     ) -> MList[Primitive]:
-#         return MList([(diagram.apply_transform(t))])
-
-#     def visit_apply_transform(
-#         self, diagram: ApplyTransform, t: Affine
-#     ) -> MList[Primitive]:
-#         t_new = t @ diagram.transform
-#         return diagram.diagram.accept(self, t_new)
-
-
-#     def visit_apply_style(
-#         self, diagram: ApplyStyle, t: Affine
-#     ) -> MList[Primitive]:
-#         return MList(
-#             [
-#                 prim.apply_style(diagram.style)
-#                 for prim in diagram.diagram.accept(self, t).data
-#             ]
-#         )
-
-#     def visit_apply_name(
-#         self, diagram: ApplyName, t: Affine
-#     ) -> MList[Primitive]:
-#         return MList([prim for prim in diagram.diagram.accept(self, t).data])

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from typing import TYPE_CHECKING, Iterator, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, Tuple
 
 import svgwrite
 from svgwrite import Drawing
@@ -13,6 +13,8 @@ from chalk.shapes import ArrowHead, Image, Latex, Path, Segment, Spacer, Text
 from chalk.style import StyleHolder
 from chalk.types import Diagram
 from chalk.visitor import ShapeVisitor
+import chalk.backend.patch
+from chalk.backend.patch import Patch
 
 if TYPE_CHECKING:
     from chalk.core import Primitive
@@ -53,40 +55,40 @@ class ToSVGShape(ShapeVisitor[BaseElement]):
     def __init__(self, dwg: Drawing):
         self.dwg = dwg
 
-    def render_segment(self, seg: Segment) -> Iterator[str]:
-        # https://www.w3.org/TR/SVG/implnote.html#ArcConversionCenterToEndpoint
-        dangle = seg.dangle
-        f_A = abs(dangle) > 180
-        det: float = tx.X.np.linalg.det(seg.t)  # type: ignore
-        f_S = det * dangle > 0
-        r_x, r_y, rot, q = seg.r_x, seg.r_y, seg.rot, seg.q
+    # def render_segment(self, seg: Segment) -> Iterator[str]:
+    #     # https://www.w3.org/TR/SVG/implnote.html#ArcConversionCenterToEndpoint
+    #     dangle = seg.dangle
+    #     f_A = abs(dangle) > 180
+    #     det: float = tx.X.np.linalg.det(seg.t)  # type: ignore
+    #     f_S = det * dangle > 0
+    #     r_x, r_y, rot, q = seg.r_x, seg.r_y, seg.rot, seg.q
 
-        for i in range(q.shape[0]):
-            if tx.X.np.abs(dangle[i]) > 1:
-                yield f"""
-                A {r_x[i]} {r_y[i]} {rot[i]} {int(f_A[i])} {int(f_S[i])}
-                  {q[i, 0, 0]} {q[i, 1, 0]}"""
-            else:
-                yield f"L {q[i, 0, 0]} {q[i, 1, 0]}"
+    #     for i in range(q.shape[0]):
+    #         if tx.X.np.abs(dangle[i]) > 1:
+    #             yield f"""
+    #             A {r_x[i]} {r_y[i]} {rot[i]} {int(f_A[i])} {int(f_S[i])}
+    #               {q[i, 0, 0]} {q[i, 1, 0]}"""
+    #         else:
+    #             yield f"L {q[i, 0, 0]} {q[i, 1, 0]}"
 
-    def visit_path(
-        self, path: Path, style: StyleHolder = EMPTY_STYLE
-    ) -> BaseElement:
-        extra_style = ""
-        if not path.loc_trails[0].trail.closed:
-            extra_style = "fill:none;"
-        line = self.dwg.path(
-            style="vector-effect: non-scaling-stroke;" + extra_style,
-        )
-        for loc_trail in path.loc_trails:
-            p = loc_trail.location
-            line.push(f"M {p[0, 0, 0]} {p[0, 1, 0]}")
-            segments = loc_trail.located_segments()
-            for seg in self.render_segment(segments):
-                line.push(seg)
-            if loc_trail.trail.closed:
-                line.push("Z")
-        return line
+    # def visit_path(
+    #     self, path: Path, style: StyleHolder = EMPTY_STYLE
+    # ) -> BaseElement:
+    #     extra_style = ""
+    #     if not path.loc_trails[0].trail.closed:
+    #         extra_style = "fill:none;"
+    #     line = self.dwg.path(
+    #         style="vector-effect: non-scaling-stroke;" + extra_style,
+    #     )
+    #     for loc_trail in path.loc_trails:
+    #         p = loc_trail.location
+    #         line.push(f"M {p[0, 0, 0]} {p[0, 1, 0]}")
+    #         segments = loc_trail.located_segments()
+    #         for seg in self.render_segment(segments):
+    #             line.push(seg)
+    #         if loc_trail.trail.closed:
+    #             line.push("Z")
+    #     return line
 
     def visit_latex(
         self, shape: Latex, style: StyleHolder = EMPTY_STYLE
@@ -121,7 +123,6 @@ class ToSVGShape(ShapeVisitor[BaseElement]):
     ) -> BaseElement:
         assert style.output_size
 
-
         scale = 0.01 * (15 / 500) * style.output_size
         return render_svg_prims(
             shape.arrow_shape.scale(scale).get_primitives(), self.dwg, style
@@ -136,9 +137,10 @@ class ToSVGShape(ShapeVisitor[BaseElement]):
             href=shape.url_path, transform=f"translate({dx}, {dy})"
         )
 
-from chalk.backend.patch import Patch
-import chalk.backend.patch
-def to_svg(patch, dwg, ind):
+
+
+
+def to_svg(patch: Patch, dwg: Drawing, ind: Tuple[int, ...]) -> BaseElement:
     line = dwg.path(style="vector-effect: non-scaling-stroke;")
     v, c = patch.vert[ind], patch.command[ind]
     i = 0
@@ -147,9 +149,28 @@ def to_svg(patch, dwg, ind):
             line.push(f"M {v[i, 0]} {v[i, 1]}")
             i += 1
         if c[i] == chalk.backend.patch.Command.CURVE4.value:
-            line.push(f"C {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]} {v[i+2, 0]} {v[i+2, 1]}")
+            line.push(
+                f"C {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]} {v[i+2, 0]} {v[i+2, 1]}"
+            )
             i += 3
-    return line                 
+    return line
+
+
+def write_style(d: Dict[str, Any]) -> str:
+    out = ""
+    up = {
+        "facecolor": "fill",
+        "edgecolor": "stroke",
+        "linewidth": "stroke-width",
+        "alpha": "fill-opacity",
+    }
+    for k, v in d.items():
+        if "color" in k:
+            v = v * 256
+            v = f"rgb({v[0]} {v[1]} {v[2]})"
+        out += f"{up[k]}: {v};"
+    return out
+
 
 def render_svg_prims(
     prims: List[Primitive], dwg: Drawing, style: StyleHolder
@@ -165,69 +186,28 @@ def render_svg_prims(
     dwg.add(outer)
     shape_renderer = ToSVGShape(dwg)
 
-    if tx.JAX_MODE:
-        undo = True
-        import numpy as onp
-        import jax
-        prims = jax.tree.map(onp.asarray, prims)
-        tx.set_jax_mode(False)
-
     # Order the primitives
     d = {}
-    patches = [Patch.from_prim(prim) for prim in prims]
+    patches = [Patch.from_prim(prim, style) for prim in prims]
+    import jax
+    import numpy as onp
+
+    patches = jax.tree.map(onp.asarray, patches)
 
     for patch, prim in zip(patches, prims):
-        for ind, i in tx.X.np.ndenumerate(prim.order): # type: ignore
+        # assert prim.order.shape == patch.command.shape[:-1]
+        for ind, i in onp.ndenumerate(onp.asarray(prim.order)):  # type: ignore
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, ind)
 
-
     for j in sorted(d.keys()):
         patch, ind = d[j]
-        style_new = patch.get_style(style, ind)
-        style_svg = style_new.to_svg()
-
+        style_new = patch.get_style(ind)
         inner = to_svg(patch, dwg, ind)
-        g = dwg.g(style=style_svg)
+        g = dwg.g(style=write_style(style_new))
         g.add(inner)
         dwg.add(g)
 
-        # if not style_svg and not transform:
-        #     dwg.add(inner)
-        # else:
-        #     if not style_svg:
-        #         style_svg = ";"
-        #     g = dwg.g(transform=transform, style=style_svg)
-        #     g.add(inner)
-        #     dwg.add(g)
-
-    #     style_new = patch.get_style(style, ind)
-    #     patch = matplotlib.patches.PathPatch(Path(patch.vert[ind], patch.command[ind]), **style_new.to_mpl())
-    #     ps.append(patch)
-
-
-    # for j in sorted(d.keys()):
-    #     prim, ind = d[j]
-    #     diagram = prim.split(ind)
-
-    #     for i in range(diagram.transform.shape[0]):
-    #         style_new = (
-    #             diagram.style.merge(style) if diagram.style else style
-    #         )
-    #         style_svg = style_new.to_svg()
-    #         transform = tx_to_svg(diagram.transform)
-    #         inner = diagram.shape.accept(shape_renderer, style=style_new)
-    #         if not style_svg and not transform:
-    #             dwg.add(inner)
-    #         else:
-    #             if not style_svg:
-    #                 style_svg = ";"
-    #             g = dwg.g(transform=transform, style=style_svg)
-    #             g.add(inner)
-    #             dwg.add(g)
-
-    if undo:
-        tx.set_jax_mode(True)
 
 def prims_to_file(
     prims: List[Primitive], path: str, height: float, width: float
@@ -236,8 +216,6 @@ def prims_to_file(
     dwg = svgwrite.Drawing(path, size=(int(width), int(height)))
     style = StyleHolder.root(output_size=height)
     render_svg_prims(prims, dwg, style)
-
-    # outer.add(to_svg(s, dwg, style))
     dwg.save()
 
 
