@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+import chalk.transform as tx
+
 if TYPE_CHECKING:
     from chalk.ArrowHead import ArrowHead
     from chalk.core import (
@@ -53,19 +55,6 @@ class DiagramVisitor(Generic[A, B]):
         "Empty defaults to empty"
         return self.A_type.empty()
 
-    # def visit_compose_array(self, diagram: Compose, arg: B) -> A:
-    #     print("HERE!")
-    #     size = diagram.size()
-    #     ret = {key: self.A_type.empty()
-    #            for key in rproduct(size)}
-    #     for d in diagram.diagrams:
-    #         print("d")
-    #         d_size = d.size()
-    #         a = d.accept(self, arg)
-    #         ret = {k: ret[k] + a[to_size(k, d_size)]
-    #                 for k in rproduct(size)}
-    #     return ret
-
     def visit_compose(self, diagram: Compose, arg: B) -> A:
         "Compose defaults to monoid over children"
         return self.A_type.concat(
@@ -73,36 +62,23 @@ class DiagramVisitor(Generic[A, B]):
         )
 
     def visit_compose_axis(self, diagram: ComposeAxis, t: B) -> A:
-        # if not self.collapse_array():
         from functools import partial
 
-        import jax
-
+        size = diagram.diagrams.size()
         axis = len(diagram.diagrams.size()) - 1
         fn = diagram.diagrams.accept.__func__  # type: ignore
-        ed: A = jax.vmap(
-            partial(fn, visitor=self, args=t), in_axes=axis, out_axes=axis
-        )(diagram.diagrams)
+        fn = partial(fn, visitor=self, args=t)
+        # tx.np.vectorize(partial(fn, visitor=self, args=t),
+        if not tx.JAX_MODE:
+            ds = []
+            for k in range(size[-1]):
+                d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
+                ds.append(fn(d))
+            ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
+            # assert ed.size() == size
+        else:
+            ed: A = tx.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
         return self.A_type.reduce(ed, axis)
-        # else:
-        #     "Compose defaults to monoid over children"
-        #     size = diagram.size()
-        #     internal_size = diagram.diagrams.size()
-        #     internal = diagram.diagrams.accept(self, t[..., None, :, :, :])
-        #     ret = {key:[] for  key in rproduct(size)}
-        #     if size == ():
-        #         ret[()] = []
-
-        #     for key in rproduct(internal_size):
-        #         ret[key[:-1]].append(internal[key])
-        #     for key in ret:
-        #         ret[key] = self.A_type.concat(ret[key])
-        #     if size == ():
-        #         return ret[()]
-        #     return ret
-
-    # def visit_apply_transform_array(self, diagram: Primitive, arg: B) -> A:
-    #     return self.visit_apply_transform(diagram, arg)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:
         "Defaults to pass over"

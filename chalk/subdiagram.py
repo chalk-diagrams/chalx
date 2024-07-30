@@ -12,8 +12,8 @@ from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import ApplyName, ApplyTransform, Compose
-
+    from chalk.core import ApplyName, ApplyTransform, Compose, Primitive
+    from chalk.types import Diagram
 
 AtomicName = Any
 
@@ -152,3 +152,48 @@ def get_sub_map(self: Diagram, t: Affine) -> Dict[Name, List[Subdiagram]]:
     them in a dictionary (map) indexed by their name.
     """
     return self.accept(GetSubMap(), t).data
+
+
+def qualify(self, name: Name) -> Diagram:
+    """Prefix names in the diagram by a given name or sequence of names."""
+    return self.accept(Qualify(name), None)
+
+
+@dataclass(unsafe_hash=True, frozen=True)
+class Qualify(DiagramVisitor[Diagram, None]):
+    A_type = Diagram
+
+    def __init__(self, name: Name):
+        self.name = name
+
+    def visit_primitive(self, diagram: Primitive, args: None) -> Diagram:
+        return diagram
+
+    def visit_compose(self, diagram: Compose, args: None) -> Diagram:
+        return Compose(
+            diagram.envelope,
+            tuple([d.accept(self, None) for d in diagram.diagrams]),
+        )
+
+    def visit_apply_transform(
+        self, diagram: ApplyTransform, args: None
+    ) -> Diagram:
+        return ApplyTransform(
+            diagram.transform,
+            diagram.diagram.accept(self, None),
+        )
+
+    def visit_apply_style(self, diagram: ApplyStyle, args: None) -> Diagram:
+        return ApplyStyle(
+            diagram.style,
+            diagram.diagram.accept(self, None),
+        )
+
+    def visit_apply_name(self, diagram: ApplyName, args: None) -> Diagram:
+        return ApplyName(
+            self.name + diagram.dname, diagram.diagram.accept(self, None)
+        )
+
+    def named(self, name: Name) -> Diagram:
+        """Add a name (or a sequence of names) to a diagram."""
+        return ApplyName(name, self)

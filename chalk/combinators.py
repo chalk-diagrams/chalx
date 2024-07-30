@@ -93,15 +93,12 @@ def batch_cat(
     axis = len(axes) - 1
     assert diagram.size() != ()
     diagram = diagram._normalize()
-    from functools import partial
-
-    import jax
 
     if sep is None:
         sep = 0
 
     def call_scan(diagram: Diagram) -> Diagram:
-        @jax.vmap
+        @tx.vmap
         def offset(diagram: Diagram) -> Tuple[Scalars, Scalars]:
             env = diagram.get_envelope()
             right = env(v)
@@ -113,14 +110,13 @@ def batch_cat(
         off = off.at[0].set(0)
         off = tx.np.cumsum(off, axis=0)
 
-        @jax.vmap
+        @tx.vmap
         def translate(off: Scalars, diagram: Diagram) -> Diagram:
             return diagram.translate_by(v * off[..., None, None])
 
         return translate(off, diagram)
 
-    for a in range(axis):
-        call_scan = jax.vmap(call_scan, in_axes=a, out_axes=a)
+    call_scan = tx.multi_vmap(call_scan, axis)
     return call_scan(diagram).compose_axis()
 
 

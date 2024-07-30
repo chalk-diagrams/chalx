@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
+import chalk.backend.patch
 import chalk.transform as tx
+from chalk.backend.patch import Patch
 from chalk.shapes import (
     ArrowHead,
     Image,
@@ -17,8 +19,6 @@ from chalk.style import Style, StyleHolder
 from chalk.transform import Affine
 from chalk.types import Diagram
 from chalk.visitor import ShapeVisitor
-import chalk.backend.patch
-from chalk.backend.patch import Patch
 
 if TYPE_CHECKING:
     from chalk.core import Primitive
@@ -35,6 +35,16 @@ def tx_to_cairo(affine: Affine) -> Any:
         return cairo.Matrix(a, d, b, e, c, f)  # type: ignore
 
     return convert(*affine[0, 0], *affine[0, 1])  # type: ignore
+
+
+def write_style(d: Dict[str, Any], ctx) -> None:
+    if "facecolor" in d:
+        ctx.set_source_rgba(*d["facecolor"], d.get("alpha", 1))
+        ctx.fill_preserve()
+    if "edgecolor" in d:
+        ctx.set_source_rgb(*d["edgecolor"])
+    if "linewidth" in d:
+        ctx.set_line_width(d["linewidth"])
 
 
 class ToCairoShape(ShapeVisitor[None]):
@@ -131,8 +141,6 @@ class ToCairoShape(ShapeVisitor[None]):
         ctx.paint()
 
 
-
-
 def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
 
     v, c = patch.vert[ind], patch.command[ind]
@@ -153,8 +161,8 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             i += 3
 
 
-def render_cairo_prims(
-    prims: List[Primitive], ctx: PyCairoContext, even_odd: bool = False
+def render_cairo_patches(
+    patches: List[Patch], ctx: PyCairoContext, even_odd: bool = False
 ) -> None:
 
     import cairo
@@ -162,28 +170,23 @@ def render_cairo_prims(
 
     if even_odd:
         ctx.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
-    #shape_renderer = ToCairoShape()
-        
+    # shape_renderer = ToCairoShape()
+
     style = Style()
     # Order the primitives
     d = {}
-    patches = [Patch.from_prim(prim, style) for prim in prims]
 
-    for patch, prim in zip(patches, prims):
-        for ind, i in tx.X.np.ndenumerate(onp.asarray(prim.order)):  # type: ignore
+    for patch in patches:
+        for ind, i in tx.onp.ndenumerate(onp.asarray(patch.order)):  # type: ignore
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, ind)
 
-    if tx.JAX_MODE:
-        import jax
-
-        d = jax.tree.map(onp.asarray, d)
-
+    d = tx.tree_map(onp.asarray, d)
     for j in sorted(d.keys()):
         patch, ind = d[j]
         to_cairo(patch, ctx, ind)
         style_new = patch.get_style(ind)
-        style_new.render(ctx)
+        write_style(style_new, ctx)
         ctx.stroke()
 
     # Order the primitives
@@ -220,8 +223,8 @@ def render_cairo_prims(
     #         #     style = style.merge(Style(fill_opacity_=0))
 
 
-def prims_to_file(
-    prims: List[Primitive],
+def patches_to_file(
+    patches: List[Patch],
     path: str,
     height: float,
     width: float,
@@ -231,7 +234,7 @@ def prims_to_file(
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(width), int(height))
     ctx = cairo.Context(surface)
-    render_cairo_prims(prims, ctx, even_odd)
+    render_cairo_patches(patches, ctx, even_odd)
     surface.write_to_png(path)
 
 
@@ -249,5 +252,5 @@ def render(
                                          Defaults to None.
     """
 
-    prims, h, w = self.layout(height, width)
-    prims_to_file(prims, path, h, w)  # type: ignore
+    patches, h, w = self.layout(height, width)
+    patches_to_file(patches, path, h, w)  # type: ignore

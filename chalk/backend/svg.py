@@ -8,13 +8,13 @@ from svgwrite import Drawing
 from svgwrite.base import BaseElement
 from svgwrite.shapes import Rect
 
+import chalk.backend.patch
 from chalk import transform as tx
+from chalk.backend.patch import Patch
 from chalk.shapes import ArrowHead, Image, Latex, Path, Segment, Spacer, Text
 from chalk.style import StyleHolder
 from chalk.types import Diagram
 from chalk.visitor import ShapeVisitor
-import chalk.backend.patch
-from chalk.backend.patch import Patch
 
 if TYPE_CHECKING:
     from chalk.core import Primitive
@@ -138,8 +138,6 @@ class ToSVGShape(ShapeVisitor[BaseElement]):
         )
 
 
-
-
 def to_svg(patch: Patch, dwg: Drawing, ind: Tuple[int, ...]) -> BaseElement:
     line = dwg.path(style="vector-effect: non-scaling-stroke;")
     v, c = patch.vert[ind], patch.command[ind]
@@ -172,8 +170,8 @@ def write_style(d: Dict[str, Any]) -> str:
     return out
 
 
-def render_svg_prims(
-    prims: List[Primitive], dwg: Drawing, style: StyleHolder
+def render_svg_patches(
+    patches: List[Patch], dwg: Drawing, style: StyleHolder
 ) -> None:
     outer = dwg.g(style="fill:white;")
     # Arrow marker
@@ -188,15 +186,14 @@ def render_svg_prims(
 
     # Order the primitives
     d = {}
-    patches = [Patch.from_prim(prim, style) for prim in prims]
-    import jax
+
     import numpy as onp
 
-    patches = jax.tree.map(onp.asarray, patches)
+    patches = tx.tree_map(onp.asarray, patches)
 
-    for patch, prim in zip(patches, prims):
+    for patch in patches:
         # assert prim.order.shape == patch.command.shape[:-1]
-        for ind, i in onp.ndenumerate(onp.asarray(prim.order)):  # type: ignore
+        for ind, i in onp.ndenumerate(onp.asarray(patch.order)):  # type: ignore
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, ind)
 
@@ -209,13 +206,13 @@ def render_svg_prims(
         dwg.add(g)
 
 
-def prims_to_file(
-    prims: List[Primitive], path: str, height: float, width: float
+def patches_to_file(
+    patches: List[Patch], path: str, height: float, width: float
 ) -> None:
 
     dwg = svgwrite.Drawing(path, size=(int(width), int(height)))
     style = StyleHolder.root(output_size=height)
-    render_svg_prims(prims, dwg, style)
+    render_svg_patches(patches, dwg, style)
     dwg.save()
 
 
@@ -240,8 +237,8 @@ def render(
 
     """
 
-    prims, h, w = self.layout(height, width)
-    prims_to_file(prims, path, h, w)  # type: ignore
+    patches, h, w = self.layout(height, width)
+    patches_to_file(patches, path, h, w)  # type: ignore
 
     # pad = 0.05
     # envelope = self.get_envelope()

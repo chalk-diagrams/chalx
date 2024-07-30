@@ -92,7 +92,9 @@ def square(side: float) -> Diagram:
 
 def circle(radius: tx.Floating) -> Diagram:
     "Draws a circle with the specified ``radius``."
-    return Trail.circle().stroke().translate(radius, 0).scale(radius)
+    return (
+        Trail.circle().stroke().translate(radius, 0).scale(radius).center_xy()
+    )
 
 
 def arc(

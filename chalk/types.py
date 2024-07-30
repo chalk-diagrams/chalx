@@ -63,8 +63,6 @@ class TrailLike(Protocol):
         return self.at(tx.P2(0, 0)).stroke()
 
 
-
-
 class Diagram(Stylable, tx.Transformable, Monoid):
 
     @property
@@ -181,8 +179,8 @@ class Diagram(Stylable, tx.Transformable, Monoid):
         self, visitor: DiagramVisitor[A, Any], args: Any
     ) -> A: ...
 
-    def get_primitives( # type: ignore[empty-body]
-        self,  
+    def get_primitives(  # type: ignore[empty-body]
+        self,
     ) -> List[Primitive]: ...
 
     def layout(  # type: ignore[empty-body]
@@ -234,6 +232,7 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     def broadcast_diagrams(  # type: ignore[empty-body]
         self, other: Diagram
     ) -> Tuple[Diagram, Diagram]: ...
+
 
 Batched = Dia[Diagram, "*B A"]
 Reduced = Dia[Diagram, "*B"]

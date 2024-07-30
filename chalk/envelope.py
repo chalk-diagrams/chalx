@@ -4,9 +4,6 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Self, Tuple
 
-import jax
-
-
 import chalk.transform as tx
 from chalk.monoid import Monoid
 from chalk.transform import (
@@ -80,9 +77,10 @@ class Envelope(Transformable, Monoid):
     diagram: Diagram
     affine: Affine
 
-    #@partial(tx.np.vectorize, excluded=[0], signature="(3,1)->()")
+    # @partial(tx.np.vectorize, excluded=[0], signature="(3,1)->()")
     def __call__(self, direction: V2_t) -> Scalars:
         def get_env(diagram):
+            assert diagram.size() == ()
             return Envelope.general_transform(
                 self.affine,
                 lambda x: diagram.accept(ApplyEnvelope(), x).d,
@@ -93,10 +91,8 @@ class Envelope(Transformable, Monoid):
         if size == ():
             return get_env(self.diagram)
         else:
-            import jax
-
             for _ in range(len(size)):
-                get_env = jax.vmap(get_env)
+                get_env = tx.vmap(get_env)
             return get_env(self.diagram)
 
     # # Monoid
@@ -112,7 +108,9 @@ class Envelope(Transformable, Monoid):
 
     @property
     def center(self) -> P2_t:
-        d = [self(Envelope.all_dir[d]) for d in range(Envelope.all_dir.shape[0])]
+        d = [
+            self(Envelope.all_dir[d]) for d in range(Envelope.all_dir.shape[0])
+        ]
         return P2(
             (-d[1] + d[0]) / 2,
             (-d[3] + d[2]) / 2,
@@ -177,7 +175,10 @@ class Envelope(Transformable, Monoid):
         return v / tx.length(d)
 
     def to_bounding_box(self: Envelope) -> BoundingBox:
-        d = self(Envelope.all_dir)
+        d = [
+            self(Envelope.all_dir[d]) for d in range(Envelope.all_dir.shape[0])
+        ]
+        # d = self(Envelope.all_dir)
         return tx.BoundingBox(V2(-d[1], -d[3]), V2(d[0], d[2]))
 
     def to_path(self, angle: int = 45) -> Iterable[P2_t]:
@@ -214,6 +215,14 @@ class ApplyEnvelope(DiagramVisitor[EnvDistance, V2_t]):
                 lambda x: diagram.diagram.accept(self, x).d,
                 t,
             )
+        )
+
+    def visit_compose(self, diagram: Compose, arg):
+        "Compose defaults to monoid over children"
+        if diagram.envelope is not None:
+            return diagram.envelope.diagram.accept(self, arg)
+        return self.A_type.concat(
+            [d.accept(self, arg) for d in diagram.diagrams]
         )
 
 

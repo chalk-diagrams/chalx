@@ -8,6 +8,8 @@ else:
 
 import os
 
+import chex
+
 import chalk.align as align
 import chalk.core
 import chalk.envelope
@@ -30,11 +32,10 @@ from chalk.transform import (
     BoundingBox,
     from_radians,
     to_radians,
-    unit_x, 
-    unit_y
+    unit_x,
+    unit_y,
 )
 from chalk.types import Diagram
-import chex
 
 # if eval(os.environ.get("CHALK_JAX", "0")):
 

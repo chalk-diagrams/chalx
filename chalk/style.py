@@ -93,7 +93,7 @@ def Style(
     dashing_: Optional[PropLike] = None,
     output_size: Optional[PropLike] = None,
 ) -> StyleHolder:
-    
+
     b = (
         tx.np.zeros(STYLE_SIZE),
         tx.np.zeros(STYLE_SIZE, dtype=bool),
@@ -104,20 +104,27 @@ def Style(
         index = (Ellipsis, slice(*STYLE_LOCATIONS[key]))
         if value is not None:
             value = tx.np.asarray(value)
-            if len(value.shape) != len(base.shape):
-                n = tx.np.zeros(value.shape[:-1] + (STYLE_SIZE,))
-                base, _ = tx.np.broadcast_arrays(base, n) 
-                mask, _ = tx.np.broadcast_arrays(mask, n) 
-
+            if len(value.shape) != len(base.shape) - 1:
+                n = tx.np.zeros(
+                    value.shape[
+                        : len(value.shape) - len(DEFAULTS[key].shape) - 1
+                    ]
+                    + (STYLE_SIZE,)
+                )
+                base, _ = tx.np.broadcast_arrays(base, n)
+                mask, _ = tx.np.broadcast_arrays(mask, n)
             base = tx.index_update(base, index, value)  # type: ignore
             mask = tx.index_update(mask, index, True)  # type: ignore
         return base, mask
 
-    b = update(b, "line_width", line_width_)
+    if line_width_ is not None:
+        b = update(b, "line_width", tx.np.asarray(line_width_)[..., None])
     b = update(b, "line_color", line_color_)
-    b = update(b, "line_opacity", line_opacity_)
+    if line_opacity_ is not None:
+        b = update(b, "line_opacity", tx.np.asarray(line_opacity_)[..., None])
     b = update(b, "fill_color", fill_color_)
-    b = update(b, "fill_opacity", fill_opacity_)
+    if fill_opacity_ is not None:
+        b = update(b, "fill_opacity", tx.np.asarray(fill_opacity_)[..., None])
     b = update(b, "output_size", output_size)
     return StyleHolder(*b)
 
@@ -131,11 +138,15 @@ class StyleHolder(Stylable):
 
     def __getitem__(self, index: Tuple[int, ...]) -> StyleHolder:
         if Ellipsis in index:
-            return StyleHolder(self.base[index + (slice(None),)], 
-                               self.mask[index + (slice(None),)])
+            return StyleHolder(
+                self.base[index + (slice(None),)],
+                self.mask[index + (slice(None),)],
+            )
         else:
-            return StyleHolder(self.base[index + (Ellipsis, slice(None))], 
-                               self.mask[index + (Ellipsis, slice(None))])
+            return StyleHolder(
+                self.base[index + (Ellipsis, slice(None))],
+                self.mask[index + (Ellipsis, slice(None))],
+            )
 
     def size(self) -> Tuple[int, ...]:
         return self.base.shape[:-1]
@@ -199,54 +210,15 @@ class StyleHolder(Stylable):
         base = tx.np.where(other.mask, other.base, self.base)
         return StyleHolder(base, mask)
 
-    def render(self, ctx: PyCairoContext) -> None:
-        """Renders the style object.
-
-        Args:
-            ctx (PyCairoContext): A context.
-        """
-        if self.fill_color_ is not None:
-            if self.fill_opacity_ is None:
-                op = 1.0
-            else:
-                op = self.fill_opacity_[0]
-            f = self.fill_color_
-            ctx.set_source_rgba(f[0], f[1], f[2], op)
-            ctx.fill_preserve()
-
-        # set default values if they are not provided
-        if self.line_color_ is None:
-            lc = LC
-        else:
-            lc = self.line_color_
-        # Set by observation
-        assert self.output_size is not None
-        normalizer = self.output_size * (15 / 500)
-        if self.line_width_ is None:
-            lw = LW * normalizer
-        else:
-            lw = self.line_width_
-            # lwt, lw = self.line_width_
-            # if lwt == WidthType.NORMALIZED:
-            #     lw = lw * normalizer
-
-            # elif lwt == WidthType.LOCAL:
-            #     lw = lw
-        ctx.set_source_rgb(*lc)
-        ctx.set_line_width(lw.reshape(-1)[0])
-
-        if self.dashing_ is not None:
-            ctx.set_dash(self.dashing_[0], self.dashing_[1])
-
     def to_mpl(self):
         style = {}
         if self.fill_color_ is not None:
-            f = self.fill_color_ 
-            style["facecolor"] = f #(f[0], f[1], f[2])
-            #style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
+            f = self.fill_color_
+            style["facecolor"] = f  # (f[0], f[1], f[2])
+            # style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
         if self.line_color_ is not None:
             lc = self.line_color_
-            style["edgecolor"] = lc # (lc[0], lc[1], lc[2])
+            style["edgecolor"] = lc  # (lc[0], lc[1], lc[2])
         else:
             style["edgecolor"] = "black"
 
@@ -262,77 +234,3 @@ class StyleHolder(Stylable):
         if self.fill_opacity_ is not None:
             style["alpha"] = self.fill_opacity_[0]
         return style
-
-
-    def to_svg(self) -> str:
-        """Converts to SVG.
-
-        Returns:
-            str: A string notation of the SVG.
-        """
-        style = ""
-        if self.fill_color_ is not None:
-            f = self.fill_color_ * 256
-            style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
-        if self.line_color_ is not None:
-            lc = self.line_color_ * 256
-            style += f"stroke: rgb({lc[0]} {lc[1]} {lc[2]});"
-        else:
-            style += "stroke: black;"
-
-        # Set by observation
-        assert self.output_size is not None
-        normalizer = self.output_size[0] * (15 / 500)
-        if self.line_width_ is not None:
-            lw = self.line_width_
-            # if lwt == WidthType.NORMALIZED:
-            #     lw = lw * normalizer
-            # elif lwt == WidthType.LOCAL:
-            #     lw = lw
-        else:
-            lw = LW * normalizer
-
-        style += f" stroke-width: {lw.reshape(-1)[0]};"
-
-        if self.fill_opacity_ is not None:
-            style += f"fill-opacity: {self.fill_opacity_[0]};"
-        if self.dashing_ is not None:
-            style += (
-                f"stroke-dasharray: {' '.join(map(str, self.dashing_[0]))};"
-            )
-
-        return style
-
-    # def to_tikz(self, pylatex: PyLatex) -> Dict[str, str]:
-    #     """Converts to dictionary of tikz options."""
-    #     style = {}
-
-    #     def tikz_color(color: Color) -> str:
-    #         r, g, b = color.rgb
-    #         return f"{{rgb,1:red,{r}; green,{g}; blue,{b}}}"
-
-    #     if self.fill_color_ is not None:
-    #         style["fill"] = tikz_color(self.fill_color_)
-    #     if self.line_color_ is not None:
-    #         style["draw"] = tikz_color(self.line_color_)
-    #     # This constant was set based on observing TikZ output
-    #     assert self.output_size is not None
-    #     normalizer = self.output_size * (175 / 500)
-
-    #     if self.line_width_ is not None:
-    #         lwt, lw = self.line_width_
-    #         if lwt == WidthType.NORMALIZED:
-    #             lw = lw * normalizer
-    #         elif lwt == WidthType.LOCAL:
-    #             lw = lw
-    #     else:
-    #         lw = normalizer * LW
-    #     style["line width"] = f"{lw}pt"
-    #     if self.fill_opacity_ is not None:
-    #         style["fill opacity"] = f"{self.fill_opacity_}"
-    #     if self.dashing_ is not None:
-    #         style["dash pattern"] = (
-    #             f"{{on {self.dashing_[0][0]}pt off {self.dashing_[0][0]}pt}}"
-    #         )
-
-    #     return style

@@ -7,9 +7,10 @@ import os
 from dataclasses import dataclass
 from functools import partial
 from types import ModuleType
-from typing import TYPE_CHECKING, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Tuple, Union
 
 import array_api_compat.numpy as onp
+import jax
 from jaxtyping import Bool, Float, Int
 from typing_extensions import Self
 
@@ -75,6 +76,7 @@ def union(
         m = np.concatenate([x[1], y[1]], axis=1)
         return n1, m
 
+
 def union_axis(x: Tuple[Array, Array], axis: int) -> Tuple[Array, Array]:
     n = [
         np.squeeze(x, axis=axis)
@@ -87,18 +89,15 @@ def union_axis(x: Tuple[Array, Array], axis: int) -> Tuple[Array, Array]:
     ret = functools.reduce(union, zip(n, m))
     return ret
 
-    
+
 unit_x = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
 unit_y = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
 
 origin = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
 
-ident = np.asarray(
-            [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]
-        ).reshape((3, 3))
-
-
-
+ident = np.asarray([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]).reshape(
+    (3, 3)
+)
 
 
 @partial(np.vectorize, signature="()->()")
@@ -527,5 +526,31 @@ def arc_to_bezier(theta1, theta2, n=2):
     return vertices
 
 
+def vmap(fn):
+
+    if JAX_MODE:
+        return vmap(fn)
+
+    def vmap2(x):
+        size = x.size()
+        ds = []
+        for k in range(size[0]):
+            d = jax.tree_map(lambda x: x[k], x)
+            ds.append(fn(d))
+        final = jax.tree_map(lambda *x: np.stack(x, 0), *ds)
+
+        return final
+
+    return vmap2
+
+
+def multi_vmap(fn: Callable, t: int) -> Callable:
+    for j in range(t):
+        fn = vmap(fn)
+    return fn
+
+
+tree_map = jax.tree.map
+
 # Explicit rexport
-__all__ = ["Array", "np", "jit"]
+__all__ = ["Array", "np", "jit", "vmap", "multi_vmap", "tree_map"]
