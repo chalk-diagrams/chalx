@@ -14,6 +14,7 @@ from typing import (
 
 from jaxtyping import AbstractDtype
 
+
 import chalk.transform as tx
 from chalk.monoid import Monoid
 from chalk.style import Stylable, StyleHolder
@@ -21,13 +22,14 @@ from chalk.trace import TraceDistances
 from chalk.transform import P2_t, V2_t
 
 if TYPE_CHECKING:
+    from chalk.backend.patch import Patch
     from chalk.core import Primitive
     from chalk.envelope import Envelope
-    from chalk.path import Path
+    from chalk.shapes.path import Path
     from chalk.subdiagram import Name, Subdiagram
     from chalk.trace import Trace
     from chalk.trail import Located, Trail
-    from chalk.visitor import A, C, DiagramVisitor, ShapeVisitor
+    from chalk.visitor import A, DiagramVisitor
 
 
 class Dia(AbstractDtype):
@@ -43,8 +45,6 @@ class Enveloped(Protocol):
 
 
 class Shape(Enveloped, Protocol):
-    def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C: ...
-
     def split(self, i: int) -> Shape: ...
 
     def get_trace(self, r: tx.Ray) -> TraceDistances: ...
@@ -53,7 +53,7 @@ class Shape(Enveloped, Protocol):
 class TrailLike(Protocol):
     def to_trail(self) -> Trail: ...
 
-    def to_path(self, location: P2_t = tx.P2(0, 0)) -> Path:
+    def to_path(self, location: P2_t = tx.P2(0., 0.)) -> Path:
         return self.at(location).to_path()
 
     def at(self, location: P2_t) -> Located:
@@ -82,10 +82,10 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     def __or__(self, d: Diagram) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def __truediv__(self, d: Diagram) -> Diagram:  # type: ignore[empty-body]
+    def __truediv__(self, other: Diagram) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def __floordiv__(self, d: Diagram) -> Diagram:  # type: ignore[empty-body]
+    def __floordiv__(self, other: Diagram) -> Diagram:  # type: ignore[empty-body]
         ...
 
     # def frame(self, extra: tx.Floating) -> Diagram:  # type: ignore[empty-body]
@@ -185,7 +185,7 @@ class Diagram(Stylable, tx.Transformable, Monoid):
 
     def layout(  # type: ignore[empty-body]
         self, height: tx.IntLike, width: Optional[tx.IntLike] = None
-    ) -> Tuple[List[Primitive], tx.IntLike, tx.IntLike]: ...
+    ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]: ...
 
     def size(self) -> Tuple[int, ...]:  # type: ignore[empty-body]
         ...
@@ -193,10 +193,10 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     def compose_axis(self) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def hcat(self: Batched) -> Reduced:  # type: ignore[empty-body]
+    def hcat(self: Batched, sep: Optional[Floating]) -> Reduced:  # type: ignore[empty-body]
         ...
 
-    def vcat(self: Batched) -> Reduced:  # type: ignore[empty-body]
+    def vcat(self: Batched, sep: Optional[Floating]) -> Reduced:  # type: ignore[empty-body]
         ...
 
     def concat(self: Batched) -> Reduced:  # type: ignore[empty-body]
@@ -233,9 +233,9 @@ class Diagram(Stylable, tx.Transformable, Monoid):
         self, other: Diagram
     ) -> Tuple[Diagram, Diagram]: ...
 
-
-Batched = Dia[Diagram, "*B A"]
-Reduced = Dia[Diagram, "*B"]
-B1 = Dia[Diagram, "*#B"]
-B2 = Dia[Diagram, "*#B"]
-B = Dia[Diagram, "*B"]
+# Todo: Add run time size checking to Diagram
+Batched = Diagram # Dia[Diagram, "*B A"]
+Reduced = Diagram # Dia[Diagram, "*B"]
+B1 = Diagram # Dia[Diagram, "*#B"]
+B2 = Diagram #Dia[Diagram, "*#B"]
+B = Diagram #Dia[Diagram, "*B"]

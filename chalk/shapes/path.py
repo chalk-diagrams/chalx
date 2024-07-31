@@ -1,18 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, List, Sequence, Tuple
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 from chalk import transform as tx
 
 # from chalk.envelope import Envelope
 from chalk.envelope import EnvDistance
-from chalk.shapes.shape import Shape
-from chalk.trace import Trace, TraceDistances
+from chalk.trace import TraceDistances
 from chalk.trail import Located, Trail
 from chalk.transform import P2_t, Transformable
 from chalk.types import Diagram
-from chalk.visitor import C, ShapeVisitor
 
 
 def make_path(
@@ -20,12 +18,16 @@ def make_path(
 ) -> Diagram:
     return Path.from_list_of_tuples(segments, closed).stroke()
 
+@dataclass(frozen=True)
+class Text:
+    text: tx.Array
 
-@dataclass(unsafe_hash=True, frozen=True)
-class Path(Shape, Transformable):
+@dataclass(unsafe_hash=True)
+class Path(Transformable):
     """Path class."""
 
     loc_trails: Tuple[Located, ...]
+    text: Optional[Text] = None
 
     def split(self, i: int) -> Path:
         return Path(tuple([loc.split(i) for loc in self.loc_trails]))
@@ -50,11 +52,6 @@ class Path(Shape, Transformable):
             for pt in loc_trails.points():
                 yield pt
 
-    # def split(self):
-    #     return [loc.trail.segments.get(i).at(pt).stroke()
-    #             for loc in self.loc_trails
-    #             for i, pt in enumerate(loc.points()) ]
-
     def envelope(self, t: tx.V2_t) -> tx.Scalars:
         return EnvDistance.concat(
             (EnvDistance(loc.envelope(t)) for loc in self.loc_trails)
@@ -63,8 +60,15 @@ class Path(Shape, Transformable):
     def get_trace(self, t: tx.Ray) -> TraceDistances:
         return TraceDistances.concat((loc.trace(t) for loc in self.loc_trails))
 
-    def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C:
-        return visitor.visit_path(self, **kwargs)
+    def stroke(self) -> Diagram:
+        """Returns a primitive (shape) with strokes
+
+        Returns:
+            Diagram: A diagram.
+        """
+        from chalk.core import Primitive
+
+        return Primitive.from_path(self)
 
     # Constructors
     @staticmethod
@@ -80,6 +84,10 @@ class Path(Shape, Transformable):
     @staticmethod
     def from_point(point: P2_t) -> Path:
         return Path.from_points([point])
+
+    @staticmethod
+    def from_text(s: str) -> Path:
+        return Path((), Text(tx.np.array([])))
 
     @staticmethod
     def from_pairs(

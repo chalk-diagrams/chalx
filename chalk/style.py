@@ -129,7 +129,7 @@ def Style(
     return StyleHolder(*b)
 
 
-@dataclass
+@dataclass(frozen=True)
 class StyleHolder(Stylable):
     """Style class."""
 
@@ -157,7 +157,6 @@ class StyleHolder(Stylable):
         return StyleHolder(base=self.base[i], mask=self.mask[i])
 
     def get(self, key: str) -> tx.Scalars:
-        self.base = self.base
         v = self.base[slice(*STYLE_LOCATIONS[key])]
         return tx.np.where(
             self.mask[slice(*STYLE_LOCATIONS[key])], v, DEFAULTS[key]

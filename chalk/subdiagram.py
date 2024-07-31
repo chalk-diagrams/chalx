@@ -12,7 +12,7 @@ from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import ApplyName, ApplyTransform, Compose, Primitive
+    from chalk.core import ApplyName, ApplyTransform, Compose, Primitive, ApplyStyle
     from chalk.types import Diagram
 
 AtomicName = Any
@@ -158,8 +158,10 @@ def qualify(self, name: Name) -> Diagram:
     """Prefix names in the diagram by a given name or sequence of names."""
     return self.accept(Qualify(name), None)
 
+def named(self, name: Name) -> Diagram:
+    """Add a name (or a sequence of names) to a diagram."""
+    return ApplyName(name, self)
 
-@dataclass(unsafe_hash=True, frozen=True)
 class Qualify(DiagramVisitor[Diagram, None]):
     A_type = Diagram
 
@@ -194,6 +196,3 @@ class Qualify(DiagramVisitor[Diagram, None]):
             self.name + diagram.dname, diagram.diagram.accept(self, None)
         )
 
-    def named(self, name: Name) -> Diagram:
-        """Add a name (or a sequence of names) to a diagram."""
-        return ApplyName(name, self)

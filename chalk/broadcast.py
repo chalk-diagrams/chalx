@@ -1,20 +1,35 @@
-def add_axis(self, size: int) -> Diagram:
-    return tx.tree_map(lambda x: tx.np.repeat(x[None], size, axis=0), self)
+from __future__ import annotations
+
+from typing import TypeVar, Union, Tuple, TYPE_CHECKING
+from dataclasses import dataclass
+from chalk.monoid import Monoid
+import chalk.transform as tx
+from chalk.visitor import DiagramVisitor
+from chalk.types import Diagram
+
+if TYPE_CHECKING:
+    from chalk.core import ApplyName, ApplyTransform, Compose, Primitive, ApplyStyle, ComposeAxis
 
 
-def size(self) -> Tuple[int, ...]:
+def add_axis(self: Diagram, size: int) -> Diagram:
+    return tx.tree_map(lambda x: tx.np.repeat(x[None], size, axis=0), self) # type: ignore
+
+
+def size(self: Diagram) -> Tuple[int, ...]:
     return self.accept(ToSize(), Size.empty()).d
 
 
-def repeat_axis(self, size: int, axis) -> Diagram:
-    return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)
+def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
+    return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self) # type: ignore
 
 
-def getitem(self, ind: Union[int, Tuple[int]]) -> Diagram:
-    return tx.tree_map(lambda x: x[ind], self)
+def getitem(self: Diagram, ind: Union[None, int, Tuple[int, ...]]) -> Diagram:
+    return tx.tree_map(lambda x: x[ind], self) # type: ignore
 
+A = TypeVar("A", bound=Diagram)
+B = TypeVar("B", bound=Diagram)
 
-def broadcast_diagrams(self, other: Diagram) -> Tuple[Diagram, Diagram]:
+def broadcast_diagrams(self: A, other: B) -> Tuple[A, B]:
     size = self.size()
     other_size = other.size()
     if size == other_size:

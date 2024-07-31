@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 
 import chalk.transform as tx
 from chalk.trace import TraceDistances
@@ -14,7 +14,7 @@ from chalk.transform import Affine, Angles, P2_t, Scalars, V2_t
 
 if TYPE_CHECKING:
 
-    from jaxtyping import Array, Bool, Float
+    from jaxtyping import Array, Float
 
     from chalk.trail import Trail
 
@@ -99,7 +99,7 @@ class Segment:
         low = tx.np.minimum(angle0_deg, angle1_deg)
         high = tx.np.maximum(angle0_deg, angle1_deg)
         check = (high - low) % 360
-        return ((tx.angle(d) - low) % 360) <= check
+        return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
 
 
 def seg(offset: V2_t) -> Trail:

@@ -4,7 +4,7 @@ from typing import List, Optional
 from colour import Color
 
 import chalk.transform as tx
-from chalk.shapes import ArrowHead, arc_seg, dart
+from chalk.shapes import arc_seg, dart
 from chalk.style import StyleHolder
 from chalk.subdiagram import Name, Subdiagram
 from chalk.trail import Trail
@@ -103,7 +103,7 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
     from chalk.core import Primitive
 
     if style.head_arrow is None:
-        arrow: Diagram = Primitive.from_shape(ArrowHead(dart()))
+        arrow: Diagram = dart()
     else:
         arrow = style.head_arrow
     arrow = arrow._style(style.head_style)

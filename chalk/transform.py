@@ -19,36 +19,42 @@ if not TYPE_CHECKING and not eval(os.environ.get("CHALK_JAX", "0")):
     import numpy as np
 
     Array = np.ndarray
+    ArrayLike = Array
     JAX_MODE = False
     jit = lambda x: x
 
 else:
-    import jax
 
     jit = jax.jit
     import jax.numpy as np
     from jax import config
     from jaxtyping import Array
 
-    Array = Array
+    #Array = ArrayLike
+    ArrayLike = Array
     JAX_MODE = True
     config.update("jax_enable_x64", True)  # type: ignore
     config.update("jax_debug_nans", True)  # type: ignore
 
 
-Affine = Float[Array, "*#B 3 3"]
-Angles = Float[Array, "*#B 2"]
-V2_t = Float[Array, "*#B 3 1"]
-P2_t = Float[Array, "*#B 3 1"]
-Scalars = Float[Array, "*#B"]
-IntLike = Union[Int[Array, "*#B"], int]
-Floating = Union[Scalars, IntLike, float, int]
-Mask = Bool[Array, "*#B"]
-ColorVec = Float[Array, "#*B 3"]
-Property = Float[Array, "#*B"]
+Affine = Float[ArrayLike, "*#B 3 3"]
+Angles = Float[ArrayLike, "*#B 2"]
+V2_t = Float[ArrayLike, "*#B 3 1"]
+V2_tC = Float[ArrayLike, "*#C 3 1"]
+
+P2_t = Float[ArrayLike, "*#B 3 1"]
+Scalars = Float[ArrayLike, "*#B"]
+ScalarsC = Float[ArrayLike, "*#C"]
+IntLike = Union[Int[ArrayLike, "*#B"], int, onp.int64]
+IntLikeC = Union[Int[ArrayLike, "*#C"], int, onp.int64]
+Ints = Int[ArrayLike, "*#B"]
+Floating = Union[Scalars, IntLike, float, int, onp.int64, onp.float64]
+Mask = Bool[ArrayLike, "*#B"]
+ColorVec = Float[ArrayLike, "#*B 3"]
+Property = Float[ArrayLike, "#*B"]
 
 
-def index_update(arr: Array, index, values) -> Array:  # type:ignore
+def index_update(arr: ArrayLike, index, values) -> ArrayLike:  # type:ignore
     """
     Update the array `arr` at the given `index` with `values`
     and return the updated array.
@@ -65,8 +71,8 @@ def index_update(arr: Array, index, values) -> Array:  # type:ignore
 
 
 def union(
-    x: Tuple[Array, Array], y: Tuple[Array, Array]
-) -> Tuple[Array, Array]:
+    x: Tuple[ArrayLike, ArrayLike], y: Tuple[ArrayLike, ArrayLike]
+) -> Tuple[ArrayLike, ArrayLike]:
     if isinstance(x, onp.ndarray):
         n1 = np.concatenate([x[0], y[0]], axis=1)
         m = np.concatenate([x[1], y[1]], axis=1)
@@ -77,7 +83,7 @@ def union(
         return n1, m
 
 
-def union_axis(x: Tuple[Array, Array], axis: int) -> Tuple[Array, Array]:
+def union_axis(x: Tuple[ArrayLike, ArrayLike], axis: int) -> Tuple[ArrayLike, ArrayLike]:
     n = [
         np.squeeze(x, axis=axis)
         for x in np.split(x[0], x[0].shape[axis], axis=axis)
@@ -129,31 +135,32 @@ def norm(v: V2_t) -> V2_t:
 @jit
 @partial(np.vectorize, signature="(3,1)->()")
 def length(v: P2_t) -> Scalars:
-    return np.sqrt(length2(v))
+    return np.asarray(np.sqrt(length2(v)))
 
 
 @jit
 @partial(np.vectorize, signature="(3,1),()->(3,1)")
 def scale_vec(v: V2_t, d: Floating) -> V2_t:
+    d = np.asarray(d)
     return d[..., None, None] * v
 
 
 @jit
 @partial(np.vectorize, signature="(3,1)->()")
 def length2(v: V2_t) -> Scalars:
-    return (v * v)[..., :2, 0].sum(-1)
+    return np.asarray((v * v)[..., :2, 0].sum(-1))
 
 
 @jit
 @partial(np.vectorize, signature="(3,1)->()")
 def angle(v: P2_t) -> Scalars:
-    return from_rad * rad(v)
+    return np.asarray(from_rad * rad(v))
 
 
 @jit
 @partial(np.vectorize, signature="(3,1)->()")
 def rad(v: P2_t) -> Scalars:
-    return np.arctan2(v[..., 1, 0], v[..., 0, 0])
+    return np.asarray(np.arctan2(v[..., 1, 0], v[..., 0, 0]))
 
 
 @jit
@@ -181,7 +188,7 @@ def make_affine(
 @jit
 @partial(np.vectorize, signature="(3,1),(3,1)->()")
 def dot(v1: V2_t, v2: V2_t) -> Scalars:
-    return (v1 * v2).sum(-1).sum(-1)
+    return np.asarray((v1 * v2).sum(-1).sum(-1))
 
 
 @jit
@@ -263,13 +270,13 @@ from_rad = 180 / math.pi
 @jit
 @partial(np.vectorize, signature="()->()")
 def from_radians(θ: Floating) -> Scalars:
-    return ftos(θ) * from_rad
+    return np.asarray(ftos(θ) * from_rad)
 
 
 @jit
 @partial(np.vectorize, signature="()->()")
 def to_radians(θ: Floating) -> Scalars:
-    return (ftos(θ) / 180) * math.pi
+    return np.asarray((ftos(θ) / 180) * math.pi)
 
 
 @jit
@@ -415,17 +422,17 @@ def ray_circle_intersection(
     mask = (Δ < -eps)[..., None] | (mid * np.asarray([1, 0]))
 
     # Bump NaNs since they are going to me masked out.
-    ret = np.stack(
+    ret: Array = np.stack(
         [
             (-b - np.sqrt(Δ + 1e9 * mask[..., 0])) / (2 * a),
             (-b + np.sqrt(np.where(mid[..., 0], 0, Δ) + 1e9 * mask[..., 1]))
             / (2 * a),
         ],
-        -1,
+        -1
     )
 
-    ret = np.where(mid, (-b / (2 * a))[..., None], ret)
-    return ret.transpose(2, 0, 1), 1 - mask.transpose(2, 0, 1)
+    ret2: Array = np.where(mid, (-b / (2 * a))[..., None], ret)
+    return ret2.transpose(2, 0, 1), 1 - mask.transpose(2, 0, 1)
 
     # v = -b / (2 * a)
     # print(v.shape)
@@ -526,7 +533,7 @@ def arc_to_bezier(theta1, theta2, n=2):
     return vertices
 
 
-def vmap(fn):
+def vmap(fn) -> Callable[[ArrayLike], ArrayLike]:
 
     if JAX_MODE:
         return vmap(fn)
@@ -544,7 +551,7 @@ def vmap(fn):
     return vmap2
 
 
-def multi_vmap(fn: Callable, t: int) -> Callable:
+def multi_vmap(fn: Callable, t: int) -> Callable[[ArrayLike], ArrayLike]:
     for j in range(t):
         fn = vmap(fn)
     return fn
@@ -553,4 +560,4 @@ def multi_vmap(fn: Callable, t: int) -> Callable:
 tree_map = jax.tree.map
 
 # Explicit rexport
-__all__ = ["Array", "np", "jit", "vmap", "multi_vmap", "tree_map"]
+__all__ = ["ArrayLike", "np", "jit", "vmap", "multi_vmap", "tree_map"]

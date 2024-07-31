@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Generic, TypeVar
 import chalk.transform as tx
 
 if TYPE_CHECKING:
-    from chalk.ArrowHead import ArrowHead
     from chalk.core import (
         ApplyName,
         ApplyStyle,
@@ -16,8 +15,6 @@ if TYPE_CHECKING:
         Primitive,
     )
     from chalk.monoid import Monoid
-    from chalk.Path import Path
-    from chalk.shapes import Image, Latex, Spacer, Text
 
     A = TypeVar("A", bound=Monoid)
 else:
@@ -25,27 +22,9 @@ else:
 
 B = TypeVar("B")
 
-# from itertools import product
-
-# def to_size(index, shape):
-#     if len(index) > len(shape):
-#         index = index[len(index)-len(shape):]
-#     return tuple(i if s > 1 else 0 for s, i in zip(shape, index))
-
-# def remove(index, axis):
-#     return tuple(i for j, i in enumerate(index) if j != axis)
-
-# def rproduct(rtops):
-#     return product(*map(range, rtops))
-
 
 class DiagramVisitor(Generic[A, B]):
     A_type: type[A]
-
-    # def visit_primitive_array(self, diagram: Primitive, arg: B) -> A:
-    #     size = diagram.size()
-    #     return {key: self.visit_primitive(diagram[key], arg[key])
-    #             for key in rproduct(size)}
 
     def visit_primitive(self, diagram: Primitive, arg: B) -> A:
         "Primitive defaults to empty"
@@ -77,7 +56,8 @@ class DiagramVisitor(Generic[A, B]):
             ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
             # assert ed.size() == size
         else:
-            ed: A = tx.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
+            import jax
+            ed: A = jax.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
         return self.A_type.reduce(ed, axis)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:
@@ -91,26 +71,3 @@ class DiagramVisitor(Generic[A, B]):
     def visit_apply_name(self, diagram: ApplyName, arg: B) -> A:
         "Defaults to pass over"
         return diagram.diagram.accept(self, arg)
-
-
-C = TypeVar("C")
-
-
-class ShapeVisitor(Generic[C]):
-    def visit_path(self, shape: Path) -> C:
-        raise NotImplementedError
-
-    def visit_latex(self, shape: Latex) -> C:
-        raise NotImplementedError
-
-    def visit_text(self, shape: Text) -> C:
-        raise NotImplementedError
-
-    def visit_spacer(self, shape: Spacer) -> C:
-        raise NotImplementedError
-
-    def visit_arrowhead(self, shape: ArrowHead) -> C:
-        raise NotImplementedError
-
-    def visit_image(self, shape: Image) -> C:
-        raise NotImplementedError

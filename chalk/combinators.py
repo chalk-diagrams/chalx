@@ -20,7 +20,7 @@ def with_envelope(self: Diagram, other: Diagram) -> Diagram:
 def strut(width: Floating, height: Floating) -> Diagram:
     from chalk.core import Primitive
 
-    return Primitive.from_shape(Spacer(tx.ftos(width), tx.ftos(height)))
+    return Spacer(tx.ftos(width), tx.ftos(height))
 
 
 def pad(self: Diagram, extra: Floating) -> Diagram:
@@ -78,12 +78,12 @@ def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
     return concat(d.translate_by(p) for d, p in zip(diagrams, path.points()))
 
 
-def batch_hcat(diagrams: Batched, sep: Optional[Floating] = None) -> Reduced:
-    return batch_cat(diagrams, tx.unit_x, sep)
+def batch_hcat(self: Batched, sep: Optional[Floating] = None) -> Reduced:
+    return batch_cat(self, tx.unit_x, sep)
 
 
-def batch_vcat(diagrams: Batched, sep: Optional[Floating] = None) -> Reduced:
-    return batch_cat(diagrams, tx.unit_y, sep)
+def batch_vcat(self: Batched, sep: Optional[Floating] = None) -> Reduced:
+    return batch_cat(self, tx.unit_y, sep)
 
 
 def batch_cat(
@@ -105,18 +105,19 @@ def batch_cat(
             left = env(-v)
             return right, left
 
-        right, left = offset(diagram)
+        right, left = offset(diagram) # type: ignore
         off = tx.np.roll(right, 1) + left + sep
-        off = off.at[0].set(0)
+        off = tx.index_update(off, 0, 0)
         off = tx.np.cumsum(off, axis=0)
 
         @tx.vmap
-        def translate(off: Scalars, diagram: Diagram) -> Diagram:
+        def translate(x) -> Diagram:
+            off, diagram = x
             return diagram.translate_by(v * off[..., None, None])
 
-        return translate(off, diagram)
+        return translate((off, diagram)) # type: ignore
 
-    call_scan = tx.multi_vmap(call_scan, axis)
+    call_scan = tx.multi_vmap(call_scan, axis) # type: ignore
     return call_scan(diagram).compose_axis()
 
 
@@ -135,10 +136,10 @@ def cat(
     return fn(start, associative_reduce(fn, diagrams, empty()))
 
 
-def batch_concat(diagram: Diagram) -> Diagram:
-    size = diagram.size()
+def batch_concat(self: Diagram) -> Diagram:
+    size = self.size()
     assert size != ()
-    return diagram.compose_axis()
+    return self.compose_axis()
 
 
 def concat(diagrams: Iterable[Diagram]) -> Diagram:
@@ -152,9 +153,12 @@ def concat(diagrams: Iterable[Diagram]) -> Diagram:
         Diagram: New diagram
 
     """
-    from chalk.core import BaseDiagram
+    
 
-    return BaseDiagram.concat(diagrams)  # type: ignore
+    from chalk.core import BaseDiagram
+    from chalk.monoid import Monoid
+
+    return BaseDiagram.concat2(diagrams)
 
 
 def empty() -> Diagram:
@@ -174,7 +178,7 @@ def hstrut(width: Optional[Floating]) -> Diagram:
 
     if width is None:
         return empty()
-    return Primitive.from_shape(Spacer(tx.ftos(width), tx.ftos(0)))
+    return Spacer(tx.ftos(width), tx.ftos(0))
 
 
 def vstrut(height: Optional[Floating]) -> Diagram:
@@ -182,7 +186,7 @@ def vstrut(height: Optional[Floating]) -> Diagram:
 
     if height is None:
         return empty()
-    return Primitive.from_shape(Spacer(tx.ftos(0), tx.ftos(height)))
+    return Spacer(tx.ftos(0), tx.ftos(height))
 
 
 def hcat(
@@ -255,7 +259,7 @@ def beside_snug(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     return atop(self, juxtapose_snug(self, other, direction))
 
 
-def juxtapose(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
+def juxtapose(self: B1, other: B2, direction: V2_t) -> B:
     """Given two diagrams ``a`` and ``b``, ``a.juxtapose(b, v)``
     places ``b`` to touch ``a`` along angle ve .
 

@@ -273,6 +273,9 @@ gendocsall.local: pregendocs.local gendocs postgendocs.local
 
 ####------------------------------------------------------------####
 
+
+
+
 ### Generate Output for Examples
 
 intro:
@@ -334,3 +337,8 @@ serve:
 
 docsapi:
 	python docs/api/*.py
+
+
+vis_shapes:
+	jupytext --execute --to ipynb -o vis_tests/shapes.ipynb vis_tests/shapes.py ; jupyter nbconvert --to html vis_tests/shapes.ipynb 
+

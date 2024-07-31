@@ -1,4 +1,16 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from chalk.backend.patch import Patch
+from chalk.monoid import Monoid
+from chalk.style import StyleHolder
 import chalk.transform as tx
+from chalk.transform import Affine
+from chalk.visitor import DiagramVisitor
+
+if TYPE_CHECKING:
+    from chalk.core import ApplyStyle, ApplyTransform, ComposeAxis, Primitive
 
 def get_primitives(self) -> List[Primitive]:
     return self.accept(ToListOrder(), tx.ident).ls
@@ -6,7 +18,7 @@ def get_primitives(self) -> List[Primitive]:
 
 def layout(
     self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None
-) -> Tuple[List[Primitive], tx.IntLike, tx.IntLike]:
+) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     envelope = self.get_envelope()
     assert envelope is not None
 
@@ -33,8 +45,8 @@ def layout(
     s = s.translate(e(-tx.unit_x), e(-tx.unit_y))
 
     style = StyleHolder.root(tx.np.maximum(width, height))
-    s = s._style(style)
-    patches = [Patch.from_prim(prim, style) for prim in s.get_primitives()]
+    s = s.apply_style(style)
+    patches = [Patch.from_prim(prim, style) for prim in get_primitives(s)]
     return patches, height, width
 
 
@@ -49,16 +61,19 @@ class OrderList(Monoid):
 
     def __add__(self, other: OrderList) -> OrderList:
         sc = self.counter
-        # sc = add_dim(sc, len(other.counter.shape) - len(self.counter.shape))
-        return OrderList(
-            self.ls
-            + [
+        sc = tx.np.asarray(sc)
+        ls = []
+        for prim in other.ls:
+            assert prim.order is not None
+            ls.append(
                 prim.set_order(
                     prim.order
                     + add_dim(sc, len(prim.order.shape) - len(sc.shape))
-                )  # type:ignore
-                for prim in other.ls
-            ],
+                )
+            )  
+
+        return OrderList(
+            self.ls + ls,
             (sc + other.counter),
         )
 
@@ -124,7 +139,9 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
         return OrderList(ls, counter)
 
 
-def add_dim(m: tx.Array, size: int) -> tx.Array:
+def add_dim(m: Any, size: int) -> Any:
+    if not isinstance(m, StyleHolder):
+        m = tx.np.asarray(m)
     for s in range(size):
         m = m[..., None]
     return m

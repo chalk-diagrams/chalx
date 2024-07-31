@@ -8,17 +8,16 @@ from chalk.shapes.arc import (  # noqa: F401
     seg,
     set_offset,
 )
-from chalk.shapes.arrowheads import ArrowHead, dart  # noqa: F401
-from chalk.shapes.image import Image, from_pil, image  # noqa: F401
-from chalk.shapes.latex import Latex, latex  # noqa: F401
+from chalk.shapes.arrowheads import dart  # noqa: F401
 from chalk.shapes.path import Path, make_path  # noqa: F401
-from chalk.shapes.shape import Shape, Spacer  # noqa: F401
-from chalk.shapes.text import Text, text  # noqa: F401
 from chalk.trail import Trail  # noqa: F401
 from chalk.transform import P2, V2, P2_t
 from chalk.types import Diagram
 
 # Functions mirroring Diagrams.2d.Shapes
+
+def text(s: str, size: int) -> Diagram:
+    return Path.from_text(s).stroke()
 
 
 def hrule(length: float) -> Diagram:
@@ -50,14 +49,14 @@ def regular_polygon(sides: int, side_length: float) -> Diagram:
     return Trail.regular_polygon(sides, side_length).centered().stroke()
 
 
-def triangle(width: float) -> Diagram:
+def triangle(width: tx.Floating) -> Diagram:
     """Draws an equilateral triangle with the side length specified by
     the ``width`` argument. The origin is the traingle's centroid."""
     return regular_polygon(3, width)
 
 
 def rectangle(
-    width: float, height: float, radius: Optional[float] = None
+    width: tx.Floating, height: tx.Floating, radius: Optional[float] = None
 ) -> Diagram:
     """
     Draws a rectangle.
@@ -133,19 +132,22 @@ def arc_between(
     diagrams:
     https://hackage.haskell.org/package/diagrams-lib-1.4.5.1/docs/src/Diagrams.TwoD.Arc.html#arcBetween
     """
-    p = tx.P2(*point1)
-    q = tx.P2(*point2)
+    p = point1 if isinstance(point1, P2_t) else P2(point1)
+    q = point2 if isinstance(point2, P2_t) else P2(point2)
     return arc_seg(q - p, height).at(p).stroke()
+
+def Spacer(width, height):
+    return rectangle(width, height).fill_opacity(0).line_width(0)
 
 
 ignore = [Optional]
 
 __all__ = [
     "Segment",
-    "Shape",
-    "Spacer",
-    "Text",
-    "text",
+    #"Shape",
+    # "Spacer",
+    # "Text",
+    # "text",
     "Trail",
     "P2",
     "V2",
@@ -159,14 +161,14 @@ __all__ = [
     "circle",
     "arc",
     "arc_between",
-    "Latex",
+    # "Latex",
     "Trail",
     "Path",
-    "Image",
-    "ArrowHead",
+    # "Image",
+    # "ArrowHead",
     "arc_seg",
     "dart",
-    "from_pil",
+    # "from_pil",
     "make_path",
     "arc_seg_angle",
     "seg",

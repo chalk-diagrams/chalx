@@ -12,18 +12,21 @@ import chalk.backend.matplotlib
 import chalk.backend.svg
 import chalk.backend.tikz
 import chalk.broadcast
+from chalk.broadcast import broadcast_diagrams
 import chalk.combinators
 import chalk.layout
 import chalk.model
 import chalk.monoid
 import chalk.subdiagram
 import chalk.trace
+import chalk.envelope
 import chalk.transform as tx
 import chalk.types
 from chalk.envelope import Envelope
-from chalk.style import StyleHolder
+from chalk.style import Style, StyleHolder
 from chalk.transform import Affine
-from chalk.types import Diagram, Shape
+from chalk.types import Diagram
+from chalk.shapes import Path
 from chalk.visitor import DiagramVisitor
 
 Trail = Any
@@ -73,7 +76,7 @@ class BaseDiagram(chalk.types.Diagram):
     # Tranformable
     def apply_transform(self, t: Affine) -> Diagram:  # type: ignore
         new_diagram = ApplyTransform(t, Empty())
-        new, other = new_diagram.broadcast_diagrams(self)  # type: ignore
+        new, other = broadcast_diagrams(new_diagram, self) 
         return ApplyTransform(new.transform, other)
 
     def compose_axis(self) -> Diagram:  # type: ignore
@@ -81,12 +84,9 @@ class BaseDiagram(chalk.types.Diagram):
 
     # Stylable
     def apply_style(self, style: StyleHolder) -> Diagram:  # type: ignore
-        new_diagram = ApplyStyle(style, None)
-        new_diagram, self = new_diagram.broadcast_diagrams(self)  # type: ignore
+        new_diagram = ApplyStyle(style, Empty())
+        new_diagram, self = broadcast_diagrams(new_diagram, self)
         return ApplyStyle(new_diagram.style, self)
-
-    def _style(self, style: StyleHolder) -> Diagram:
-        return self.apply_style(style)
 
     def compose(
         self,
@@ -100,7 +100,7 @@ class BaseDiagram(chalk.types.Diagram):
 
         other = other if other is not None else Empty()
         # Broadcast
-        self, other = self.broadcast_diagrams(other)  # type: ignore
+        self, other = broadcast_diagrams(self, other)  # type: ignore
 
         if isinstance(self, Empty):
             return other
@@ -160,7 +160,8 @@ class BaseDiagram(chalk.types.Diagram):
     center = chalk.align.center
     scale_uniform_to_y = chalk.align.scale_uniform_to_y
     scale_uniform_to_x = chalk.align.scale_uniform_to_x
-
+    snug = chalk.align.snug
+    
     # Arrows
     connect = chalk.arrow.connect
     connect_outside = chalk.arrow.connect_outside
@@ -190,7 +191,6 @@ class BaseDiagram(chalk.types.Diagram):
     render_png = chalk.backend.cairo.render
     render_svg = chalk.backend.svg.render
     render_mpl = chalk.backend.matplotlib.render
-    plot = chalk.backend.matplotlib.plot
 
     def render_pdf(self, *args, **kwargs) -> None:  # type: ignore
         print("Currently PDF rendering is disabled")
@@ -222,12 +222,12 @@ class Primitive(BaseDiagram):
     This is derived from a ``chalk.core.Diagram`` class.
     """
 
-    prim_shape: Shape
+    prim_shape: Path
     style: Optional[StyleHolder]
     transform: Affine
-    order: Optional[tx.IntLike] = None
+    order: Optional[tx.Ints] = None
 
-    def set_order(self, order: tx.IntLike) -> Primitive:
+    def set_order(self, order: tx.Ints) -> Primitive:
         return Primitive(self.prim_shape, self.style, self.transform, order)
 
     def split(self, ind: int) -> Primitive:
@@ -238,7 +238,7 @@ class Primitive(BaseDiagram):
         )
 
     @classmethod
-    def from_shape(cls, shape: Shape) -> Primitive:
+    def from_path(cls, shape: Path) -> Primitive:
         return cls(shape, None, tx.ident)
 
     def apply_transform(self, t: Affine) -> Primitive:
@@ -247,14 +247,14 @@ class Primitive(BaseDiagram):
         else:
             new_transform = t
         new_diagram = ApplyTransform(new_transform, Empty())
-        new_diagram, self = new_diagram.broadcast_diagrams(self)  # type: ignore
+        new_diagram, self = broadcast_diagrams(new_diagram, self)  # type: ignore
         return Primitive(self.prim_shape, self.style, new_diagram.transform)
 
     def apply_style(self, other_style: StyleHolder) -> Primitive:
         if other_style is None:
             return Primitive(self.prim_shape, None, self.transform, self.order)
-        new_diagram = ApplyStyle(other_style, None)
-        new_diagram, self = new_diagram.broadcast_diagrams(self)  # type: ignore
+        new_diagram = ApplyStyle(other_style, Empty())
+        new_diagram, self = broadcast_diagrams(new_diagram, self)  # type: ignore
 
         return Primitive(
             self.prim_shape,
@@ -310,11 +310,11 @@ class ApplyTransform(BaseDiagram):
 
     def apply_transform(self, t: Affine) -> ApplyTransform:
         new_diagram = ApplyTransform(t @ self.transform, Empty())
-        new, other = new_diagram.broadcast_diagrams(self.diagram)  # type: ignore
+        new, other = broadcast_diagrams(new_diagram, self.diagram)  # type: ignore
         return ApplyTransform(new.transform, other)
 
 
-@dataclass(unsafe_hash=True, frozen=True)
+@dataclass(frozen=True)
 class ApplyStyle(BaseDiagram):
     style: StyleHolder
     diagram: Diagram
@@ -324,10 +324,10 @@ class ApplyStyle(BaseDiagram):
 
     def apply_style(self, style: Optional[StyleHolder]) -> ApplyStyle:
         if style is None:
-            return ApplyStyle(None, self.diagram)
+            return ApplyStyle(Style(), self.diagram)
 
-        new_style = ApplyStyle(style, None)
-        new_style, self = new_style.broadcast_diagrams(self)  # type: ignore
+        new_style = ApplyStyle(style, Empty())
+        new_style, self = broadcast_diagrams(new_style, self)
 
         app_style = new_style.style.merge(self.style)
         return ApplyStyle(app_style, self.diagram)

@@ -58,17 +58,17 @@ def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
     inp = trans_t @ v
     v_prim = tx.norm(inp)
     d = tx.dot(v_prim, vi)
-    return v_prim, u, v, d
+    return v_prim, u, v, tx.np.asarray(d)
 
 
 @tx.jit
 @partial(tx.np.vectorize, signature="(3,1),(3,1),(),()->()")
-def post_transform(u: V2_t, v: V2_t, d: Scalars, inner: Scalars) -> Scalars:
+def post_transform(u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating) -> Scalars:
     after_linear = inner / d
 
     # Translation
     diff = tx.dot(tx.scale_vec(u, 1 / tx.dot(v, v)), v)
-    return after_linear - diff
+    return tx.np.asarray(after_linear - diff)
     # return tx.np.max(out, axis=-1)
 
 
@@ -77,24 +77,29 @@ class Envelope(Transformable, Monoid):
     diagram: Diagram
     affine: Affine
 
-    # @partial(tx.np.vectorize, excluded=[0], signature="(3,1)->()")
+
     def __call__(self, direction: V2_t) -> Scalars:
         def get_env(diagram):
             assert diagram.size() == ()
-            return Envelope.general_transform(
-                self.affine,
-                lambda x: diagram.accept(ApplyEnvelope(), x).d,
-                direction,
-            )
+            @partial(tx.np.vectorize, signature="(3, 1)->()")
+            def run(d):
+                return Envelope.general_transform(
+                    self.affine,
+                    lambda x: diagram.accept(ApplyEnvelope(), x).d,
+                    d,
+                )
+            return run(direction)
 
         size = self.diagram.size()
         if size == ():
             return get_env(self.diagram)
         else:
             for _ in range(len(size)):
-                get_env = tx.vmap(get_env)
+                get_env = tx.vmap(get_env) # type: ignore
             return get_env(self.diagram)
 
+    
+    
     # # Monoid
     @staticmethod
     def empty() -> Envelope:
@@ -120,20 +125,21 @@ class Envelope(Transformable, Monoid):
     def width(self) -> Scalars:
         d1 = self(Envelope.all_dir[0])
         d2 = self(Envelope.all_dir[1])
-        return d1 + d2
+        return tx.np.asarray(d1 + d2)
 
     @property
     def height(self) -> Scalars:
         d1 = self(Envelope.all_dir[2])
         d2 = self(Envelope.all_dir[3])
-        return d1 + d2
+        return tx.np.asarray(d1 + d2)
 
     @staticmethod
     def general_transform(
         t: Affine, fn: Callable[[V2_t], Scalars], d: V2_t
-    ) -> Scalars:
+    ) -> tx.ScalarsC:
         pre = pre_transform(t, d)
-        return post_transform(*pre[1:], fn(pre[0]))
+        return post_transform(pre[1], pre[2], pre[3],
+                                fn(pre[0]))
 
     # tx.np.max(out, axis=-1)
     # rt = tx.remove_translation(t)
@@ -195,15 +201,13 @@ class Envelope(Transformable, Monoid):
         return tx.scale_vec(v, self(v))
 
 
-def path_envelope(trans: Affine, path: Path, v: V2_t) -> EnvDistance:
-    return EnvDistance(Envelope.general_transform(trans, path.envelope, v))
-
 
 class ApplyEnvelope(DiagramVisitor[EnvDistance, V2_t]):
     A_type = EnvDistance
 
     def visit_primitive(self, diagram: Primitive, t: V2_t) -> EnvDistance:
-        pe = path_envelope(diagram.transform, diagram.prim_shape, t)
+        pe = EnvDistance(Envelope.general_transform(
+            diagram.transform, diagram.prim_shape.envelope, t))
         return EnvDistance(tx.np.max(pe.d, axis=-1))
 
     def visit_apply_transform(

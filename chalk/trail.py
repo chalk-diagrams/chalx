@@ -15,7 +15,6 @@ from chalk.transform import Affine, Floating, P2_t, Transformable, V2_t
 from chalk.types import Diagram, Enveloped, TrailLike
 
 if TYPE_CHECKING:
-
     from chalk.shapes.path import Path
 
 
@@ -120,7 +119,7 @@ class Trail(Monoid, Transformable, TrailLike):
 
     def centered(self) -> Located:
         return self.at(
-            -sum(self.points(), tx.P2(0, 0)) / self.segments.t.shape[0]
+            -tx.np.sum(self.points(), axis=-3) / self.segments.t.shape[0]
         )
 
     # # Misc. Constructor
