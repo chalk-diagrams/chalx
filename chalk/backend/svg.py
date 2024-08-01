@@ -21,12 +21,28 @@ if TYPE_CHECKING:
 def to_svg(patch: Patch, dwg: Drawing, ind: int) -> BaseElement:
     line = dwg.path(style="vector-effect: non-scaling-stroke;")
     v, c = patch.vert[ind], patch.command[ind]
+    if v.shape[0] == 0:
+        return dwg.g()
     i = 0
+
     while i < c.shape[0] - 1:
         if c[i] == chalk.backend.patch.Command.MOVETO.value:
             line.push(f"M {v[i, 0]} {v[i, 1]}")
             i += 1
-        if c[i] == chalk.backend.patch.Command.CURVE4.value:
+        elif c[i] == chalk.backend.patch.Command.LINETO.value:
+            line.push(
+                f"L {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]}"
+            )
+            i += 2
+        elif c[i] == chalk.backend.patch.Command.CURVE3.value:
+            line.push(
+                f"Q {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]}"
+            )
+            i += 2
+        elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
+            line.push("Z")
+            i += 1
+        elif c[i] == chalk.backend.patch.Command.CURVE4.value:
             line.push(
                 f"C {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]} {v[i+2, 0]} {v[i+2, 1]}"
             )

@@ -16,11 +16,15 @@ from chalk.types import Diagram
 def make_path(
     segments: List[Tuple[float, float]], closed: bool = False
 ) -> Diagram:
-    return Path.from_list_of_tuples(segments, closed).stroke()
+    p = Path.from_list_of_tuples(segments, closed).stroke()
+    return p
 
 @dataclass(frozen=True)
 class Text:
     text: tx.Array
+
+    def to_str(self) -> str:
+        return self.text.tostring().decode("utf-8")
 
 @dataclass(unsafe_hash=True)
 class Path(Transformable):
@@ -31,6 +35,17 @@ class Path(Transformable):
 
     def split(self, i: int) -> Path:
         return Path(tuple([loc.split(i) for loc in self.loc_trails]))
+
+    def located_segments(self) -> Segment:
+        ls = None
+        for loc_trail in self.loc_trails:
+            if ls is None:
+                ls = loc_trail.located_segments()
+            else:
+                ls += loc_trail.located_segments() 
+        return ls
+        
+
 
     # Monoid - compose
     @staticmethod
@@ -87,7 +102,8 @@ class Path(Transformable):
 
     @staticmethod
     def from_text(s: str) -> Path:
-        return Path((), Text(tx.np.array([])))
+        return Path((), Text(tx.np.array(list(s), dtype='S1')))
+
 
     @staticmethod
     def from_pairs(

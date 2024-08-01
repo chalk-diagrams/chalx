@@ -48,7 +48,7 @@ def set_svg_draw_height(height: int) -> None:
     SVG_DRAW_HEIGHT = height
 
 
-@dataclass(unsafe_hash=True, frozen=True)
+@dataclass(frozen=True)
 class BaseDiagram(chalk.types.Diagram):
     """Diagram class."""
 
@@ -90,7 +90,7 @@ class BaseDiagram(chalk.types.Diagram):
 
     def compose(
         self,
-        envelope: Optional[Envelope] = None,
+        envelope: Optional[Diagram] = None,
         other: Optional[Diagram] = None,
     ) -> Diagram:
         if other is None and isinstance(self, Compose):
@@ -242,10 +242,11 @@ class Primitive(BaseDiagram):
         return cls(shape, None, tx.ident)
 
     def apply_transform(self, t: Affine) -> Primitive:
-        if hasattr(self.transform, "shape"):
-            new_transform = t @ self.transform
-        else:
-            new_transform = t
+        try:
+            tx.np.broadcast_arrays(t, self.transform)
+        except:
+            assert False, f"Diagram shape: {self.shape} Transform shape: {t.shape[:-2]}"
+        new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)  # type: ignore
         return Primitive(self.prim_shape, self.style, new_diagram.transform)
@@ -285,7 +286,7 @@ class Empty(BaseDiagram):
 
 @dataclass(unsafe_hash=True, frozen=True)
 class Compose(BaseDiagram):
-    envelope: Optional[Envelope]
+    envelope: Optional[Diagram]
     diagrams: tuple[Diagram, ...]
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:

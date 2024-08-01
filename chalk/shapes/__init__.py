@@ -17,7 +17,7 @@ from chalk.types import Diagram
 # Functions mirroring Diagrams.2d.Shapes
 
 def text(s: str, size: int) -> Diagram:
-    return Path.from_text(s).stroke()
+    return Path.from_text(s).stroke().scale(size).scale_y(-1)
 
 
 def hrule(length: float) -> Diagram:
@@ -147,7 +147,7 @@ __all__ = [
     #"Shape",
     # "Spacer",
     # "Text",
-    # "text",
+    "text",
     "Trail",
     "P2",
     "V2",

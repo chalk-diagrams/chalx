@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import chalk.transform as tx
 from chalk.trace import TraceDistances
 from chalk.transform import Affine, Angles, P2_t, Scalars, V2_t
-
+from chalk.monoid import Monoid
 if TYPE_CHECKING:
 
     from jaxtyping import Array, Float
@@ -33,11 +33,15 @@ def ensure_2d(x: tx.Array) -> tx.Array:
     return x
 
 
-@dataclass(frozen=True, unsafe_hash=True)
-class Segment:
+@dataclass(frozen=True)
+class Segment(Monoid):
     "A batch of ellipse arcs with starting angle and the delta."
     transform: Affine
     angles: Angles
+
+    @staticmethod
+    def empty() -> Segment:
+        return None
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
@@ -64,6 +68,8 @@ class Segment:
         return Segment.make(t @ self.transform, self.angles)
 
     def __add__(self, other: Segment) -> Segment:
+        if other is None:
+            return self
         self, other = self.promote(), other.promote()
         trans = [self.transform, other.transform]
         angles = [self.angles, other.angles]
@@ -134,7 +140,7 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     return Segment.make(ret, angles)
 
 
-@partial(tx.np.vectorize, signature="(3,3),(2),(3,1)->()")
+@partial(tx.vectorize, signature="(3,3),(2),(3,1)->()")
 def arc_envelope(trans, angles, d: Float[Array, "#A 3 1"]):
     "Trace is done as simple arc and transformed"
     angle0_deg = angles[..., 0]

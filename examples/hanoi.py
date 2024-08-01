@@ -43,7 +43,7 @@ def draw_stack(s: Stack) -> Diagram:
     if k not in stacks:
         disks = vcat(map(draw_disk, s))
         post = rectangle(0.8, 6).fill_color(black)
-        stacks[k] = (post.align_b() + disks.align_b()).close_envelope()
+        stacks[k] = (post.align_b() + disks.align_b())
     return stacks[k]
 draw_stack([0, 1])
 
@@ -51,7 +51,7 @@ draw_stack([0, 1])
 def draw_hanoi(state: Hanoi) -> Diagram:
     hsep = 7
     return concat([draw_stack(stack).translate_by(unit_x * hsep * i)
-                   for i, stack in enumerate(state)]).close_envelope()
+                   for i, stack in enumerate(state)])
 draw_hanoi([[0], [1, 2], []])
 
 def solve_hanoi(num_disks: int) -> List[Move]:
@@ -98,7 +98,7 @@ def draw_state_sequence(seq: List[Hanoi]) -> Diagram:
     return concat(draw_hanoi(state).translate(0, 7.5 * i) for i, state in enumerate(seq))
 
 
-diagram = draw_state_sequence(state_sequence(3))
+diagram = draw_state_sequence(state_sequence(7))
 
 path = "examples/output/hanoi.svg"
 diagram.render_svg(path, height=700)

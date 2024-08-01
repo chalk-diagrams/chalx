@@ -48,9 +48,13 @@ class Located(Enveloped, Transformable):
         return TraceDistances(
             *Trace.general_transform(t, lambda x: arc.arc_trace(s, x), r)
         )
+    
+    def _promote(self) -> Located:
+        return Located(self.trail._promote(), self.location)
+
 
     def stroke(self) -> Diagram:
-        return self.to_path().stroke()
+        return self._promote().to_path().stroke()
 
     def apply_transform(self, t: Affine) -> Located:
         p = t @ self.location
@@ -108,7 +112,7 @@ class Trail(Monoid, Transformable, TrailLike):
         return tx.to_point(tx.np.cumsum(q, axis=-3) - q)
 
     def at(self, p: P2_t) -> Located:
-        return Located(self, tx.to_point(p))
+        return Located(self._promote(), tx.to_point(p))
 
     # def reverse(self) -> Trail:
     #     return Trail(

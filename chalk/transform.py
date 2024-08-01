@@ -22,7 +22,7 @@ if not TYPE_CHECKING and not eval(os.environ.get("CHALK_JAX", "0")):
     ArrayLike = Array
     JAX_MODE = False
     jit = lambda x: x
-
+    vectorize = lambda x, signature, excluded=None: x
 else:
 
     jit = jax.jit
@@ -30,6 +30,7 @@ else:
     from jax import config
     from jaxtyping import Array
 
+    vectorize = np.vectorize
     #Array = ArrayLike
     ArrayLike = Array
     JAX_MODE = True
@@ -105,72 +106,77 @@ ident = np.asarray([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]).reshape(
     (3, 3)
 )
 
+def make_ident(shape):
+    return np.broadcast_to(ident, shape + (3, 3))
 
-@partial(np.vectorize, signature="()->()")
+@partial(vectorize, signature="()->()")
 @jit
 def ftos(f: Floating) -> Scalars:
     return np.asarray(f, dtype=np.double)
 
 
 @jit
-@partial(np.vectorize, signature="(),()->(3,1)")
+@partial(vectorize, signature="(),()->(3,1)")
 def V2(x: Floating, y: Floating) -> V2_t:
+    if isinstance(x, float) and isinstance(y, float):
+        return np.array([x, y, 0]).reshape(3, 1)
+
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
     return np.stack([x, y, o], axis=-1)[..., None]
 
 
 @jit
-@partial(np.vectorize, signature="(),()->(3,1)")
+@partial(vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
     return np.stack([x, y, o], axis=-1)[..., None]
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->(3,1)")
+@partial(vectorize, signature="(3,1)->(3,1)")
 def norm(v: V2_t) -> V2_t:
     return v / length(v)[..., None, None]
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->()")
+@partial(vectorize, signature="(3,1)->()")
 def length(v: P2_t) -> Scalars:
     return np.asarray(np.sqrt(length2(v)))
 
 
 @jit
-@partial(np.vectorize, signature="(3,1),()->(3,1)")
+@partial(vectorize, signature="(3,1),()->(3,1)")
 def scale_vec(v: V2_t, d: Floating) -> V2_t:
     d = np.asarray(d)
     return d[..., None, None] * v
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->()")
+@partial(vectorize, signature="(3,1)->()")
 def length2(v: V2_t) -> Scalars:
     return np.asarray((v * v)[..., :2, 0].sum(-1))
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->()")
+@partial(vectorize, signature="(3,1)->()")
 def angle(v: P2_t) -> Scalars:
     return np.asarray(from_rad * rad(v))
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->()")
+@partial(vectorize, signature="(3,1)->()")
 def rad(v: P2_t) -> Scalars:
     return np.asarray(np.arctan2(v[..., 1, 0], v[..., 0, 0]))
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->(3,1)")
+@partial(vectorize, signature="(3,1)->(3,1)")
 def perpendicular(v: V2_t) -> V2_t:
     return np.hstack([-v[..., 1, 0], v[..., 0, 0], v[..., 2, 0]])
 
 
 @jit
-@partial(np.vectorize, signature="(),(),(),(),(),()->(3,3)")
+@partial(vectorize, signature="(),(),(),(),(),()->(3,3)")
 def make_affine(
     a: Floating,
     b: Floating,
@@ -179,40 +185,41 @@ def make_affine(
     e: Floating,
     f: Floating,
 ) -> Affine:
+    vals = [a, b, c, d, e, f, 0.0, 0.0, 1.0]
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
     vals = np.broadcast_arrays(*vals)
     x = np.stack(vals, axis=-1)
-    return x.reshape((3, 3))
+    return x.reshape(vals[0].shape + (3, 3))
 
 
 @jit
-@partial(np.vectorize, signature="(3,1),(3,1)->()")
+@partial(vectorize, signature="(3,1),(3,1)->()")
 def dot(v1: V2_t, v2: V2_t) -> Scalars:
     return np.asarray((v1 * v2).sum(-1).sum(-1))
 
 
 @jit
-@partial(np.vectorize, signature="(3,1),(3,1)->()")
+@partial(vectorize, signature="(3,1),(3,1)->()")
 def cross(v1: V2_t, v2: V2_t) -> Scalars:
     return np.cross(v1, v2)
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->(3,1)")
+@partial(vectorize, signature="(3,1)->(3,1)")
 def to_point(v: V2_t) -> P2_t:
     index = (Ellipsis, 2, 0)
     return index_update(v, index, 1)  # type: ignore
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->(3,1)")
+@partial(vectorize, signature="(3,1)->(3,1)")
 def to_vec(p: P2_t) -> V2_t:
     index = (Ellipsis, 2, 0)
     return index_update(p, index, 0)  # type: ignore
 
 
 @jit
-@partial(np.vectorize, signature="()->(3,1)")
+@partial(vectorize, signature="()->(3,1)")
 def polar(angle: Floating) -> P2_t:
     rad = to_radians(angle)
     x, y = np.cos(rad), np.sin(rad)
@@ -220,21 +227,23 @@ def polar(angle: Floating) -> P2_t:
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->(3,3)")
+@partial(vectorize, signature="(3,1)->(3,3)")
 def scale(vec: V2_t) -> Affine:
-    x, y = dot(unit_x, vec), dot(unit_y, vec)
-    return make_affine(x, 0.0, 0.0, 0.0, y, 0.0)
+    base = make_ident(vec.shape[:-2])
+    index = (Ellipsis, np.arange(0, 2), np.arange(0, 2))
+    return index_update(base, index, vec[..., :2, 0])  # type: ignore
 
 
 @jit
-@partial(np.vectorize, signature="(3,1)->(3,3)")
+@partial(vectorize, signature="(3,1)->(3,3)")
 def translation(vec: V2_t) -> Affine:
-    x, y = dot(unit_x, vec), dot(unit_y, vec)
-    return make_affine(1.0, 0.0, x, 0.0, 1.0, y)
+    index = (Ellipsis, slice(0, 2), 2)
+    base = make_ident(vec.shape[:-2])
+    return index_update(base, index, vec[..., :2, 0])  # type: ignore
 
 
 @jit
-@partial(np.vectorize, signature="(3,3)->(3,1)")
+@partial(vectorize, signature="(3,3)->(3,1)")
 def get_translation(aff: Affine) -> V2_t:
     index = (Ellipsis, slice(0, 2), 0)
     base = np.zeros((aff.shape[:-2]) + (3, 1))
@@ -242,14 +251,20 @@ def get_translation(aff: Affine) -> V2_t:
 
 
 @jit
-@partial(np.vectorize, signature="()->(3,3)")
+@partial(vectorize, signature="()->(3,3)")
 def rotation(rad: Floating) -> Affine:
-    rad = ftos(-rad)
+    rad = ftos(rad)
+    shape = rad.shape
+    rad = -rad
     ca, sa = np.cos(rad), np.sin(rad)
-    return make_affine(ca, -sa, 0.0, sa, ca, 0.0)
+    m = np.stack([ca, -sa, sa, ca], axis=-1).reshape(shape + (2, 2))
+    index = (Ellipsis, slice(0, 2), slice(0, 2))
+    base = make_ident(shape)
+    return index_update(base, index, m)  # type: ignore
 
 
-@partial(np.vectorize, signature="(3,3)->(3,3)")
+
+@partial(vectorize, signature="(3,3)->(3,3)")
 @jit
 def inv(aff: Affine) -> Affine:
     det = np.linalg.det(aff)
@@ -261,40 +276,42 @@ def inv(aff: Affine) -> Affine:
     rb = -sb * idet
     rd = -sd * idet
     re = sa * idet
-    return make_affine(ra, rb, -sc * ra - sf * rb, rd, re, -sc * rd - sf * re)
-
+    vals = (ra, rb, -sc * ra - sf * rb, rd, re, -sc * rd - sf * re, 
+            np.zeros(ra.shape), np.zeros(ra.shape), np.ones(ra.shape))
+    x = np.stack(vals, axis=-1)
+    return x.reshape(vals[0].shape + (3, 3))
 
 from_rad = 180 / math.pi
 
 
 @jit
-@partial(np.vectorize, signature="()->()")
+@partial(vectorize, signature="()->()")
 def from_radians(θ: Floating) -> Scalars:
     return np.asarray(ftos(θ) * from_rad)
 
 
 @jit
-@partial(np.vectorize, signature="()->()")
+@partial(vectorize, signature="()->()")
 def to_radians(θ: Floating) -> Scalars:
     return np.asarray((ftos(θ) / 180) * math.pi)
 
 
 @jit
-@partial(np.vectorize, signature="(3,3)->(3,3)")
+@partial(vectorize, signature="(3,3)->(3,3)")
 def remove_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 1), 2)
     return index_update(aff, index, 0)  # type: ignore
 
 
 @jit
-@partial(np.vectorize, signature="(3,3)->(3,3)")
+@partial(vectorize, signature="(3,3)->(3,3)")
 def remove_linear(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     return index_update(aff, index, np.eye(2))  # type: ignore
 
 
 @jit
-@partial(np.vectorize, signature="(3,3)->(3,3)")
+@partial(vectorize, signature="(3,3)->(3,3)")
 def transpose_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     swap = aff[..., :2, :2].swapaxes(-1, -2)
@@ -452,7 +469,7 @@ def ray_circle_intersection(
     #     ]
 
 
-@partial(np.vectorize, excluded=[2], signature="(),()->(a,3,1)")
+@partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")
 def arc_to_bezier(theta1, theta2, n=2):
     """
     Return a `Path` for the unit circle arc from angles *theta1* to

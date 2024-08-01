@@ -11,7 +11,7 @@ from chalk.types import Diagram
 
 
 def with_envelope(self: Diagram, other: Diagram) -> Diagram:
-    return self.compose(other.get_envelope())
+    return self.compose(other)
 
 
 # with_trace, phantom,

@@ -39,7 +39,7 @@ def florets(m):
     
 def sunflower(n):
     return concat(flor.translate(cord[0], cord[1]) 
-                  for cord, flor in zip(mkCoords(n), florets(n))).close_envelope()
+                  for cord, flor in zip(mkCoords(n), florets(n)))
         
 floret = sunflower(1900).center_xy().scale_uniform_to_x(1).center_xy()
 background = rectangle(1.6, 1).fill_color(black).line_width(0).translate(-0.15, 0)
@@ -52,8 +52,8 @@ d = (background + floret + logo).align_t().with_envelope(mask.align_t())
 
 d.render_svg("examples/output/logo.svg", 500)
 
-try:
-    d.render("examples/output/logo.png", 500)
-    # d.render_pdf("examples/output/logo.pdf", 50)
-except ModuleNotFoundError:
-    print("Need to install Cairo")
+# try:
+#     d.render("examples/output/logo.png", 500)
+#     # d.render_pdf("examples/output/logo.pdf", 50)
+# except ModuleNotFoundError:
+#     print("Need to install Cairo")
