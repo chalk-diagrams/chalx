@@ -53,7 +53,7 @@ def render_cairo_patches(patches: List[Patch], ctx: PyCairoContext) -> None:
 
     # Order the primitives
     for ind, patch, style in order_patches(patches):
-        to_cairo(patch, ctx, ind)
+        to_cairo(patch, ctx, (ind,))
         write_style(style, ctx)
         ctx.stroke()
 

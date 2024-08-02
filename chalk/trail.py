@@ -10,7 +10,7 @@ import chalk.transform as tx
 # from chalk.envelope import Envelope
 from chalk.monoid import Monoid
 from chalk.shapes.arc import Segment
-from chalk.trace import Trace, TraceDistances
+# from chalk.trace import Trace, TraceDistances
 from chalk.transform import Affine, Floating, P2_t, Transformable, V2_t
 from chalk.types import Diagram, Enveloped, TrailLike
 
@@ -42,12 +42,12 @@ class Located(Enveloped, Transformable):
             trans, lambda x: arc.arc_envelope(s.transform, s.angles, x), t
         )
 
-    def trace(self, r: tx.Ray) -> TraceDistances:
-        s = self.located_segments()
-        t = s.transform
-        return TraceDistances(
-            *Trace.general_transform(t, lambda x: arc.arc_trace(s, x), r)
-        )
+    # def trace(self, r: tx.Ray) -> TraceDistances:
+    #     s = self.located_segments()
+    #     t = s.transform
+    #     return TraceDistances(
+    #         *Trace.general_transform(t, lambda x: arc.arc_trace(s, x), r)
+    #     )
     
     def _promote(self) -> Located:
         return Located(self.trail._promote(), self.location)

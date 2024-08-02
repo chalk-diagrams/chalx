@@ -172,7 +172,7 @@ def rad(v: P2_t) -> Scalars:
 @jit
 @partial(vectorize, signature="(3,1)->(3,1)")
 def perpendicular(v: V2_t) -> V2_t:
-    return np.hstack([-v[..., 1, 0], v[..., 0, 0], v[..., 2, 0]])
+    return np.stack([-v[..., 1, :], v[..., 0, :], v[..., 2, :]], axis=-2)
 
 
 @jit
@@ -252,8 +252,8 @@ def get_translation(aff: Affine) -> V2_t:
 
 @jit
 @partial(vectorize, signature="()->(3,3)")
-def rotation(rad: Floating) -> Affine:
-    rad = ftos(rad)
+def rotation(r: Floating) -> Affine:
+    rad = ftos(r)
     shape = rad.shape
     rad = -rad
     ca, sa = np.cos(rad), np.sin(rad)
@@ -404,7 +404,7 @@ class BoundingBox(Transformable):
         return (self.br - self.tl)[..., 1, 0]
 
 
-@partial(np.vectorize, signature="(3,1),(3,1),()->(),()")
+#@partial(np.vectorize, signature="(3,1),(3,1),()->(),()")
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
 ) -> Tuple[Scalars, Mask]:
@@ -449,6 +449,7 @@ def ray_circle_intersection(
     )
 
     ret2: Array = np.where(mid, (-b / (2 * a))[..., None], ret)
+    assert len(ret2.shape) == 3, ret2.shape
     return ret2.transpose(2, 0, 1), 1 - mask.transpose(2, 0, 1)
 
     # v = -b / (2 * a)
@@ -556,7 +557,12 @@ def vmap(fn) -> Callable[[ArrayLike], ArrayLike]:
         return vmap(fn)
 
     def vmap2(x):
-        size = x.size()
+        if isinstance(x, tuple):
+            size = x[-1].size()
+        elif isinstance(x, np.ndarray):
+            size = x.shape
+        else:
+            size = x.size()
         ds = []
         for k in range(size[0]):
             d = jax.tree_map(lambda x: x[k], x)

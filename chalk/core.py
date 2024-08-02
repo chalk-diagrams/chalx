@@ -343,3 +343,5 @@ class ApplyName(BaseDiagram):
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_name(self, args)
+
+

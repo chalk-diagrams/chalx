@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import chalk.transform as tx
-from chalk.envelope import Envelope
+
 from chalk.monoid import Maybe, Monoid
 from chalk.trace import Trace
 from chalk.transform import Affine, P2_t, V2_t
@@ -12,9 +12,9 @@ from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import ApplyName, ApplyTransform, Compose, Primitive, ApplyStyle
+    from chalk.core import ApplyName, ComposeAxis, ApplyTransform, Compose, Primitive, ApplyStyle
     from chalk.types import Diagram
-
+    from chalk.envelope import Envelope
 AtomicName = Any
 
 
@@ -77,6 +77,10 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
             if bb.data is not None:
                 return bb
         return Maybe.empty()
+
+    def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Maybe[Subdiagram]:
+        size = diagram.diagrams.size()
+        return diagram.diagrams.accept(self, t[None].repeat(size[0], axis=0))
 
     def visit_apply_transform(
         self, diagram: ApplyTransform, t: Affine
@@ -160,6 +164,8 @@ def qualify(self, name: Name) -> Diagram:
 
 def named(self, name: Name) -> Diagram:
     """Add a name (or a sequence of names) to a diagram."""
+    from chalk.core import ApplyName
+
     return ApplyName(name, self)
 
 class Qualify(DiagramVisitor[Diagram, None]):

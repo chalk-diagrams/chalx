@@ -52,6 +52,7 @@ class Monoid:
     concat2 = concat
 
     def reduce(self, axis: int = 0) -> Self:
+        # return self.concat([self[i] for i in range(self.shape[0])])
         raise NotImplementedError()
 
 

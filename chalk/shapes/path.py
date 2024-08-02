@@ -7,7 +7,7 @@ from chalk import transform as tx
 
 # from chalk.envelope import Envelope
 from chalk.envelope import EnvDistance
-from chalk.trace import TraceDistances
+#from chalk.trace import TraceDistances
 from chalk.trail import Located, Trail
 from chalk.transform import P2_t, Transformable
 from chalk.types import Diagram
@@ -67,13 +67,13 @@ class Path(Transformable):
             for pt in loc_trails.points():
                 yield pt
 
-    def envelope(self, t: tx.V2_t) -> tx.Scalars:
-        return EnvDistance.concat(
-            (EnvDistance(loc.envelope(t)) for loc in self.loc_trails)
-        ).d
+    # def envelope(self, t: tx.V2_t) -> tx.Scalars:
+    #     return EnvDistance.concat(
+    #         (EnvDistance(loc.envelope(t)) for loc in self.loc_trails)
+    #     ).d
 
-    def get_trace(self, t: tx.Ray) -> TraceDistances:
-        return TraceDistances.concat((loc.trace(t) for loc in self.loc_trails))
+    # def get_trace(self, t: tx.Ray) -> TraceDistances:
+    #     return TraceDistances.concat((loc.trace(t) for loc in self.loc_trails))
 
     def stroke(self) -> Diagram:
         """Returns a primitive (shape) with strokes

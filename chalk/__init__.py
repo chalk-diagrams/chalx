@@ -1,6 +1,8 @@
 import sys
 from typing import TYPE_CHECKING
 
+import chalk.subdiagram
+
 if sys.version_info >= (3, 8):
     from importlib import metadata
 else:
@@ -13,7 +15,6 @@ import chex
 import chalk.align as align
 import chalk.core
 import chalk.envelope
-import chalk.namespace
 import chalk.trace
 import chalk.style
 import chalk.shapes
@@ -49,6 +50,7 @@ jax_type = [
     chalk.core.Compose,
     chalk.envelope.Envelope,
     chalk.core.ApplyTransform,
+    chalk.core.Empty,
     chalk.core.ApplyStyle,
     chalk.core.ComposeAxis,
     chalk.envelope.EnvDistance,
@@ -61,9 +63,15 @@ jax_type = [
     chalk.trail.Trail,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
+    chalk.subdiagram.Subdiagram
 ]
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
+import jax
+jax.tree_util.register_pytree_node(
+    chalk.core.ApplyName, 
+    lambda tree: ((tree.diagram,), (tree.dname,)),
+    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]))
 
 if not TYPE_CHECKING:
 

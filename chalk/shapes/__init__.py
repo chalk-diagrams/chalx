@@ -137,7 +137,7 @@ def arc_between(
     return arc_seg(q - p, height).at(p).stroke()
 
 def Spacer(width, height):
-    return rectangle(width, height).fill_opacity(0).line_width(0)
+    return rectangle(max(width, 1e-5), max(height, 1e-5)).fill_opacity(0).line_width(0)
 
 
 ignore = [Optional]

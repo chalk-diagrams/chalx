@@ -75,6 +75,10 @@ class ToSize(DiagramVisitor[Size, Size]):
     def visit_apply_transform(self, diagram: ApplyTransform, t: Size) -> Size:
         return Size(diagram.transform.shape[:-2])
 
+
+    def visit_apply_name(self, diagram: ApplyName, t: Size) -> Size:
+        return diagram.diagram.accept(self, t)
+
     def visit_apply_style(self, diagram: ApplyStyle, t: Size) -> Size:
         if diagram.style is None:
             return diagram.diagram.accept(self, t)

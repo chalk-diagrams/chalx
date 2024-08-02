@@ -109,7 +109,6 @@ def batch_cat(
         off = tx.np.roll(right, 1) + left + sep
         off = tx.index_update(off, 0, 0)
         off = tx.np.cumsum(off, axis=0)
-
         @tx.vmap
         def translate(x) -> Diagram:
             off, diagram = x

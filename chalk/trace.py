@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, NamedTuple, Tuple
 
+from chalk.shapes.arc import Segment
 import chalk.transform as tx
 from chalk.monoid import Monoid
 from chalk.transform import Affine, P2_t, Ray, Transformable, V2_t
 from chalk.visitor import DiagramVisitor
+from chalk.shapes.arc import arc_trace
 
 if TYPE_CHECKING:
 
@@ -47,70 +49,57 @@ class TraceDistances(Monoid):
 
 @dataclass
 class Trace(Monoid, Transformable):
-    diagram: Diagram
-    affine: Affine
-
-    # def __init__(self, d f: Callable[[Ray], TraceDistances]) -> None:
-    #     self.f = f
+    segment: Segment
 
     def __call__(self, point: P2_t, direction: V2_t) -> TraceDistances:
-        # def apply(x):  # type: ignore
-        #     return self.diagram.accept(ApplyTrace(), x[..., 0, :, :]).d[..., None]
         if len(point.shape) == 2:
             point = point.reshape(1, 3, 1)
         if len(direction.shape) == 2:
             direction = direction.reshape(1, 3, 1)
-        d, m = Trace.transform(
-            lambda x: self.diagram.accept(ApplyTrace(), x),
-            self.affine,
-            Ray(point, direction),
-        )
-        # d, m = self.f(Ray(point, direction))
+        assert point[..., -1, 0] == 1.0, point
+        d, m = Trace.general_transform(
+            self.segment.transform,
+            lambda x: arc_trace(self.segment, x),
+            Ray(point, direction))
+
         ad = tx.np.argsort(d + (1 - m) * 1e10, axis=1)
         d = tx.np.take_along_axis(d, ad, axis=1)
         m = tx.np.take_along_axis(m, ad, axis=1)
         return TraceDistances(d, m)
 
-    # # Monoid
-    # @classmethod
-    # def empty(cls) -> Trace:
-    #     return cls(lambda _: (tx.np.asarray([]), tx.np.asarray([])))
-
-    # def __add__(self, other: Trace) -> Trace:
-    #     return Trace(lambda ray: tx.union(self.f(ray), other.f(ray)))
 
     @staticmethod
     def general_transform(
         t: Affine, fn: Callable[[tx.Ray], TraceDistances], r: tx.Ray
     ) -> TraceDistances:  # type: ignore
         t1 = tx.inv(t)
-
+        print(t1)
         def wrapped(
             ray: Ray,
         ) -> TraceDistances:
-            td = fn(
+            td = TraceDistances(*fn(
                 Ray(
                     t1 @ ray.pt[..., None, :, :],
                     t1 @ ray.v[..., None, :, :],
                 )
-            )
+            ))
             return td.reduce(axis=-1)
 
         return wrapped(r)
 
     def apply_transform(self, t: Affine) -> Trace:
-        return Trace(self.diagram, t @ self.affine)
+        return Trace(self.segment.apply_transform(t))
 
     # Transformable
-    @staticmethod
-    def transform(
-        fn: Callable[[tx.Ray], TraceDistances], t: Affine, r: Ray
-    ) -> TraceDistances:
-        def apply(ray: Ray):  # type: ignore
-            t, m = fn(Ray(ray.pt[..., 0, :, :], ray.v[..., 0, :, :]))
-            return TraceDistances(t[..., None], m[..., None])
+    # @staticmethod
+    # def transform(
+    #     fn: Callable[[tx.Ray], TraceDistances], t: Affine, r: Ray
+    # ) -> TraceDistances:
+    #     def apply(ray: Ray):  # type: ignore
+    #         t, m = fn(Ray(ray.pt[..., 0, :, :], ray.v[..., 0, :, :]))
+    #         return TraceDistances(t[..., None], m[..., None])
 
-        return Trace.general_transform(t, apply, r)
+    #     return Trace.general_transform(t, apply, r)
 
     def trace_v(self, p: P2_t, v: V2_t) -> TraceDistances:
         v = tx.norm(v)
@@ -119,7 +108,7 @@ class Trace(Monoid, Transformable):
         d = tx.np.sort(dists + (1 - m) * 1e10, axis=1)
         ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=1)
         m = tx.np.take_along_axis(m, ad, axis=1)
-        s = d[:, 0:1]
+        s = d[:, 0]
         return TraceDistances(s[..., None] * v, m[:, 0])
 
     def trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
@@ -145,39 +134,54 @@ class Trace(Monoid, Transformable):
         return TraceDistances(ps, m)
 
 
-class ApplyTrace(DiagramVisitor[TraceDistances, Ray]):
-    A_type = TraceDistances
+# class ApplyTrace(DiagramVisitor[TraceDistances, Ray]):
+#     A_type = TraceDistances
 
-    def visit_primitive(self, diagram: Primitive, ray: Ray) -> TraceDistances:
-        return Trace.transform(
-            lambda x: diagram.prim_shape.get_trace(x), diagram.transform, ray
-        )
+#     def visit_primitive(self, diagram: Primitive, ray: Ray) -> TraceDistances:
+#         return Trace.transform(
+#             lambda x: diagram.prim_shape.get_trace(x), diagram.transform, ray
+#         )
 
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, ray: Ray
-    ) -> TraceDistances:
-        return Trace.transform(
-            lambda x: diagram.diagram.accept(self, x), diagram.transform, ray
-        )
+#     def visit_apply_transform(
+#         self, diagram: ApplyTransform, ray: Ray
+#     ) -> TraceDistances:
+#         return Trace.transform(
+#             lambda x: diagram.diagram.accept(self, x), diagram.transform, ray
+#         )
 
 
-class GetTrace(DiagramVisitor[Trace, Affine]):
-    A_type = Trace
+# class GetTrace(DiagramVisitor[Trace, Affine]):
+#     A_type = Trace
 
-    def visit_primitive(self, diagram: Primitive, t: Affine) -> Trace:
-        return Trace(diagram, t)
+#     def visit_primitive(self, diagram: Primitive, t: Affine) -> Trace:
+#         return Trace(diagram, t)
 
-    def visit_compose(self, diagram: Compose, t: Affine) -> Trace:
-        return Trace(diagram, t)
+#     def visit_compose(self, diagram: Compose, t: Affine) -> Trace:
+#         return Trace(diagram, t)
 
-    def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Trace:
-        return Trace(diagram, t)
+#     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Trace:
+#         return Trace(diagram, t)
 
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, t: Affine
-    ) -> Trace:
+#     def visit_apply_transform(
+#         self, diagram: ApplyTransform, t: Affine
+#     ) -> Trace:
+#         return diagram.diagram.accept(self, t @ diagram.transform)
+
+
+class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
+    A_type = Segment
+
+    def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
+        segment = diagram.prim_shape.located_segments()
+        if segment is None:
+            return None
+        else:
+            return segment.apply_transform((t @ diagram.transform)[..., None, :, :])
+
+    def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> Segment:
+        "Defaults to pass over"
         return diagram.diagram.accept(self, t @ diagram.transform)
 
 
 def get_trace(self: Diagram) -> Trace:
-    return self.accept(GetTrace(), tx.ident)
+    return Trace(self.accept(GetLocatedSegments(), tx.ident))

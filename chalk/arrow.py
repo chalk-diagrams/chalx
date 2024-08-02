@@ -90,7 +90,6 @@ def connect_perim(
 
         assert m1.all(), "Cannot connect"
         assert m2.all(), "Cannot connect"
-
         return dia + arrow_between(ps, pe, style)
 
     return self.with_names([name1, name2], f)
@@ -103,41 +102,39 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
     from chalk.core import Primitive
 
     if style.head_arrow is None:
-        arrow: Diagram = dart()
+        arrow: Diagram = dart().scale(0.5)
     else:
         arrow = style.head_arrow
-    arrow = arrow._style(style.head_style)
+    arrow = arrow.apply_style(style.head_style)
     t = style.tail_pad
     l_adj = length - style.head_pad - t
+
     if style.trail is None:
         segment = arc_seg(tx.V2(l_adj, 0), style.arc_height + 1e-3)
         shaft = segment.stroke()
-        if False:  # isinstance(segment.segments[-1], Segment):
-            seg = segment.segments[-1]
-            tan = -(seg.q - seg.center.reflect_y()).perpendicular()  # type: ignore
-            φ = tan.angle
-            arrow = arrow.rotate(φ)
-            if style.arc_height < 0:
-                arrow = arrow.rotate(180)
+        seg = segment.segments
+        tan = -tx.perpendicular(seg.q - tx.scale(tx.V2(1, -1)) @ seg.center)  # type: ignore
+        φ = tx.angle(tan)
+        arrow = arrow.rotate(φ)
+        if style.arc_height < 0:
+            arrow = arrow.rotate(180)
     else:
         shaft = style.trail.stroke().scale_uniform_to_x(l_adj).fill_opacity(0)
 
-        if False:  # isinstance(style.trail.segments[-1], Segment):
-            arrow = arrow.rotate(-style.trail.segments[-1].angle)
-
-    return shaft._style(style.shaft_style).translate_by(
+        arrow = arrow.rotate(-style.trail.segments.angle)
+    return shaft.apply_style(style.shaft_style).translate_by(
         t * tx.unit_x
-    ) + arrow.translate_by((l_adj + t) * tx.unit_x)
+    )  + arrow.translate_by((l_adj + t) * tx.unit_x)
 
 
 def arrow_v(vec: V2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
-    print("VEC", vec)
     arr = arrow(tx.length(vec), style)
     return arr.rotate(-tx.angle(vec))
 
 
 def arrow_at(base: P2_t, vec: V2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
-    return arrow_v(vec, style).translate_by(base)
+    arr = arrow_v(vec, style).translate_by(base)
+    return arr
 
 
 def arrow_between(

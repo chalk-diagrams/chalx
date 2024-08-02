@@ -18,7 +18,7 @@ from jaxtyping import AbstractDtype
 import chalk.transform as tx
 from chalk.monoid import Monoid
 from chalk.style import Stylable, StyleHolder
-from chalk.trace import TraceDistances
+#from chalk.trace import TraceDistances
 from chalk.transform import P2_t, V2_t
 
 if TYPE_CHECKING:
@@ -38,16 +38,6 @@ class Dia(AbstractDtype):
 
 class Enveloped(Protocol):
     def envelope(self, t: V2_t) -> tx.Scalars: ...
-
-
-# class Traceable(Protocol):
-#     def get_trace(self) -> Trace: ...
-
-
-class Shape(Enveloped, Protocol):
-    def split(self, i: int) -> Shape: ...
-
-    def get_trace(self, r: tx.Ray) -> TraceDistances: ...
 
 
 class TrailLike(Protocol):
@@ -168,7 +158,7 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     ) -> Diagram: ...
 
     def compose(  # type: ignore[empty-body]
-        self, envelope: Optional[Envelope], other: Optional[Diagram] = None
+        self, envelope: Optional[Diagram], other: Optional[Diagram] = None
     ) -> Diagram: ...
 
     def to_list(  # type: ignore[empty-body]

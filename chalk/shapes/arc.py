@@ -6,10 +6,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 import chalk.transform as tx
-from chalk.trace import TraceDistances
 from chalk.transform import Affine, Angles, P2_t, Scalars, V2_t
 from chalk.monoid import Monoid
 if TYPE_CHECKING:
@@ -41,7 +40,9 @@ class Segment(Monoid):
 
     @staticmethod
     def empty() -> Segment:
-        return None
+        return Segment(tx.np.empty((0, 3, 3)), 
+                       tx.np.empty((0, 2)), 
+                       )
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
@@ -59,6 +60,9 @@ class Segment(Monoid):
         from chalk.trail import Trail
 
         return Trail(self)
+
+    def reduce(self, axis: int = 0) -> Segment:
+        return Segment(self.transform.reshape(-1, 3, 3), self.angles.reshape(-1, 2))
 
     def get(self, i: int) -> Segment:
         return Segment.make(transform=self.transform[i], angles=self.angles[i])
@@ -159,29 +163,21 @@ def arc_envelope(trans, angles, d: Float[Array, "#A 3 1"]):
     )
 
 
-OFFSET = 0.0
 
 
-def set_offset(v: float) -> None:
-    global OFFSET
-    OFFSET = v
-
-
-def arc_trace(segment: Segment, ray: tx.Ray) -> TraceDistances:
+def arc_trace(segment: Segment, ray: tx.Ray) -> Tuple[tx.Array, tx.Array]:
     """
     Computes the Trace on all the arcs in a Segment.
 
-    #A is the batch of the traces
-    #B is the number of arcs in the segment.
     2 is the max number of traces per segment.
 
     """
     d, mask = tx.ray_circle_intersection(
-        ray.pt, ray.v, 1 + OFFSET * tx.length(ray.v)
+        ray.pt, ray.v, 1 
     )
     # Mask out traces that are not in the angle range.
     mask = mask & segment.is_in_mod_360(ray.point(d))
-    return TraceDistances(d.transpose(1, 2, 0), mask.transpose(1, 2, 0))
+    return d.transpose(1, 2, 0), mask.transpose(1, 2, 0)
 
 
 def arc_seg(q: V2_t, height: tx.Floating) -> Trail:
