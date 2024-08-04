@@ -13,13 +13,13 @@ import os
 import chex
 
 import chalk.align as align
+import chalk.backend.patch
 import chalk.core
 import chalk.envelope
-import chalk.trace
-import chalk.style
 import chalk.shapes
+import chalk.style
+import chalk.trace
 import chalk.trail
-import chalk.backend.patch
 from chalk.align import *  # noqa: F403
 from chalk.arrow import ArrowOpts, arrow_at, arrow_between, arrow_v
 from chalk.combinators import *  # noqa: F403
@@ -63,18 +63,19 @@ jax_type = [
     chalk.trail.Trail,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
-    chalk.subdiagram.Subdiagram
+    chalk.subdiagram.Subdiagram,
 ]
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
 import jax
+
 jax.tree_util.register_pytree_node(
-    chalk.core.ApplyName, 
+    chalk.core.ApplyName,
     lambda tree: ((tree.diagram,), (tree.dname,)),
-    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]))
+    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),
+)
 
 if not TYPE_CHECKING:
-
     # Set library name the same as on PyPI
     # must be the same as setup.py:setup(name=?)
     __libname__: str = "chalk-diagrams"  # custom dunder attribute

@@ -67,11 +67,11 @@ def write_style(d: Dict[str, Any]) -> str:
 
 
 def render_svg_patches(
-    patches: List[Patch], dwg: Drawing, style: StyleHolder
+    patches: List[Patch], dwg: Drawing, height
 ) -> None:
     outer = dwg.g(style="fill:white;")
 
-    for ind, patch, style_new in chalk.backend.patch.order_patches(patches):
+    for ind, patch, style_new in chalk.backend.patch.order_patches(patches, height):
         inner = to_svg(patch, dwg, ind)
         g = dwg.g(style=write_style(style_new))
         g.add(inner)
@@ -79,12 +79,13 @@ def render_svg_patches(
 
 
 def patches_to_file(
-    patches: List[Patch], path: str, height: float, width: float
+    patches: List[Patch], path: str, height: float, width: float,
+    draw_height
 ) -> None:
 
     dwg = svgwrite.Drawing(path, size=(int(width), int(height)))
-    style = StyleHolder.root(output_size=height)
-    render_svg_patches(patches, dwg, style)
+    render_svg_patches(patches, dwg, 
+                       draw_height if draw_height is not None else height)
     dwg.save()
 
 
@@ -108,7 +109,7 @@ def render(
                                                line width.
 
     """
-
+    assert self.size() == (), "Must be a size () diagram"
     patches, h, w = self.layout(height, width)
-    patches_to_file(patches, path, h, w)  # type: ignore
+    patches_to_file(patches, path, h, w, draw_height)  # type: ignore
 

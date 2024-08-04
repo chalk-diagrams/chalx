@@ -275,62 +275,38 @@ gendocsall.local: pregendocs.local gendocs postgendocs.local
 
 
 
+# Define the examples directory
+EXAMPLES_DIR := examples
 
-### Generate Output for Examples
+# List of images to be generated
+IMAGES := squares bigben hanoi intro hilbert koch tensor hex_variation tree tournament parade arrows lenet escher_square logo
 
-intro:
-	python examples/intro.py
-
-squares:
-	python examples/squares.py
-
-hanoi:
-	python examples/hanoi.py
-
-escher_square:
-	python examples/escher_square_limit.py
-
-lattice:
-	python examples/lattice.py
-
-lenet:
-	python examples/lenet.py
-
-logo:
-	python examples/logo.py
-
-hilbert:
-	python examples/hilbert.py
-
-koch:
-	python examples/koch.py
-
-tensor:
-	python examples/tensor.py
-
-latex:
-	python examples/latex.py
-
-hex_variation:
-	python examples/hex_variation.py
-
-tree:
-	python examples/tree.py
-
-tournament:
-	python examples/tournament-network.py
-
-parade:
-	python examples/rectangle_parade.py
-
-arrows:
-	python examples/arrows.py
-
-path:
-	python examples/path.py
-
-images: squares hanoi intro  hilbert koch tensor hex_variation tree tournament parade arrows path lenet escher_square logo
+# Generate the images
+images: $(IMAGES)
 	@echo "🎁 Generate all examples ... ⏳"
+
+# Rule to process each image
+$(IMAGES):
+	python $(EXAMPLES_DIR)/$@.py
+	jupytext --execute --set-kernel chalk --to ipynb -o $(EXAMPLES_DIR)/$@.ipynb $(EXAMPLES_DIR)/$@.py
+	jupyter nbconvert --to html $(EXAMPLES_DIR)/$@.ipynb 
+
+# List of images to be generated
+VISTESTS := alignment arc broadcast combinators envelope names path rendering shapes style subdiagram traces trails transformations text
+
+VT_DIR := api
+
+vis: $(VISTESTS)
+	@echo "🎁 Generate all vis tests ... ⏳"
+
+$(VISTESTS):
+	python $(VT_DIR)/$@.py
+	jupytext --execute --set-kernel chalk --to ipynb -o $(VT_DIR)/$@.ipynb $(VT_DIR)/$@.py
+	jupyter nbconvert --to html $(VT_DIR)/$@.ipynb 
+
+
+.PHONY: images $(IMAGES) vis $(VISTESTS)
+
 
 serve:
 	python -m http.server 8080 -d examples/output/
@@ -339,6 +315,4 @@ docsapi:
 	python docs/api/*.py
 
 
-vis_shapes:
-	jupytext --execute --to ipynb -o vis_tests/shapes.ipynb vis_tests/shapes.py ; jupyter nbconvert --to html vis_tests/shapes.ipynb 
 

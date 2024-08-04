@@ -6,8 +6,6 @@ from chalk import BoundingBox
 # Colors
 papaya = Color("#ff9700")
 blue = Color("#005FDB")
-black = Color("#000000")
-white = Color("#ffffff")
 grey = Color("#bbbbbb")
 
 
@@ -15,7 +13,10 @@ grey = Color("#bbbbbb")
 
 def label(te):
     "Create text."
-    return text(te, 2).fill_color(black).line_width(0)
+    #return rectangle(1, 1)
+    if te == "":
+        te = "_"
+    return text(te, 2).fill_color("black").line_width(0)
 
 def cover(d, a, b, n):
     "Draw a bounding_box around a subdiagram"
@@ -23,7 +24,7 @@ def cover(d, a, b, n):
     e2 = d.get_subdiagram(b).get_envelope()
     envelope = e1 + e2
     bbox = rectangle(envelope.width, envelope.height)
-    return bbox.named(n).translate(envelope.center[0, 0], envelope.center[0, 1])
+    return bbox.named(n).translate_by(envelope.center)
 
 def tile(d, m, n, name=""):
     "Tile a digram with names"
@@ -32,9 +33,10 @@ def tile(d, m, n, name=""):
 
 def connect_all(d, a, b):
     "Connect all corners of two diagrams"
-    for x_border in [-unit_x, unit_x]:
+    for x_border in [-unit_x * 0, unit_x*0]:
         for y_border in [-unit_y, unit_y]:
             p = x_border + y_border
+            print(p)
             d = d.connect_perim(a, b, p, p, ArrowOpts(head_arrow=empty()))
     return d
 
@@ -82,31 +84,29 @@ d = d.scale_uniform_to_x(5)
 # d =  stack("e", 5, 16, "", "S4")
 
 # Draw the orange boxes
-# boxes = [(("a", 2, 2), ("a", 6, 6)),
-#          (("b", 2, 2), ("b", 2, 2)),
-#          (("b", 20, 2), ("b", 23, 5)),
-#          (("c", 10, 2), ("c", 11, 3)),
-#          (("c", 4, 6), ("c", 8, 10)),
-#          (("d", 4, 6), ("d", 4, 6)),
-#          (("d", 6, 4), ("d", 9, 7)),
-#          (("e", 3, 2), ("e", 4, 3))]
+boxes = [(("a", 2, 2), ("a", 6, 6)),
+         (("b", 2, 2), ("b", 2, 2)),
+         (("b", 20, 2), ("b", 23, 5)),
+         (("c", 10, 2), ("c", 11, 3)),
+         (("c", 4, 6), ("c", 8, 10)),
+         (("d", 4, 6), ("d", 4, 6)),
+         (("d", 6, 4), ("d", 9, 7)),
+         (("e", 3, 2), ("e", 4, 3))]
 
-# d += concat([cover(d, *b, ("box", i)).fill_color(papaya).fill_opacity(0.3) for i, b in enumerate(boxes)])
+d += concat([cover(d, *b, ("box", i)).fill_color(papaya).fill_opacity(0.3) for i, b in enumerate(boxes)])
 
-# connect = [(("box", i), ("box", i + 1)) for i in range(0, 6, 2)]
+connect = [(("box", i), ("box", i + 1)) for i in range(0, 7, 2)]
 
 
-# for b in connect:
-#     d = connect_all(d, *b)
-# d
-# m = matrix("x", 100, 100).fill_color(Color("#dddddd"))
-print(Envelope.total_env)
+for b in connect:
+    d = connect_all(d, *b)
+d
 d.render_svg("examples/output/lenet.svg", 400)
 
-try:
-    d.render("examples/output/lenet.png", 400)
-    PILImage.open("examples/output/lenet.png")
-    d.render_pdf("examples/output/lenet.pdf", 400)
-except ModuleNotFoundError:
-    print("Need to install Cairo")
+# try:
+#     d.render("examples/output/lenet.png", 400)
+#     PILImage.open("examples/output/lenet.png")
+#     d.render_pdf("examples/output/lenet.pdf", 400)
+# except ModuleNotFoundError:
+#     print("Need to install Cairo")
 

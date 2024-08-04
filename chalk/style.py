@@ -93,7 +93,6 @@ def Style(
     dashing_: Optional[PropLike] = None,
     output_size: Optional[PropLike] = None,
 ) -> StyleHolder:
-
     b = (
         tx.np.zeros(STYLE_SIZE),
         tx.np.zeros(STYLE_SIZE, dtype=bool),
@@ -198,8 +197,8 @@ class StyleHolder(Stylable):
         )
 
     @classmethod
-    def root(cls, output_size: tx.Floating) -> StyleHolder:
-        return Style(output_size=output_size)
+    def root(cls, output_size: float) -> StyleHolder:
+        return Style()
 
     def apply_style(self, other: StyleHolder) -> StyleHolder:
         return self.merge(other)
@@ -222,14 +221,9 @@ class StyleHolder(Stylable):
             style["edgecolor"] = "black"
 
         # Set by observation
-        assert self.output_size is not None
-        normalizer = self.output_size[0] * (50 / 500)
         if self.line_width_ is not None:
             lw = self.line_width_
-        else:
-            lw = LW * normalizer
-
-        style["linewidth"] = lw.reshape(-1)[0]
+            style["linewidth"] = lw.reshape(-1)[0]
         if self.fill_opacity_ is not None:
             style["alpha"] = self.fill_opacity_[0]
         return style

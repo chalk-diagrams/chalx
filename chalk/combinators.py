@@ -3,7 +3,8 @@ from typing import Iterable, List, Optional, Tuple, Union
 import chalk.transform as tx
 from chalk.envelope import Envelope
 from chalk.monoid import associative_reduce
-from chalk.shapes import Path, Spacer
+from chalk.path import Path
+from chalk.shapes import Spacer
 from chalk.transform import Floating, Scalars, V2_t
 from chalk.types import Diagram
 
@@ -15,12 +16,6 @@ def with_envelope(self: Diagram, other: Diagram) -> Diagram:
 
 
 # with_trace, phantom,
-
-
-def strut(width: Floating, height: Floating) -> Diagram:
-    from chalk.core import Primitive
-
-    return Spacer(tx.ftos(width), tx.ftos(height))
 
 
 def pad(self: Diagram, extra: Floating) -> Diagram:
@@ -36,13 +31,9 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
         Diagram: A diagram object.
     """
     envelope = self.get_envelope()
-
-    # def f(d: V2_t) -> Scalars:
-    #     assert envelope is not None
-    #     return envelope(d) * extra
-
-    # new_envelope = Envelope(f, envelope.is_empty)
-    return self  # .compose(new_envelope)
+    bounding_box = envelope.to_bounding_box()
+    rect = bounding_box.scale(extra).to_rect()
+    return self.with_envelope(rect)
 
 
 # extrudeEnvelope, intrudeEnvelope
@@ -79,16 +70,22 @@ def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
 
 
 def batch_hcat(self: Batched, sep: Optional[Floating] = None) -> Reduced:
+    "Hcat a batched diagram along the outermost axis."
     return batch_cat(self, tx.unit_x, sep)
 
 
 def batch_vcat(self: Batched, sep: Optional[Floating] = None) -> Reduced:
+    "Vcat a batched diagram along the outermost axis."
     return batch_cat(self, tx.unit_y, sep)
 
 
 def batch_cat(
     diagram: Batched, v: V2_t, sep: Optional[Floating] = None
 ) -> Reduced:
+    """
+    Cat a batched diagram along the outermost axis.
+    i.e. if it is size (a,b) it will now be (b)
+    """
     axes = diagram.size()
     axis = len(axes) - 1
     assert diagram.size() != ()
@@ -105,27 +102,33 @@ def batch_cat(
             left = env(-v)
             return right, left
 
-        right, left = offset(diagram) # type: ignore
+        right, left = offset(diagram)  # type: ignore
         off = tx.np.roll(right, 1) + left + sep
         off = tx.index_update(off, 0, 0)
         off = tx.np.cumsum(off, axis=0)
+
         @tx.vmap
         def translate(x) -> Diagram:
             off, diagram = x
             return diagram.translate_by(v * off[..., None, None])
 
-        return translate((off, diagram)) # type: ignore
+        return translate((off, diagram))  # type: ignore
 
-    call_scan = tx.multi_vmap(call_scan, axis) # type: ignore
+    call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
     return call_scan(diagram).compose_axis()
 
 
 def cat(
     diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None
 ) -> Diagram:
+    from chalk.shapes import hstrut
     diagrams = iter(diagram)
     start = next(diagrams, None)
-    sep_dia = hstrut(sep).rotate(tx.angle(v))
+    if sep is None:
+        hs = empty()
+    else:
+        hs = hstrut(sep)
+    sep_dia = hs.rotate(tx.angle(v))
     if start is None:
         return empty()
 
@@ -152,12 +155,11 @@ def concat(diagrams: Iterable[Diagram]) -> Diagram:
         Diagram: New diagram
 
     """
-    
 
     from chalk.core import BaseDiagram
     from chalk.monoid import Monoid
 
-    return BaseDiagram.concat2(diagrams)
+    return BaseDiagram.concat2(diagrams)  # type: ignore
 
 
 def empty() -> Diagram:
@@ -172,20 +174,6 @@ def empty() -> Diagram:
 # 2D
 
 
-def hstrut(width: Optional[Floating]) -> Diagram:
-    from chalk.core import Primitive
-
-    if width is None:
-        return empty()
-    return Spacer(tx.ftos(width), tx.ftos(0))
-
-
-def vstrut(height: Optional[Floating]) -> Diagram:
-    from chalk.core import Primitive
-
-    if height is None:
-        return empty()
-    return Spacer(tx.ftos(0), tx.ftos(height))
 
 
 def hcat(
@@ -285,16 +273,8 @@ def at_center(self: Diagram, other: Diagram) -> Diagram:
     ``a`` along the axis out of the plane of the image.
 
     💡 In other words, ``b`` occludes ``a``.
-
-    Args:
-        self (Diagram): Diagram object.
-        other (Diagram): Another diagram object.
-
-    Returns:
-        Diagram: A diagram object.
     """
     envelope1 = self.get_envelope()
     envelope2 = other.get_envelope()
     t = tx.translation(envelope1.center)
-    new_envelope = envelope1 + (envelope2.apply_transform(t))
-    return self.compose(new_envelope, other.apply_transform(t))
+    return self.compose(None, other.apply_transform(t))

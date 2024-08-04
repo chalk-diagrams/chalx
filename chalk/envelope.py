@@ -5,9 +5,8 @@ from functools import partial
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, Self, Tuple
 
 import chalk.transform as tx
-from chalk.shapes import Segment
-from chalk.shapes.arc import arc_envelope
 from chalk.monoid import Monoid
+from chalk.segment import Segment, arc_envelope
 from chalk.transform import (
     P2,
     V2,
@@ -24,14 +23,9 @@ if TYPE_CHECKING:
     from chalk.core import (
         ApplyTransform,
         Compose,
-        ComposeAxis,
-        Empty,
         Primitive,
     )
-    from chalk.types import Diagram, Enveloped
-
-# quantize = tx.np.linspace(-100, 100, 1000)
-# mult = tx.np.array([1000, 1, 0])[None]
+    from chalk.types import Diagram
 
 
 @dataclass
@@ -65,7 +59,9 @@ def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
 
 @tx.jit
 @partial(tx.vectorize, signature="(3,1),(3,1),(),()->()")
-def post_transform(u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating) -> Scalars:
+def post_transform(
+    u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating
+) -> Scalars:
     after_linear = inner / d
 
     # Translation
@@ -80,44 +76,23 @@ class Envelope(Transformable, Monoid):
 
     def __call__(self, direction: V2_t) -> Scalars:
         def run(d):
-            if self.segment is None:
+            if self.segment.angles.shape[0] == 0:
                 return 0
+
             @partial(tx.np.vectorize, signature=f"(a,3,3),(a,2)->()")
             def env(t, ang):
                 v = Envelope.general_transform(
-                    t, 
-                    lambda x: arc_envelope(t, 
-                                    ang,
-                                    x),
-                                    d).max()
+                    t, lambda x: arc_envelope(t, ang, x), d
+                ).max()
                 return v
-            return env(self.segment.t, self.segment.angles)
-        run = tx.multi_vmap(run, len(direction.shape)-2)
-        return run(direction)
-            
-        # print(direction)
-        # exit() 2:12 51:33
-        # def get_env():
-        #     #@partial(tx.np.vectorize, signature="(3, 1)->()")
-        #     def run(d):
-        #         return arc_envelope(self.segment.transform, 
-        #                             self.segment.angles,
-        #                             d)
-            
-            # Envelope.general_transform(
-            #         self.affine,
-            #         lambda x: diagram.accept(ApplyEnvelope(), x).d,
-            #         d,
-            #     )
-        #     return run(direction)
-        # return get_env()
-        # # size = self.diagram.size()
-        # if size == ():
 
-        # else:
-        #     for _ in range(len(size)):
-        #         get_env = tx.vmap(get_env) # type: ignore
-        #     return get_env(self.diagram)
+            return env(self.segment.t, self.segment.angles)
+
+        run = tx.multi_vmap(run, len(direction.shape) - 2)  # type: ignore
+        return run(direction)  # type: ignore
+
+    def __add__(self, other):
+        return Envelope(self.segment + other.segment)
 
     all_dir = tx.np.stack(
         [tx.unit_x, -tx.unit_x, tx.unit_y, -tx.unit_y], axis=0
@@ -142,7 +117,7 @@ class Envelope(Transformable, Monoid):
     def height(self) -> Scalars:
         d1 = self(Envelope.all_dir[2:])
         return tx.np.asarray(d1[0] + d1[1])
-    
+
     def envelope_v(self, v: V2_t) -> V2_t:
         # if self.is_empty:
         #     return V2(0, 0)
@@ -180,33 +155,38 @@ class Envelope(Transformable, Monoid):
         t: Affine, fn: Callable[[V2_t], Scalars], d: V2_t
     ) -> tx.ScalarsC:
         pre = pre_transform(t, d)
-        return post_transform(pre[1], pre[2], pre[3],
-                                fn(pre[0]))
-    
-    def apply_transform(self, t: Affine) -> Self:
+        return post_transform(pre[1], pre[2], pre[3], fn(pre[0]))
+
+    def apply_transform(self, t: Affine) -> Envelope:
         return Envelope(self.segment.apply_transform(t))
 
 
 class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
+    """
+    Collapse a diagram to its underlying segments. 
+    """
     A_type = Segment
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
-        if segment is None:
-            return None
-        else:
-            return segment.apply_transform((t @ diagram.transform)[..., None, :, :])
+        return segment.apply_transform(
+            (t @ diagram.transform)[..., None, :, :]
+        )
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:
+        # Compose nodes can override the envelope. 
         if diagram.envelope is not None:
             return diagram.envelope.accept(self, t)
         return self.A_type.concat(
             [d.accept(self, t) for d in diagram.diagrams]
         )
 
-    def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> Segment:
+    def visit_apply_transform(
+        self, diagram: ApplyTransform, t: Affine
+    ) -> Segment:
         "Defaults to pass over"
         return diagram.diagram.accept(self, t @ diagram.transform)
+
 
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     # assert self.size() == ()

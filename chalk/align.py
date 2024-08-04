@@ -15,7 +15,6 @@ def snug(self: Diagram, v: V2_t) -> Diagram:
     "Align based on the trace."
     trace = self.get_trace()
     d, _ = trace.trace_v(tx.origin, v)
-    print(d.shape)
     assert d is not None
     t = tx.translation(-d)
     return self.apply_transform(t)

@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import chalk.transform as tx
-
 from chalk.monoid import Maybe, Monoid
 from chalk.trace import Trace
 from chalk.transform import Affine, P2_t, V2_t
@@ -12,9 +11,16 @@ from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import ApplyName, ComposeAxis, ApplyTransform, Compose, Primitive, ApplyStyle
-    from chalk.types import Diagram
+    from chalk.core import (
+        ApplyName,
+        ApplyStyle,
+        ApplyTransform,
+        Compose,
+        ComposeAxis,
+        Primitive,
+    )
     from chalk.envelope import Envelope
+    from chalk.types import Diagram
 AtomicName = Any
 
 
@@ -78,7 +84,9 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
                 return bb
         return Maybe.empty()
 
-    def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Maybe[Subdiagram]:
+    def visit_compose_axis(
+        self, diagram: ComposeAxis, t: Affine
+    ) -> Maybe[Subdiagram]:
         size = diagram.diagrams.size()
         return diagram.diagrams.accept(self, t[None].repeat(size[0], axis=0))
 
@@ -162,11 +170,13 @@ def qualify(self, name: Name) -> Diagram:
     """Prefix names in the diagram by a given name or sequence of names."""
     return self.accept(Qualify(name), None)
 
+
 def named(self, name: Name) -> Diagram:
     """Add a name (or a sequence of names) to a diagram."""
     from chalk.core import ApplyName
 
     return ApplyName(name, self)
+
 
 class Qualify(DiagramVisitor[Diagram, None]):
     A_type = Diagram
@@ -178,6 +188,8 @@ class Qualify(DiagramVisitor[Diagram, None]):
         return diagram
 
     def visit_compose(self, diagram: Compose, args: None) -> Diagram:
+        from chalk.core import Compose
+
         return Compose(
             diagram.envelope,
             tuple([d.accept(self, None) for d in diagram.diagrams]),
@@ -186,19 +198,24 @@ class Qualify(DiagramVisitor[Diagram, None]):
     def visit_apply_transform(
         self, diagram: ApplyTransform, args: None
     ) -> Diagram:
+        from chalk.core import ApplyTransform
+
         return ApplyTransform(
             diagram.transform,
             diagram.diagram.accept(self, None),
         )
 
     def visit_apply_style(self, diagram: ApplyStyle, args: None) -> Diagram:
+        from chalk.core import ApplyStyle
+
         return ApplyStyle(
             diagram.style,
             diagram.diagram.accept(self, None),
         )
 
     def visit_apply_name(self, diagram: ApplyName, args: None) -> Diagram:
-        return ApplyName(
-            self.name + diagram.dname, diagram.diagram.accept(self, None)
-        )
+        from chalk.core import ApplyName
 
+        return ApplyName(
+            (self.name,) + (diagram.dname,), diagram.diagram.accept(self, None)
+        )

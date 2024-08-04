@@ -19,6 +19,12 @@ def get_primitives(self) -> List[Primitive]:
 def layout(
     self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
+    """
+    Layout a diagram before rendering. 
+    This centers and pads the diagram to fit.
+    Then collapses it to establish z-order. 
+    Then maps it to a list of patches.
+    """
     envelope = self.get_envelope()
     assert envelope is not None
 
@@ -44,7 +50,7 @@ def layout(
     assert e is not None
     s = s.translate(e(-tx.unit_x), e(-tx.unit_y))
 
-    style = StyleHolder.root(tx.np.maximum(width, height))
+    style = StyleHolder.root(tx.np.maximum(width, height)) # type: ignore
     s = s.apply_style(style)
     patches = [Patch.from_prim(prim, style) for prim in get_primitives(s)]
     return patches, height, width
@@ -81,6 +87,8 @@ class OrderList(Monoid):
 class ToListOrder(DiagramVisitor[OrderList, Affine]):
     """Compiles a `Diagram` to a list of `Primitive`s. The transformation `t`
     is accumulated upwards, from the tree's leaves.
+    
+    Needs to keep track of the z-order for batched primitives.
     """
 
     A_type = OrderList
@@ -143,5 +151,5 @@ def add_dim(m: Any, size: int) -> Any:
     if not isinstance(m, StyleHolder):
         m = tx.np.asarray(m)
     for s in range(size):
-        m = m[..., None]
+        m = m[..., None] # type: ignore
     return m

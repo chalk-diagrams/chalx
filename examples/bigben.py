@@ -18,6 +18,7 @@
 
 from chalk import *
 from colour import Color
+import chalk.transform as tx
 
 # The whole diagram a simple color pallet of gold black and a bit of grey.
 
@@ -180,10 +181,10 @@ inner_circle
 # There is no magic here, just a little geometry to guess the shapes.
 # Vectors `unit_y` and `unit_x` are geometric helpers.
 
-u45 = unit_x.rotate(-45)
-u60 = unit_x.rotate(60)
-diffy = abs(u45.y / u60.y)
-diffx = diffy * abs(u60.x / u45.x)
+u45 = tx.rotation_angle(-45) @ unit_x
+u60 = tx.rotation_angle(60) @ unit_x
+diffy = abs(u45[1, 0] / u60[1, 0])
+diffx = diffy * abs(u60[0, 0] / u45[0, 0])
 
 # A `Trail` is a sequence of vectors drawn in order.
 # Once you are done drawing one you can use `stroke` to
@@ -267,7 +268,9 @@ band1
 
 def fit_in(b: Diagram, s: Diagram, frame=0.1) -> Diagram:
     # Find the inner radius
-    m = min([x for x in b.get_trace()(origin, unit_x) if x > 0])
+    trace = b.get_trace()
+    p, m = trace(tx.origin, unit_x)
+    m = min([x for x, m1 in zip(p[0], m[0]) if m1 and x > 0])
 
     # Scale the inner diagram to that size
     return b + s.scale_uniform_to_x(2 * m - frame)
@@ -366,8 +369,8 @@ corner
 
 # Internally there is a little golden decoration. To make this we use the `juxtapose` function
 # which moves a diagram to be next to another along an angle.
-
-decal = rectangle(2, 2).with_envelope(rectangle(0, 0)).fill_color(gold)
+eps=1e-2
+decal = rectangle(2, 2).with_envelope(rectangle(eps, eps)).fill_color(gold)
 c = circle(1).fill_color(black)
 decal = concat(
     [
@@ -394,8 +397,8 @@ marc = arc(2 / 2, 0, 180 - disp)
 decal = concat(
     [
         decal,
-        decal.juxtapose(marc, unit_x.rotate(90 + disp)),
-        decal.juxtapose(marc.rotate(-(90 + disp)), unit_x.rotate(-disp)),
+        decal.juxtapose(marc, tx.rotation_angle(90 + disp) @ unit_x),
+        decal.juxtapose(marc.rotate((-(90+disp))), tx.rotation_angle(-disp) @ unit_x),
     ]
 ).line_width(0.2)
 decal

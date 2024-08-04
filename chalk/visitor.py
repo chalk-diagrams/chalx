@@ -24,14 +24,21 @@ B = TypeVar("B")
 
 
 class DiagramVisitor(Generic[A, B]):
+    """
+    Class for traversing the diagram tree.
+    Can be thought of as a tree fold. 
+    Type B is passed up the tree. 
+    Type A is accumulated down the tree. 
+    Type A needs to be a monoid type.   
+    """
     A_type: type[A]
 
     def visit_primitive(self, diagram: Primitive, arg: B) -> A:
-        "Primitive defaults to empty"
+        # Default primitive defaults to empty monoid
         return self.A_type.empty()
 
     def visit_empty(self, diagram: Empty, arg: B) -> A:
-        "Empty defaults to empty"
+        # Default for empty to empty monoid
         return self.A_type.empty()
 
     def visit_compose(self, diagram: Compose, arg: B) -> A:
@@ -47,16 +54,15 @@ class DiagramVisitor(Generic[A, B]):
         axis = len(diagram.diagrams.size()) - 1
         fn = diagram.diagrams.accept.__func__  # type: ignore
         fn = partial(fn, visitor=self, args=t)
-        # tx.np.vectorize(partial(fn, visitor=self, args=t),
         if not tx.JAX_MODE:
             ds = []
             for k in range(size[-1]):
                 d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
                 ds.append(fn(d))
             ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
-            # assert ed.size() == size
         else:
             import jax
+
             ed: A = jax.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
         return self.A_type.reduce(ed, axis)
 

@@ -26,7 +26,7 @@ from chalk.envelope import Envelope
 from chalk.style import Style, StyleHolder
 from chalk.transform import Affine
 from chalk.types import Diagram
-from chalk.shapes import Path
+from chalk.path import Path
 from chalk.visitor import DiagramVisitor
 
 Trail = Any
@@ -345,3 +345,4 @@ class ApplyName(BaseDiagram):
         return visitor.visit_apply_name(self, args)
 
 
+    

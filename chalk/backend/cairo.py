@@ -5,10 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import chalk.backend.patch
 import chalk.transform as tx
 from chalk.backend.patch import Patch, order_patches
-from chalk.shapes import (
-    Path,
-    Segment,
-)
+from chalk.shapes import Path, Segment
 from chalk.style import StyleHolder
 from chalk.transform import Affine
 from chalk.types import Diagram
@@ -18,6 +15,7 @@ if TYPE_CHECKING:
 
 
 PyCairoContext = Any
+
 
 def write_style(d: Dict[str, Any], ctx: PyCairoContext) -> None:
     if "facecolor" in d:
@@ -37,7 +35,14 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
         if c[i] == chalk.backend.patch.Command.MOVETO.value:
             ctx.move_to(v[i, 0], v[i, 1])
             i += 1
-        if c[i] == chalk.backend.patch.Command.CURVE4.value:
+        elif c[i] == chalk.backend.patch.Command.LINETO.value:
+            ctx.line_to(v[i, 0], v[i, 1], v[i + 1, 0], v[i + 1, 1])
+            i += 2
+        elif c[i] == chalk.backend.patch.Command.CURVE3.value:
+            i += 2
+        elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
+            i += 1
+        elif c[i] == chalk.backend.patch.Command.CURVE4.value:
             ctx.curve_to(
                 v[i, 0],
                 v[i, 1],
@@ -49,10 +54,11 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             i += 3
 
 
-def render_cairo_patches(patches: List[Patch], ctx: PyCairoContext) -> None:
-
+def render_cairo_patches(
+    patches: List[Patch], ctx: PyCairoContext, height
+) -> None:
     # Order the primitives
-    for ind, patch, style in order_patches(patches):
+    for ind, patch, style in order_patches(patches, height):
         to_cairo(patch, ctx, (ind,))
         write_style(style, ctx)
         ctx.stroke()
@@ -68,7 +74,7 @@ def patches_to_file(
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(width), int(height))
     ctx = cairo.Context(surface)
-    render_cairo_patches(patches, ctx)
+    render_cairo_patches(patches, ctx, height)
     surface.write_to_png(path)
 
 

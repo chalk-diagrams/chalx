@@ -37,8 +37,6 @@ def show_envelope(
 
     self.show_origin()
     envelope = self.get_envelope()
-    # if envelope.is_empty:
-    #     return self
     outer: Diagram = (
         Path.from_points(list(envelope.to_path(angle)))
         .stroke()
@@ -47,7 +45,7 @@ def show_envelope(
     )
     segments = envelope.to_segments(angle)
 
-    outer = (
+    outer = outer + (
         concat(
             [seg(segments[i][None]).stroke() for i in range(segments.shape[0])]
         )

@@ -4,22 +4,27 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List
 
-import chalk.shapes.arc as arc
 import chalk.transform as tx
 
 # from chalk.envelope import Envelope
 from chalk.monoid import Monoid
-from chalk.shapes.arc import Segment
+from chalk.segment import Segment
+import chalk.segment as arc
+
 # from chalk.trace import Trace, TraceDistances
 from chalk.transform import Affine, Floating, P2_t, Transformable, V2_t
-from chalk.types import Diagram, Enveloped, TrailLike
+from chalk.types import Diagram, TrailLike
 
 if TYPE_CHECKING:
-    from chalk.shapes.path import Path
+    from chalk.path import Path
 
 
 @dataclass(frozen=True, unsafe_hash=True)
-class Located(Enveloped, Transformable):
+class Located(Transformable):
+    """
+    A trail with a location for the origin. 
+    """
+
     trail: Trail
     location: P2_t
 
@@ -33,25 +38,8 @@ class Located(Enveloped, Transformable):
     def points(self) -> P2_t:
         return self.trail.points() + self.location[..., None, :, :]
 
-    def envelope(self, t: V2_t) -> tx.Scalars:
-        import chalk.envelope
-
-        s = self.located_segments()
-        trans = s.transform
-        return chalk.envelope.Envelope.general_transform(
-            trans, lambda x: arc.arc_envelope(s.transform, s.angles, x), t
-        )
-
-    # def trace(self, r: tx.Ray) -> TraceDistances:
-    #     s = self.located_segments()
-    #     t = s.transform
-    #     return TraceDistances(
-    #         *Trace.general_transform(t, lambda x: arc.arc_trace(s, x), r)
-    #     )
-    
     def _promote(self) -> Located:
         return Located(self.trail._promote(), self.location)
-
 
     def stroke(self) -> Diagram:
         return self._promote().to_path().stroke()
@@ -66,7 +54,7 @@ class Located(Enveloped, Transformable):
         return Located(self.trail.apply_transform(tx.remove_translation(t)), p)
 
     def to_path(self) -> Path:
-        from chalk.shapes.path import Path
+        from chalk.path import Path
 
         return Path(tuple([Located(self.trail._promote(), self.location)]))
 
@@ -126,7 +114,8 @@ class Trail(Monoid, Transformable, TrailLike):
             -tx.np.sum(self.points(), axis=-3) / self.segments.t.shape[0]
         )
 
-    # # Misc. Constructor
+    # Misc. Constructors
+    # Todo: Move out of this class?
     @staticmethod
     def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
         trail = Trail.concat([arc.seg(off) for off in offsets])

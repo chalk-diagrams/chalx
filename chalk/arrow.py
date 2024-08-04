@@ -87,9 +87,9 @@ def connect_perim(
 
         ps, m1 = tr1.max_trace_p(loc1, v1)
         pe, m2 = tr2.max_trace_p(loc2, v2)
-
-        assert m1.all(), "Cannot connect"
-        assert m2.all(), "Cannot connect"
+        print(loc2, v2)
+        assert m1.all(), f"Cannot connect, trace failed {name1} {name2} {m1}"
+        assert m2.all(), f"Cannot connect, trace failed {name1} {name2} {m2}"
         return dia + arrow_between(ps, pe, style)
 
     return self.with_names([name1, name2], f)
@@ -124,7 +124,7 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
         arrow = arrow.rotate(-style.trail.segments.angle)
     return shaft.apply_style(style.shaft_style).translate_by(
         t * tx.unit_x
-    )  + arrow.translate_by((l_adj + t) * tx.unit_x)
+    ) + arrow.translate_by((l_adj + t) * tx.unit_x)
 
 
 def arrow_v(vec: V2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
