@@ -1,7 +1,6 @@
 # + tags=["hide_inp"]
 import math
 from chalk import *
-from planar import Vec2Array
 def help(f):
     import pydoc
     from IPython.display import HTML

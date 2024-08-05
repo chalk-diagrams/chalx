@@ -83,7 +83,9 @@ class Trail(Monoid, Transformable, TrailLike):
     # Transformable
     def apply_transform(self, t: Affine) -> Trail:
         t = tx.remove_translation(t)
-        return Trail(self.segments.apply_transform(t[..., None, :, :]), self.closed)
+        return Trail(
+            self.segments.apply_transform(t[..., None, :, :]), self.closed
+        )
 
     # Trail-like
     def to_trail(self) -> Trail:
@@ -159,22 +161,16 @@ class Trail(Monoid, Transformable, TrailLike):
         if not clockwise:
             dangle = 90
             rotate_by *= -1
-        return (
-            Trail.concat(
-                [
-                    arc.arc_seg_angle(0, dangle).rotate_by(
-                        rotate_by * i / sides
-                    )
-                    for i in range(sides)
-                ]
-            )
-            .close()
-        )
+        return Trail.concat(
+            [
+                arc.arc_seg_angle(0, dangle).rotate_by(rotate_by * i / sides)
+                for i in range(sides)
+            ]
+        ).close()
 
     @staticmethod
     def regular_polygon(sides: int, side_length: Floating) -> Trail:
         edge = Trail.hrule(1)
-        return (
-            Trail.concat(edge.rotate_by(i / sides) for i in range(sides))
-            .close()
-        )
+        return Trail.concat(
+            edge.rotate_by(i / sides) for i in range(sides)
+        ).close()

@@ -28,10 +28,13 @@ def size(self: Diagram) -> Tuple[int, ...]:
     "Get the size of a batch diagram."
     return self.accept(ToSize(), Size.empty()).d
 
+
 def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     old_shape = len(self.size())
-    return tx.tree_map(lambda x: x.reshape(shape + x.shape[old_shape:]), 
-                       self)  # type: ignore
+    return tx.tree_map(
+        lambda x: x.reshape(shape + x.shape[old_shape:]), self
+    )  # type: ignore
+
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
     return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore

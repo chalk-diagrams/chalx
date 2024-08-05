@@ -239,6 +239,7 @@ class Primitive(BaseDiagram):
 
     @classmethod
     def from_path(cls, shape: Path) -> Primitive:
+        assert shape.size() == (), f"Shape size: {shape.size()}"
         return cls(shape, None, tx.make_ident(shape.size()))
 
     def apply_transform(self, t: Affine) -> Primitive:

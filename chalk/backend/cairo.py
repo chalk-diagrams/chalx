@@ -29,8 +29,8 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             ctx.move_to(v[i, 0], v[i, 1])
             i += 1
         elif c[i] == chalk.backend.patch.Command.LINETO.value:
-            ctx.line_to(v[i, 0], v[i, 1], v[i + 1, 0], v[i + 1, 1])
-            i += 2
+            ctx.line_to(v[i, 0], v[i, 1])
+            i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE3.value:
             c1 = v[i - 1] + 2 / 3 * (v[i] - v[i - 1])
             c2 = v[i + 1] + 2 / 3 * (v[i] - v[i + 1])
@@ -44,7 +44,7 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             )
             i += 2
         elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
-            ctx.stroke()
+            # ctx.stroke()
             i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE4.value:
             ctx.curve_to(
@@ -63,7 +63,7 @@ def render_cairo_patches(
 ) -> None:
     # Order the primitives
     for ind, patch, style in order_patches(patches, height):
-        to_cairo(patch, ctx, (ind,))
+        to_cairo(patch, ctx, ind)
         write_style(style, ctx)
         ctx.stroke()
 

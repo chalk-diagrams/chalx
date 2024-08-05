@@ -23,8 +23,8 @@ def to_svg(patch: Patch, dwg: Drawing, ind: int) -> BaseElement:
             line.push(f"M {v[i, 0]} {v[i, 1]}")
             i += 1
         elif c[i] == chalk.backend.patch.Command.LINETO.value:
-            line.push(f"L {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]}")
-            i += 2
+            line.push(f"L {v[i, 0]} {v[i, 1]}")
+            i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE3.value:
             line.push(f"Q {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]}")
             i += 2

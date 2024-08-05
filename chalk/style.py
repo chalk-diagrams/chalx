@@ -41,10 +41,10 @@ STYLE_LOCATIONS = {
 
 DEFAULTS = {
     "fill_color": to_color(FC),
-    "fill_opacity": tx.np.asarray(1.0),
+    "fill_opacity": tx.np.asarray([1.0]),
     "line_color": to_color(LC),
-    "line_opacity": tx.np.asarray(1.0),
-    "line_width": tx.np.asarray(LW),
+    "line_opacity": tx.np.asarray([1.0]),
+    "line_width": tx.np.asarray([LW]),
     "output_size": tx.np.asarray(200.0),
     "dashing": tx.np.asarray(0),
 }
@@ -105,9 +105,7 @@ def Style(
             value = tx.np.asarray(value)
             if len(value.shape) != len(base.shape) - 1:
                 n = tx.np.zeros(
-                    value.shape[
-                        : len(value.shape) - len(DEFAULTS[key].shape)
-                    ]
+                    value.shape[: len(value.shape) - len(DEFAULTS[key].shape)]
                     + (STYLE_SIZE,)
                 )
                 base, _ = tx.np.broadcast_arrays(base, n)

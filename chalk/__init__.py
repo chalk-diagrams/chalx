@@ -63,6 +63,7 @@ jax_type = [
     chalk.trail.Trail,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
+    chalk.path.Text,
     chalk.subdiagram.Subdiagram,
 ]
 for t in jax_type:

@@ -316,6 +316,7 @@ nav:
     - Rendering: api/rendering.ipynb
     - Trails: api/trails.ipynb
     - Connections: api/names.ipynb
+    - Broadcasting: api/broadcast.ipynb
   - Examples:
     - BigBen: examples/bigben.py
     - Hanoi: examples/hanoi.py

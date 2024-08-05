@@ -74,12 +74,14 @@ class Envelope(Transformable, Monoid):
         def run(d):
             if self.segment.angles.shape[0] == 0:
                 return 0
+
             @partial(tx.np.vectorize, signature="(a,3,3),(a,2)->()")
             def env(t, ang):
                 v = Envelope.general_transform(
                     t, lambda x: arc_envelope(t, ang, x), d
                 ).max()
                 return v
+
             return env(self.segment.t, self.segment.angles)
 
         run = tx.multi_vmap(run, len(direction.shape) - 2)  # type: ignore
@@ -164,10 +166,10 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
-        t = (t @ diagram.transform)
+        t = t @ diagram.transform
         if len(t.shape) >= 3:
             t = t[..., None, :, :]
-        segment =  segment.apply_transform(t)
+        segment = segment.apply_transform(t)
         return segment
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:

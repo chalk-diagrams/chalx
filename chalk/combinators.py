@@ -92,6 +92,7 @@ def batch_cat(
 
     def call_scan(diagram: Diagram) -> Diagram:
         diagram.get_envelope()
+
         @tx.vmap
         def offset(diagram: Diagram) -> Tuple[Scalars, Scalars]:
             env = diagram.get_envelope()
@@ -110,6 +111,7 @@ def batch_cat(
             t = v * off[..., None, None]
             dia = diagram.translate_by(t)
             return dia
+
         return translate((off, diagram))  # type: ignore
 
     call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
