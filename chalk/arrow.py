@@ -87,7 +87,6 @@ def connect_perim(
 
         ps, m1 = tr1.max_trace_p(loc1, v1)
         pe, m2 = tr2.max_trace_p(loc2, v2)
-        print(loc2, v2)
         assert m1.all(), f"Cannot connect, trace failed {name1} {name2} {m1}"
         assert m2.all(), f"Cannot connect, trace failed {name1} {name2} {m2}"
         return dia + arrow_between(ps, pe, style)
@@ -99,8 +98,6 @@ def connect_perim(
 
 
 def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
-    from chalk.core import Primitive
-
     if style.head_arrow is None:
         arrow: Diagram = dart().scale(0.5)
     else:
@@ -113,7 +110,9 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
         segment = arc_seg(tx.V2(l_adj, 0), style.arc_height + 1e-3)
         shaft = segment.stroke()
         seg = segment.segments
-        tan = -tx.perpendicular(seg.q - tx.scale(tx.V2(1, -1)) @ seg.center)  # type: ignore
+        tan = -tx.perpendicular(
+            seg.q - tx.scale(tx.V2(1, -1)) @ seg.center
+        )  # type: ignore
         φ = tx.angle(tan)
         arrow = arrow.rotate(φ)
         if style.arc_height < 0:

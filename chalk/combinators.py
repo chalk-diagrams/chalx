@@ -1,12 +1,10 @@
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple
 
 import chalk.transform as tx
-from chalk.envelope import Envelope
 from chalk.monoid import associative_reduce
 from chalk.path import Path
-from chalk.shapes import Spacer
 from chalk.transform import Floating, Scalars, V2_t
-from chalk.types import Diagram
+from chalk.types import B1, B2, B, Batched, Diagram, Reduced
 
 # Functions mirroring Diagrams.Combinators and Diagrams.2d.Combinators
 
@@ -37,8 +35,6 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
 
 
 # extrudeEnvelope, intrudeEnvelope
-
-from chalk.types import B1, B2, B, Batched, Reduced
 
 
 def atop(self: B1, other: B2) -> B:
@@ -95,6 +91,7 @@ def batch_cat(
         sep = 0
 
     def call_scan(diagram: Diagram) -> Diagram:
+        diagram.get_envelope()
         @tx.vmap
         def offset(diagram: Diagram) -> Tuple[Scalars, Scalars]:
             env = diagram.get_envelope()
@@ -110,8 +107,9 @@ def batch_cat(
         @tx.vmap
         def translate(x) -> Diagram:
             off, diagram = x
-            return diagram.translate_by(v * off[..., None, None])
-
+            t = v * off[..., None, None]
+            dia = diagram.translate_by(t)
+            return dia
         return translate((off, diagram))  # type: ignore
 
     call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
@@ -122,6 +120,7 @@ def cat(
     diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None
 ) -> Diagram:
     from chalk.shapes import hstrut
+
     diagrams = iter(diagram)
     start = next(diagrams, None)
     if sep is None:
@@ -157,7 +156,6 @@ def concat(diagrams: Iterable[Diagram]) -> Diagram:
     """
 
     from chalk.core import BaseDiagram
-    from chalk.monoid import Monoid
 
     return BaseDiagram.concat2(diagrams)  # type: ignore
 
@@ -172,8 +170,6 @@ def empty() -> Diagram:
 # CompaseAligned.
 
 # 2D
-
-
 
 
 def hcat(
@@ -256,7 +252,7 @@ def juxtapose(self: B1, other: B2, direction: V2_t) -> B:
         direction (V2_T): (Normalized) vector angle to juxtapose
 
     Returns:
-        Diagram: Repositioned ``b`` diagram
+        Repositioned ``b`` diagram
     """
     envelope1 = self.get_envelope()
     envelope2 = other.get_envelope()
@@ -275,6 +271,5 @@ def at_center(self: Diagram, other: Diagram) -> Diagram:
     💡 In other words, ``b`` occludes ``a``.
     """
     envelope1 = self.get_envelope()
-    envelope2 = other.get_envelope()
     t = tx.translation(envelope1.center)
     return self.compose(None, other.apply_transform(t))

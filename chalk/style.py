@@ -106,7 +106,7 @@ def Style(
             if len(value.shape) != len(base.shape) - 1:
                 n = tx.np.zeros(
                     value.shape[
-                        : len(value.shape) - len(DEFAULTS[key].shape) - 1
+                        : len(value.shape) - len(DEFAULTS[key].shape)
                     ]
                     + (STYLE_SIZE,)
                 )

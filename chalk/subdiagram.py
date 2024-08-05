@@ -20,7 +20,7 @@ if TYPE_CHECKING:
         Primitive,
     )
     from chalk.envelope import Envelope
-    from chalk.types import Diagram
+
 AtomicName = Any
 
 

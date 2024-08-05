@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, NamedTuple, Tuple
+from typing import TYPE_CHECKING, Callable, Self, Tuple
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -10,7 +10,7 @@ from chalk.transform import Affine, P2_t, Ray, Transformable, V2_t
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import ApplyTransform, Compose, ComposeAxis, Primitive
+    from chalk.core import ApplyTransform, Primitive
     from chalk.types import Diagram
 
 
@@ -49,11 +49,12 @@ class TraceDistances(Monoid):
 class Trace(Monoid, Transformable):
     """
     A trace is used to compute the distance
-    to a segment along a given ray. 
+    to a segment along a given ray.
 
-    In practice, this object just stores the 
+    In practice, this object just stores the
     batched segment for a diagram.
     """
+
     segment: Segment
 
     def __call__(self, point: P2_t, direction: V2_t) -> TraceDistances:
@@ -128,7 +129,6 @@ class Trace(Monoid, Transformable):
         ps = tx.np.take_along_axis(ps, ad, axis=1)
         m = tx.np.take_along_axis(m, ad, axis=1)
         return TraceDistances(ps, m)
-
 
 
 class GetLocatedSegments(DiagramVisitor[Segment, Affine]):

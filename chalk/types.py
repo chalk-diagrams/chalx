@@ -1,6 +1,6 @@
 """
 Define the core types for chalk.
-Designed to be the top of the import 
+Designed to be the top of the import
 hierarchy.
 """
 from __future__ import annotations
@@ -193,10 +193,14 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     def compose_axis(self) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def hcat(self: Batched, sep: Optional[Floating]) -> Reduced:  # type: ignore[empty-body]
+    def hcat(
+        self: Batched, sep: Optional[tx.Floating]
+    ) -> Reduced:  # type: ignore[empty-body]
         ...
 
-    def vcat(self: Batched, sep: Optional[Floating]) -> Reduced:  # type: ignore[empty-body]
+    def vcat(
+        self: Batched, sep: Optional[tx.Floating]
+    ) -> Reduced:  # type: ignore[empty-body]
         ...
 
     def concat(self: Batched) -> Reduced:  # type: ignore[empty-body]
@@ -239,11 +243,16 @@ class Diagram(Stylable, tx.Transformable, Monoid):
     ) -> Tuple[Diagram, Diagram]:
         ...
 
+    def reshape(  # type: ignore[empty-body]
+        self, shape: Tuple[int, ...]
+    ) -> Diagram:
+        ...
+
 
 # Todo(srush): Add run time size checking to Diagram
 # Using jaxtyping.
-Batched = Diagram # Dia[Diagram, "*B A"]
-Reduced = Diagram #Dia[Diagram, "*B"]
+Batched = Diagram  # Dia[Diagram, "*B A"]
+Reduced = Diagram  # Dia[Diagram, "*B"]
 B1 = Diagram  # Dia[Diagram, "*#B"]
 B2 = Diagram  # Dia[Diagram, "*#B"]
 B = Diagram  # Dia[Diagram, "*B"]

@@ -1,23 +1,20 @@
 """
-Defines the core geortric and shapes for the 
-chalk library. In previous versions this was a 
-separate library called `planar`. 
+Defines the core geortric and shapes for the
+chalk library. In previous versions this was a
+separate library called `planar`.
 """
 
 import functools
 import math
-
 import os
 from dataclasses import dataclass
 from functools import partial
-from types import ModuleType
 from typing import TYPE_CHECKING, Callable, Tuple, Union
 
 import array_api_compat.numpy as onp
 import jax
 from jaxtyping import Bool, Float, Int
 from typing_extensions import Self
-
 
 # TODO: This is a bit hacky, but not sure
 # how to make things work with both numpy and jax
@@ -29,9 +26,14 @@ if not TYPE_CHECKING and not eval(os.environ.get("CHALK_JAX", "0")):
     Array = np.ndarray
     ArrayLike = Array
     JAX_MODE = False
+
     # In numpy mode jit and vectorize are no-ops
-    jit = lambda x: x
-    vectorize = lambda x, signature, excluded=None: x
+    def jit(x):
+        return x
+
+    def vectorize(x, signature, excluded=None):
+        return x
+
 else:
     jit = jax.jit
     import jax.numpy as np
@@ -62,6 +64,7 @@ Property = Float[ArrayLike, "#*B"]
 V2_tC = Float[ArrayLike, "*#C 3 1"]
 IntLikeC = Union[Int[ArrayLike, "*#C"], int, onp.int64]
 ScalarsC = Float[ArrayLike, "*#C"]
+
 
 def index_update(arr: ArrayLike, index, values) -> ArrayLike:  # type:ignore
     """
@@ -111,18 +114,20 @@ def union_axis(
     ret = functools.reduce(union, zip(n, m))
     return ret
 
+
 # Basic geometric primitives
 unit_x: V2_t = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
 unit_y: V2_t = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
 origin: P2_t = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
-ident: Affine = np.asarray([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]).reshape(
-    (3, 3)
-)
+ident: Affine = np.asarray(
+    [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]
+).reshape((3, 3))
 
 
 def make_ident(shape: Tuple[int, ...]) -> Affine:
     "Create an identity affine with the given shape."
     return np.broadcast_to(ident, shape + (3, 3))
+
 
 @jit
 @partial(vectorize, signature="()->()")
@@ -153,7 +158,6 @@ def P2(x: Floating, y: Floating) -> P2_t:
 @jit
 @partial(vectorize, signature="(3,1)->(3,1)")
 def norm(v: V2_t) -> V2_t:
-
     return v / length(v)[..., None, None]
 
 
@@ -269,7 +273,7 @@ def scale(vec: V2_t) -> Affine:
 @jit
 @partial(vectorize, signature="(3,1)->(3,3)")
 def translation(vec: V2_t) -> Affine:
-    "Create an affine translation matrix" 
+    "Create an affine translation matrix"
     index = (Ellipsis, slice(0, 2), 2)
     base = make_ident(vec.shape[:-2])
     return index_update(base, index, vec[..., :2, 0])  # type: ignore
@@ -278,7 +282,7 @@ def translation(vec: V2_t) -> Affine:
 @jit
 @partial(vectorize, signature="(3,3)->(3,1)")
 def get_translation(aff: Affine) -> V2_t:
-    "Get the translation of an affine matrix" 
+    "Get the translation of an affine matrix"
     index = (Ellipsis, slice(0, 2), 0)
     base = np.zeros((aff.shape[:-2]) + (3, 1))
     return index_update(base, index, aff[..., :2, 2])  # type: ignore
@@ -287,7 +291,7 @@ def get_translation(aff: Affine) -> V2_t:
 @jit
 @partial(vectorize, signature="()->(3,3)")
 def rotation(r: Floating) -> Affine:
-    "Create an affine rotation matrix in radians" 
+    "Create an affine rotation matrix in radians"
     rad = ftos(r)
     shape = rad.shape
     rad = -rad
@@ -297,12 +301,12 @@ def rotation(r: Floating) -> Affine:
     base = make_ident(shape)
     return index_update(base, index, m)  # type: ignore
 
+
 @jit
 @partial(vectorize, signature="()->(3,3)")
 def rotation_angle(r: Floating) -> Affine:
-    "Create an affine rotation matrix in degrees" 
+    "Create an affine rotation matrix in degrees"
     return rotation(to_radians(r))
-
 
 
 @partial(vectorize, signature="(3,3)->(3,3)")
@@ -310,7 +314,7 @@ def rotation_angle(r: Floating) -> Affine:
 def inv(aff: Affine) -> Affine:
     "Fast invert an affine"
     det = np.linalg.det(aff)
-    assert np.all(np.abs(det) > 1e-10), f"Object scaled to 0"
+    assert np.all(np.abs(det) > 1e-10), "Object scaled to 0"
     idet = 1.0 / det
     sa, sb, sc = aff[..., 0, 0], aff[..., 0, 1], aff[..., 0, 2]
     sd, se, sf = aff[..., 1, 0], aff[..., 1, 1], aff[..., 1, 2]
@@ -355,6 +359,7 @@ def remove_translation(aff: Affine) -> Affine:
     index = (Ellipsis, slice(0, 1), 2)
     return index_update(aff, index, 0)  # type: ignore
 
+
 @jit
 @partial(vectorize, signature="(3,3)->(3,3)")
 def transpose_translation(aff: Affine) -> Affine:
@@ -368,7 +373,6 @@ class Transformable:
     Syntactic sugar to apply transformations to objects
     as methods. Creates matrices and applies them.
     """
-
 
     def apply_transform(self, t: Affine) -> Self:  # type: ignore[empty-body]
         pass
@@ -438,12 +442,12 @@ class BoundingBox(Transformable):
     br: P2_t
 
     def apply_transform(self, t: Affine) -> Self:  # type: ignore
-        assert False, "Not implemented"
-        # tl = t @ self.tl
-        # br = t @ self.br
-        # tl2 = np.minimum(tl, br)
-        # br2 = np.maximum(tl, br)
-        # return BoundingBox(tl2, br2)  # type: ignore
+        # Todo: fix rotation
+        tl = t @ self.tl
+        br = t @ self.br
+        tl2 = np.minimum(tl, br)
+        br2 = np.maximum(tl, br)
+        return BoundingBox(tl2, br2)  # type: ignore
 
     @property
     def width(self) -> Scalars:
@@ -456,8 +460,14 @@ class BoundingBox(Transformable):
     def to_rect(self):
         "Convert bounding box to a rectangle"
         from chalk import rectangle
-        return rectangle(self.width, self.height).align_tl().translate(-self.width/2, -self.height/2)
-    
+
+        return (
+            rectangle(self.width, self.height)
+            .align_tl()
+            .translate(-self.width / 2, -self.height / 2)
+        )
+
+
 @partial(vectorize, signature="(3,1),(3,1),()->(),()")
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
@@ -506,7 +516,6 @@ def ray_circle_intersection(
     assert not isinstance(ret2, tuple)
     assert len(ret2.shape) == 3, ret2.shape
     return ret2.transpose(2, 0, 1), 1 - mask.transpose(2, 0, 1)
-
 
 
 @partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")

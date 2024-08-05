@@ -288,8 +288,8 @@ images: $(IMAGES)
 # Rule to process each image
 $(IMAGES):
 	python $(EXAMPLES_DIR)/$@.py
-	jupytext --execute --set-kernel chalk --to ipynb -o $(EXAMPLES_DIR)/$@.ipynb $(EXAMPLES_DIR)/$@.py
-	jupyter nbconvert --to html $(EXAMPLES_DIR)/$@.ipynb 
+	jupytext --execute --run-path . --set-kernel chalk  --to ipynb -o $(EXAMPLES_DIR)/output/$@.ipynb $(EXAMPLES_DIR)/$@.py
+	jupyter nbconvert --to html $(EXAMPLES_DIR)/output/$@.ipynb 
 
 # List of images to be generated
 VISTESTS := alignment arc broadcast combinators envelope names path rendering shapes style subdiagram traces trails transformations text
@@ -301,8 +301,8 @@ vis: $(VISTESTS)
 
 $(VISTESTS):
 	python $(VT_DIR)/$@.py
-	jupytext --execute --set-kernel chalk --to ipynb -o $(VT_DIR)/$@.ipynb $(VT_DIR)/$@.py
-	jupyter nbconvert --to html $(VT_DIR)/$@.ipynb 
+	jupytext --execute --set-kernel chalk --run-path . --to ipynb -o $(VT_DIR)/output/$@.ipynb $(VT_DIR)/$@.py
+	jupyter nbconvert --to html $(VT_DIR)/output/$@.ipynb 
 
 
 .PHONY: images $(IMAGES) vis $(VISTESTS)

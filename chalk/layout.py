@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+
+import chalk.transform as tx
 from chalk.backend.patch import Patch
 from chalk.monoid import Monoid
 from chalk.style import StyleHolder
-import chalk.transform as tx
 from chalk.transform import Affine
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
     from chalk.core import ApplyStyle, ApplyTransform, ComposeAxis, Primitive
+
 
 def get_primitives(self) -> List[Primitive]:
     return self.accept(ToListOrder(), tx.ident).ls
@@ -20,9 +22,9 @@ def layout(
     self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     """
-    Layout a diagram before rendering. 
+    Layout a diagram before rendering.
     This centers and pads the diagram to fit.
-    Then collapses it to establish z-order. 
+    Then collapses it to establish z-order.
     Then maps it to a list of patches.
     """
     envelope = self.get_envelope()
@@ -50,7 +52,7 @@ def layout(
     assert e is not None
     s = s.translate(e(-tx.unit_x), e(-tx.unit_y))
 
-    style = StyleHolder.root(tx.np.maximum(width, height)) # type: ignore
+    style = StyleHolder.root(tx.np.maximum(width, height))  # type: ignore
     s = s.apply_style(style)
     patches = [Patch.from_prim(prim, style) for prim in get_primitives(s)]
     return patches, height, width
@@ -76,7 +78,7 @@ class OrderList(Monoid):
                     prim.order
                     + add_dim(sc, len(prim.order.shape) - len(sc.shape))
                 )
-            )  
+            )
 
         return OrderList(
             self.ls + ls,
@@ -87,7 +89,7 @@ class OrderList(Monoid):
 class ToListOrder(DiagramVisitor[OrderList, Affine]):
     """Compiles a `Diagram` to a list of `Primitive`s. The transformation `t`
     is accumulated upwards, from the tree's leaves.
-    
+
     Needs to keep track of the z-order for batched primitives.
     """
 
@@ -124,7 +126,6 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
         s = diagram.diagrams.size()
         stride = s[-1]
         internal = diagram.diagrams.accept(self, t[..., None, :, :])
-        update = tx.np.arange(stride)
 
         last_counter = tx.np.where(
             tx.np.arange(stride) == 0,
@@ -151,5 +152,5 @@ def add_dim(m: Any, size: int) -> Any:
     if not isinstance(m, StyleHolder):
         m = tx.np.asarray(m)
     for s in range(size):
-        m = m[..., None] # type: ignore
+        m = m[..., None]  # type: ignore
     return m

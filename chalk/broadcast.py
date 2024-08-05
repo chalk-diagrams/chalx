@@ -13,20 +13,25 @@ if TYPE_CHECKING:
         ApplyName,
         ApplyStyle,
         ApplyTransform,
-        Compose,
         ComposeAxis,
         Primitive,
     )
 
 
 def add_axis(self: Diagram, size: int) -> Diagram:
-    return tx.tree_map(lambda x: tx.np.repeat(x[None], size, axis=0), self)  # type: ignore
+    return tx.tree_map(
+        lambda x: tx.np.repeat(x[None], size, axis=0), self
+    )  # type: ignore
 
 
 def size(self: Diagram) -> Tuple[int, ...]:
     "Get the size of a batch diagram."
     return self.accept(ToSize(), Size.empty()).d
 
+def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
+    old_shape = len(self.size())
+    return tx.tree_map(lambda x: x.reshape(shape + x.shape[old_shape:]), 
+                       self)  # type: ignore
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
     return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore
@@ -43,7 +48,7 @@ B = TypeVar("B", bound=Diagram)
 
 def broadcast_diagrams(self: A, other: B) -> Tuple[A, B]:
     """
-    Returns a version of diagram A and B 
+    Returns a version of diagram A and B
     that have the same shape.
     """
     size = self.size()
@@ -87,6 +92,7 @@ class ToSize(DiagramVisitor[Size, Size]):
     Get the size of the diagram. Walks up
     the tree until it his a batched element.
     """
+
     A_type = Size
 
     def visit_primitive(self, diagram: Primitive, t: Size) -> Size:

@@ -26,11 +26,12 @@ B = TypeVar("B")
 class DiagramVisitor(Generic[A, B]):
     """
     Class for traversing the diagram tree.
-    Can be thought of as a tree fold. 
-    Type B is passed up the tree. 
-    Type A is accumulated down the tree. 
-    Type A needs to be a monoid type.   
+    Can be thought of as a tree fold.
+    Type B is passed up the tree.
+    Type A is accumulated down the tree.
+    Type A needs to be a monoid type.
     """
+
     A_type: type[A]
 
     def visit_primitive(self, diagram: Primitive, arg: B) -> A:

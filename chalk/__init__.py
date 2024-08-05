@@ -8,9 +8,9 @@ if sys.version_info >= (3, 8):
 else:
     import importlib_metadata as metadata
 
-import os
 
 import chex
+import jax
 
 import chalk.align as align
 import chalk.backend.patch
@@ -67,7 +67,7 @@ jax_type = [
 ]
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
-import jax
+
 
 jax.tree_util.register_pytree_node(
     chalk.core.ApplyName,

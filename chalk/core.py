@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import tempfile
 from dataclasses import dataclass
-from typing import Any, Iterator, List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Optional, Tuple, TypeVar
 
 import chalk.align
 import chalk.arrow
@@ -12,21 +12,20 @@ import chalk.backend.matplotlib
 import chalk.backend.svg
 import chalk.backend.tikz
 import chalk.broadcast
-from chalk.broadcast import broadcast_diagrams
 import chalk.combinators
+import chalk.envelope
 import chalk.layout
 import chalk.model
 import chalk.monoid
 import chalk.subdiagram
 import chalk.trace
-import chalk.envelope
 import chalk.transform as tx
 import chalk.types
-from chalk.envelope import Envelope
+from chalk.broadcast import broadcast_diagrams
+from chalk.path import Path
 from chalk.style import Style, StyleHolder
 from chalk.transform import Affine
 from chalk.types import Diagram
-from chalk.path import Path
 from chalk.visitor import DiagramVisitor
 
 Trail = Any
@@ -76,7 +75,7 @@ class BaseDiagram(chalk.types.Diagram):
     # Tranformable
     def apply_transform(self, t: Affine) -> Diagram:  # type: ignore
         new_diagram = ApplyTransform(t, Empty())
-        new, other = broadcast_diagrams(new_diagram, self) 
+        new, other = broadcast_diagrams(new_diagram, self)
         return ApplyTransform(new.transform, other)
 
     def compose_axis(self) -> Diagram:  # type: ignore
@@ -131,6 +130,7 @@ class BaseDiagram(chalk.types.Diagram):
 
     # Broadcast
     add_axis = chalk.broadcast.add_axis
+    reshape = chalk.broadcast.reshape
     repeat_axis = chalk.broadcast.repeat_axis
     broadcast_diagrams = chalk.broadcast.broadcast_diagrams
     size = chalk.broadcast.size
@@ -161,7 +161,7 @@ class BaseDiagram(chalk.types.Diagram):
     scale_uniform_to_y = chalk.align.scale_uniform_to_y
     scale_uniform_to_x = chalk.align.scale_uniform_to_x
     snug = chalk.align.snug
-    
+
     # Arrows
     connect = chalk.arrow.connect
     connect_outside = chalk.arrow.connect_outside
@@ -239,13 +239,15 @@ class Primitive(BaseDiagram):
 
     @classmethod
     def from_path(cls, shape: Path) -> Primitive:
-        return cls(shape, None, tx.ident)
+        return cls(shape, None, tx.make_ident(shape.size()))
 
     def apply_transform(self, t: Affine) -> Primitive:
         try:
             tx.np.broadcast_arrays(t, self.transform)
-        except:
-            assert False, f"Diagram shape: {self.shape} Transform shape: {t.shape[:-2]}"
+        except tx.np.ValueError:
+            assert (
+                False
+            ), f"Diagram shape: {self.shape} Transform shape: {t.shape[:-2]}"
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)  # type: ignore
@@ -343,6 +345,3 @@ class ApplyName(BaseDiagram):
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_name(self, args)
-
-
-    

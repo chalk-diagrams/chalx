@@ -1,18 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import chalk.backend.patch
 import chalk.transform as tx
 from chalk.backend.patch import Patch, order_patches
-from chalk.shapes import Path, Segment
-from chalk.style import StyleHolder
-from chalk.transform import Affine
 from chalk.types import Diagram
-
-if TYPE_CHECKING:
-    from chalk.core import Primitive
-
 
 PyCairoContext = Any
 
@@ -39,8 +32,19 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             ctx.line_to(v[i, 0], v[i, 1], v[i + 1, 0], v[i + 1, 1])
             i += 2
         elif c[i] == chalk.backend.patch.Command.CURVE3.value:
+            c1 = v[i - 1] + 2 / 3 * (v[i] - v[i - 1])
+            c2 = v[i + 1] + 2 / 3 * (v[i] - v[i + 1])
+            ctx.curve_to(
+                c1[0],
+                c1[0],
+                c2[0],
+                c2[1],
+                v[i + 1, 0],
+                v[i + 1, 1],
+            )
             i += 2
         elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
+            ctx.stroke()
             i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE4.value:
             ctx.curve_to(

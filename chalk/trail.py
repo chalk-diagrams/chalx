@@ -4,12 +4,12 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List
 
+import chalk.segment as arc
 import chalk.transform as tx
 
 # from chalk.envelope import Envelope
 from chalk.monoid import Monoid
 from chalk.segment import Segment
-import chalk.segment as arc
 
 # from chalk.trace import Trace, TraceDistances
 from chalk.transform import Affine, Floating, P2_t, Transformable, V2_t
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, unsafe_hash=True)
 class Located(Transformable):
     """
-    A trail with a location for the origin. 
+    A trail with a location for the origin.
     """
 
     trail: Trail
@@ -45,7 +45,7 @@ class Located(Transformable):
         return self._promote().to_path().stroke()
 
     def apply_transform(self, t: Affine) -> Located:
-        p = t @ self.location
+        p = t[..., None, :, :] @ self.location
         if len(p.shape) == 3:
             p = p[:, None]
         if len(p.shape) == 2:
@@ -83,7 +83,7 @@ class Trail(Monoid, Transformable, TrailLike):
     # Transformable
     def apply_transform(self, t: Affine) -> Trail:
         t = tx.remove_translation(t)
-        return Trail(self.segments.apply_transform(t), self.closed)
+        return Trail(self.segments.apply_transform(t[..., None, :, :]), self.closed)
 
     # Trail-like
     def to_trail(self) -> Trail:
@@ -132,9 +132,9 @@ class Trail(Monoid, Transformable, TrailLike):
         return arc.seg(length * tx.unit_y)
 
     @staticmethod
-    def rectangle(width: Floating, height: Floating) -> Trail:
+    def square() -> Trail:
         t = arc.seg(tx.unit_x) + arc.seg(tx.unit_y)
-        return (t + t.rotate_by(0.5)).close().scale_x(width).scale_y(height)
+        return (t + t.rotate_by(0.5)).close()
 
     @staticmethod
     def rounded_rectangle(
@@ -152,7 +152,7 @@ class Trail(Monoid, Transformable, TrailLike):
         return trail.close()
 
     @staticmethod
-    def circle(radius: Floating = 1.0, clockwise: bool = True) -> Trail:
+    def circle(clockwise: bool = True) -> Trail:
         sides = 4
         dangle = -90
         rotate_by = 1
@@ -169,7 +169,6 @@ class Trail(Monoid, Transformable, TrailLike):
                 ]
             )
             .close()
-            .scale(radius)
         )
 
     @staticmethod
@@ -178,5 +177,4 @@ class Trail(Monoid, Transformable, TrailLike):
         return (
             Trail.concat(edge.rotate_by(i / sides) for i in range(sides))
             .close()
-            .scale(side_length)
         )

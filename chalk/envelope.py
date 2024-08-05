@@ -20,11 +20,7 @@ from chalk.transform import (
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import (
-        ApplyTransform,
-        Compose,
-        Primitive,
-    )
+    from chalk.core import ApplyTransform, Compose, Primitive
     from chalk.types import Diagram
 
 
@@ -78,14 +74,12 @@ class Envelope(Transformable, Monoid):
         def run(d):
             if self.segment.angles.shape[0] == 0:
                 return 0
-
-            @partial(tx.np.vectorize, signature=f"(a,3,3),(a,2)->()")
+            @partial(tx.np.vectorize, signature="(a,3,3),(a,2)->()")
             def env(t, ang):
                 v = Envelope.general_transform(
                     t, lambda x: arc_envelope(t, ang, x), d
                 ).max()
                 return v
-
             return env(self.segment.t, self.segment.angles)
 
         run = tx.multi_vmap(run, len(direction.shape) - 2)  # type: ignore
@@ -158,23 +152,26 @@ class Envelope(Transformable, Monoid):
         return post_transform(pre[1], pre[2], pre[3], fn(pre[0]))
 
     def apply_transform(self, t: Affine) -> Envelope:
-        return Envelope(self.segment.apply_transform(t))
+        return Envelope(self.segment.apply_transform(t[..., None, :, :]))
 
 
 class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
     """
-    Collapse a diagram to its underlying segments. 
+    Collapse a diagram to its underlying segments.
     """
+
     A_type = Segment
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
-        return segment.apply_transform(
-            (t @ diagram.transform)[..., None, :, :]
-        )
+        t = (t @ diagram.transform)
+        if len(t.shape) >= 3:
+            t = t[..., None, :, :]
+        segment =  segment.apply_transform(t)
+        return segment
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:
-        # Compose nodes can override the envelope. 
+        # Compose nodes can override the envelope.
         if diagram.envelope is not None:
             return diagram.envelope.accept(self, t)
         return self.A_type.concat(
