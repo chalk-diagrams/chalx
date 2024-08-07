@@ -2,16 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from colour import Color
 from typing_extensions import Self
 
 import chalk.transform as tx
 from chalk.transform import ColorVec, Mask, Property, Scalars
-
-PyCairoContext = Any
-PyLatex = Any
 
 PropLike = Union[Property, float]
 ColorLike = Union[str, Color, ColorVec]
@@ -54,9 +51,6 @@ STYLE_SIZE = 12
 class Stylable:
     def line_width(self, width: float) -> Self:
         return self.apply_style(Style(line_width_=width))
-
-    # def line_width_local(self, width: float) -> Self:
-    #     return self.apply_style(Style(line_width_=(WidthType.LOCAL, width)))
 
     def line_color(self, color: ColorLike) -> Self:
         return self.apply_style(Style(line_color_=to_color(color)))
@@ -127,31 +121,13 @@ def Style(
 
 
 @dataclass(frozen=True)
-class StyleHolder(Stylable):
-    """Style class."""
-
+class StyleHolder(Stylable, tx.Batchable):
     base: Scalars
     mask: Mask
 
-    def __getitem__(self, index: Tuple[int, ...]) -> StyleHolder:
-        if Ellipsis in index:
-            return StyleHolder(
-                self.base[index + (slice(None),)],
-                self.mask[index + (slice(None),)],
-            )
-        else:
-            return StyleHolder(
-                self.base[index + (Ellipsis, slice(None))],
-                self.mask[index + (Ellipsis, slice(None))],
-            )
-
-    def size(self) -> Tuple[int, ...]:
+    @property
+    def shape(self) -> Tuple[int, ...]:
         return self.base.shape[:-1]
-
-    def split(self, i: int) -> StyleHolder:
-        if len(self.base.shape) == 1:
-            return self
-        return StyleHolder(base=self.base[i], mask=self.mask[i])
 
     def get(self, key: str) -> tx.Scalars:
         v = self.base[slice(*STYLE_LOCATIONS[key])]
@@ -206,7 +182,7 @@ class StyleHolder(Stylable):
         base = tx.np.where(other.mask, other.base, self.base)
         return StyleHolder(base, mask)
 
-    def to_mpl(self):
+    def to_mpl(self) -> Dict[str, Any]:
         style = {}
         if self.fill_color_ is not None:
             f = self.fill_color_
@@ -225,3 +201,5 @@ class StyleHolder(Stylable):
         if self.fill_opacity_ is not None:
             style["alpha"] = self.fill_opacity_[0]
         return style
+
+BatchStyle = tx.Batched[StyleHolder, "#*B"]

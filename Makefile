@@ -300,8 +300,9 @@ vis: $(VISTESTS)
 	@echo "🎁 Generate all vis tests ... ⏳"
 
 $(VISTESTS):
-	python $(VT_DIR)/$@.py
-	jupytext --execute --set-kernel chalk --run-path . --to ipynb -o $(VT_DIR)/output/$@.ipynb $(VT_DIR)/$@.py
+	CHALK_CHECK=1 python $(VT_DIR)/$@.py
+	jupytext --to ipynb -o $(VT_DIR)/output/$@.ipynb $(VT_DIR)/$@.py
+	jupyter nbconvert --execute --inplace --to ipynb $(VT_DIR)/output/$@.ipynb 
 	jupyter nbconvert --to html $(VT_DIR)/output/$@.ipynb 
 
 

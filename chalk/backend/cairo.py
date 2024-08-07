@@ -59,10 +59,10 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
 
 
 def render_cairo_patches(
-    patches: List[Patch], ctx: PyCairoContext, height
+    patches: List[Patch], ctx: PyCairoContext
 ) -> None:
     # Order the primitives
-    for ind, patch, style in order_patches(patches, height):
+    for ind, patch, style in order_patches(patches):
         to_cairo(patch, ctx, ind)
         write_style(style, ctx)
         ctx.stroke()
@@ -78,12 +78,13 @@ def patches_to_file(
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(width), int(height))
     ctx = cairo.Context(surface)
-    render_cairo_patches(patches, ctx, height)
+    render_cairo_patches(patches, ctx)
     surface.write_to_png(path)
 
 
 def render(
-    self: Diagram, path: str, height: int = 128, width: Optional[int] = None
+    self: Diagram, path: str, height: int = 128, width: Optional[int] = None,
+    draw_height=None
 ) -> None:
     """Render the diagram to a PNG file.
 
@@ -96,5 +97,5 @@ def render(
                                          Defaults to None.
     """
 
-    patches, h, w = self.layout(height, width)
+    patches, h, w = self.layout(height, width, draw_height)
     patches_to_file(patches, path, h, w)  # type: ignore

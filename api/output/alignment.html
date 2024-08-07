@@ -14581,9 +14581,9 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[1]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
-<div class=" highlight hl-ipython3"><pre><span></span><span class="c1"># from jaxtyping import install_import_hook</span>
-<span class="c1"># with install_import_hook("chalk", "typeguard.typechecked"):</span>
-<span class="c1">#     import chalk </span>
+<div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">jaxtyping</span> <span class="kn">import</span> <span class="n">install_import_hook</span>
+<span class="k">with</span> <span class="n">install_import_hook</span><span class="p">(</span><span class="s2">"chalk"</span><span class="p">,</span> <span class="s2">"typeguard.typechecked"</span><span class="p">):</span>
+    <span class="kn">import</span> <span class="nn">chalk</span> 
 <span class="kn">from</span> <span class="nn">chalk.core</span> <span class="kn">import</span> <span class="n">BaseDiagram</span>
 <span class="kn">from</span> <span class="nn">chalk</span> <span class="kn">import</span> <span class="o">*</span>
 <span class="kn">import</span> <span class="nn">math</span>
@@ -14702,6 +14702,21 @@ Note that the Chalk API is immutable and always returns a new <code>Diagram</cod
 <div class="jp-OutputArea-child">
 
     
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
     <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[3]:</div>
 
 
@@ -14711,6 +14726,46 @@ Note that the Chalk API is immutable and always returns a new <code>Diagram</cod
 <svg baseProfile="full" height="200" version="1.1" width="231" xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink"><defs /><g style="fill-opacity: 1.0;stroke: rgb(0.0 0.0 0.0);fill: rgb(256.0 256.0 256.0);stroke-width: 0.6000000000000001;"><path d="M 5.498573992277457 195.23809523805798 C 78.81260063178698 194.94483795847034 152.12750704401338 194.94483795847034 225.44153368352124 195.2380952380559 C 188.53055210979642 131.89291435430445 151.8730989036855 68.40034292523836 115.47005383789858 4.761904761902926 C 79.06700877211594 68.4003429252412 42.409555566002695 131.89291435430786 5.498573992280598 195.23809523805795" style="vector-effect: non-scaling-stroke;" /></g><g style="fill-opacity: 1.0;stroke: rgb(256.0 0.0 0.0);fill: rgb(256.0 256.0 256.0);stroke-width: 0.6000000000000001;"><path d="M 137.46434980702278 131.74603174600543 C 137.46434980702278 119.6803179369625 127.53576764694151 109.75173577688122 115.47005383789858 109.75173577688122 C 103.40434002885564 109.75173577688122 93.47575786877437 119.6803179369625 93.47575786877437 131.74603174600543 C 93.47575786877437 143.81174555504836 103.40434002885564 153.74032771512964 115.47005383789858 153.74032771512964 C 127.53576764694151 153.74032771512964 137.46434980702278 143.81174555504836 137.46434980702278 131.74603174600543" style="vector-effect: non-scaling-stroke;" /></g></svg>
 </div>
 
+</div>
+
+</div>
+
+</div>
+
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell   ">
+<div class="jp-Cell-inputWrapper">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[4]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+     <div class="CodeMirror cm-s-jupyter">
+<div class=" highlight hl-ipython3"><pre><span></span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">show_origin</span><span class="p">()</span><span class="o">.</span><span class="n">render_svg</span><span class="p">(</span><span class="s2">"/tmp/test.svg"</span><span class="p">)</span>
+</pre></div>
+
+     </div>
+</div>
+</div>
+</div>
+
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+
+
+<div class="jp-OutputArea jp-Cell-outputArea">
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
 </div>
 
 </div>
@@ -14733,7 +14788,7 @@ Note that the Chalk API is immutable and always returns a new <code>Diagram</cod
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[4]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[5]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">help</span><span class="p">(</span><span class="n">BaseDiagram</span><span class="o">.</span><span class="n">show_envelope</span><span class="p">)</span>
@@ -14754,7 +14809,7 @@ Note that the Chalk API is immutable and always returns a new <code>Diagram</cod
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[4]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[5]:</div>
 
 
 
@@ -14782,7 +14837,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[5]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[6]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">show_envelope</span><span class="p">()</span>
@@ -14803,7 +14858,26 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[5]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[6]:</div>
 
 
 
@@ -14823,7 +14897,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[6]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[7]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">show_envelope</span><span class="p">()</span>
@@ -14844,7 +14918,26 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[6]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[7]:</div>
 
 
 
@@ -14864,7 +14957,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[7]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[8]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">show_beside</span><span class="p">(</span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">unit_x</span><span class="p">)</span>
@@ -14885,7 +14978,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[7]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[8]:</div>
 
 
 
@@ -14905,7 +15013,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[8]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[9]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="p">(</span><span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">|</span> <span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="mf">1.4</span><span class="p">)</span>
@@ -14926,7 +15034,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[8]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[9]:</div>
 
 
 
@@ -14946,7 +15069,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[9]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[10]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">arc</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">90</span><span class="p">)</span>
@@ -14967,7 +15090,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[9]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[10]:</div>
 
 
 
@@ -14998,7 +15136,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[10]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[11]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">help</span><span class="p">(</span><span class="n">BaseDiagram</span><span class="o">.</span><span class="n">align_t</span><span class="p">)</span>
@@ -15019,7 +15157,7 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[10]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
 
 
 
@@ -15050,7 +15188,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[11]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[12]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">align_t</span><span class="p">()</span><span class="o">.</span><span class="n">show_origin</span><span class="p">()</span>
@@ -15071,7 +15209,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[11]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[12]:</div>
 
 
 
@@ -15107,7 +15260,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[12]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[13]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">align_t</span><span class="p">()</span><span class="o">.</span><span class="n">show_beside</span><span class="p">(</span><span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">align_b</span><span class="p">(),</span> <span class="n">unit_x</span><span class="p">)</span>
@@ -15128,7 +15281,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[12]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[13]:</div>
 
 
 
@@ -15148,7 +15316,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[13]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[14]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">help</span><span class="p">(</span><span class="n">BaseDiagram</span><span class="o">.</span><span class="n">align_r</span><span class="p">)</span>
@@ -15169,7 +15337,7 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[13]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[14]:</div>
 
 
 
@@ -15200,7 +15368,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[14]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[15]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">help</span><span class="p">(</span><span class="n">BaseDiagram</span><span class="o">.</span><span class="n">center_xy</span><span class="p">)</span>
@@ -15221,7 +15389,7 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[14]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[15]:</div>
 
 
 
@@ -15252,7 +15420,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[15]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[16]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">center_xy</span><span class="p">()</span><span class="o">.</span><span class="n">show_envelope</span><span class="p">()</span><span class="o">.</span><span class="n">show_origin</span><span class="p">()</span>
@@ -15273,7 +15441,26 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[15]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[16]:</div>
 
 
 
@@ -15304,7 +15491,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[16]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[17]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">help</span><span class="p">(</span><span class="n">BaseDiagram</span><span class="o">.</span><span class="n">pad</span><span class="p">)</span>
@@ -15325,7 +15512,7 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[16]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
 
 
 
@@ -15365,7 +15552,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[17]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[18]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">triangle</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">pad</span><span class="p">(</span><span class="mf">1.5</span><span class="p">)</span><span class="o">.</span><span class="n">show_envelope</span><span class="p">()</span><span class="o">.</span><span class="n">show_origin</span><span class="p">()</span>
@@ -15386,7 +15573,26 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[17]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[18]:</div>
 
 
 
@@ -15417,7 +15623,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[18]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[19]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="n">help</span><span class="p">(</span><span class="n">BaseDiagram</span><span class="o">.</span><span class="n">with_envelope</span><span class="p">)</span>
@@ -15438,7 +15644,7 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[18]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[19]:</div>
 
 
 
@@ -15469,7 +15675,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[19]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[20]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">colour</span> <span class="kn">import</span> <span class="n">Color</span>
@@ -15485,7 +15691,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[20]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[21]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="p">(</span><span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">triangle</span><span class="p">(</span><span class="mf">0.5</span><span class="p">))</span> <span class="o">|</span> <span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -15506,7 +15712,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[20]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[21]:</div>
 
 
 
@@ -15526,7 +15747,7 @@ Returns:<br>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[21]:</div>
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[22]:</div>
 <div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
      <div class="CodeMirror cm-s-jupyter">
 <div class=" highlight hl-ipython3"><pre><span></span><span class="p">(</span><span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">triangle</span><span class="p">(</span><span class="mf">0.5</span><span class="p">))</span><span class="o">.</span><span class="n">with_envelope</span><span class="p">(</span><span class="n">triangle</span><span class="p">(</span><span class="mf">0.5</span><span class="p">))</span> <span class="o">|</span> <span class="n">rectangle</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">fill_color</span><span class="p">(</span><span class="s2">"red"</span><span class="p">)</span>
@@ -15547,7 +15768,22 @@ Returns:<br>
 <div class="jp-OutputArea-child">
 
     
-    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[21]:</div>
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[22]:</div>
 
 
 

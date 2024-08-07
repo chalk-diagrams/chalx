@@ -488,4 +488,6 @@ final
 
 final.render_svg("chalk_bigben.svg", height=300)
 
+final.render("chalk_bigben.png", height=300)
+
 # <img style="height:300px;width:300px;max-width:auto;" src="chalk_bigben.svg">  <img style="height:300px;width:300px;max-width:auto;" src="bigben.png">

@@ -44,12 +44,25 @@ def getitem(self: Diagram, ind: Union[None, int, Tuple[int, ...]]) -> Diagram:
     "Extract element [i] from a batched diagram."
     return tx.tree_map(lambda x: x[ind], self)  # type: ignore
 
+def check(a: Tuple[int, ...], b: Tuple[int, ...],
+          s1: str, s2:str) -> None:
+    try:
+        tx.np.broadcast_shapes(a, b)
+    except ValueError:
+        assert (
+            False
+        ), f"Broadcast error: {s1} Shape: {a} {s2} Shape: {b}"
 
-A = TypeVar("A", bound=Diagram)
-B = TypeVar("B", bound=Diagram)
+def check_consistent(self):
+    shape = self.shape
+    def check(x):
+        assert x.shape[:len(shape)] == shape
+    tx.tree_map(check, self)
 
 
-def broadcast_diagrams(self: A, other: B) -> Tuple[A, B]:
+V1 = TypeVar("V1", bound=Diagram)
+V2 = TypeVar("V2", bound=Diagram)
+def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
     """
     Returns a version of diagram A and B
     that have the same shape.
@@ -58,6 +71,7 @@ def broadcast_diagrams(self: A, other: B) -> Tuple[A, B]:
     other_size = other.size()
     if size == other_size:
         return self, other
+    check(size, other_size, str(type(self)), str(type(other)))
     ml = max(len(size), len(other_size))
     for i in range(ml):
         off = -1 - i
@@ -69,6 +83,8 @@ def broadcast_diagrams(self: A, other: B) -> Tuple[A, B]:
             self = self.repeat_axis(other_size[off], len(size) + off)
         elif size[off] != 1 and other_size[off] == 1:
             other = other.repeat_axis(size[off], len(other_size) + off)
+    check_consistent(self)
+    check_consistent(other)
     assert (
         self.size() == other.size()
     ), f"{size} {other_size} {self.size()} {other.size()}"

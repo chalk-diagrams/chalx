@@ -45,6 +45,7 @@ else:
     JAX_MODE = True
     config.update("jax_enable_x64", True)  # type: ignore
     config.update("jax_debug_nans", True)  # type: ignore
+    from chalk.types import Diagram
 
 # Core shaped types used throughout
 # *#B means arbitrary or no batch dimension
@@ -135,9 +136,7 @@ def ftos(f: Floating) -> Scalars:
     "Map a float to an array format."
     return np.asarray(f, dtype=np.double)
 
-
-@jit
-@partial(vectorize, signature="(),()->(3,1)")
+# @partial(vectorize, signature="(),()->(3,1)")
 def V2(x: Floating, y: Floating) -> V2_t:
     "Map (x,y) of any shape to a (batched) vector."
     if isinstance(x, float) and isinstance(y, float):
@@ -147,22 +146,17 @@ def V2(x: Floating, y: Floating) -> V2_t:
     return np.stack([x, y, o], axis=-1)[..., None]
 
 
-@jit
-@partial(vectorize, signature="(),()->(3,1)")
+# @partial(vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
     "Map (x,y) of any shape to a (batched) point."
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
     return np.stack([x, y, o], axis=-1)[..., None]
 
 
-@jit
-@partial(vectorize, signature="(3,1)->(3,1)")
 def norm(v: V2_t) -> V2_t:
     return v / length(v)[..., None, None]
 
 
-@jit
-@partial(vectorize, signature="(3,1)->()")
 def length(v: V2_t) -> Scalars:
     "Length of a vector"
     return np.asarray(np.sqrt(length2(v)))
@@ -215,7 +209,6 @@ def make_affine(
     f: Floating,
 ) -> Affine:
     "Create affine array from values"
-    vals = [a, b, c, d, e, f, 0.0, 0.0, 1.0]
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
     vals = np.broadcast_arrays(*vals)
     x = np.stack(vals, axis=-1)
@@ -236,8 +229,6 @@ def cross(v1: V2_t, v2: V2_t) -> Scalars:
     return np.cross(v1, v2)
 
 
-@jit
-@partial(vectorize, signature="(3,1)->(3,1)")
 def to_point(v: V2_t) -> P2_t:
     "Convert a vector to a point (allows transpose)"
     index = (Ellipsis, 2, 0)
@@ -288,8 +279,6 @@ def get_translation(aff: Affine) -> V2_t:
     return index_update(base, index, aff[..., :2, 2])  # type: ignore
 
 
-@jit
-@partial(vectorize, signature="()->(3,3)")
 def rotation(r: Floating) -> Affine:
     "Create an affine rotation matrix in radians"
     rad = ftos(r)
@@ -302,8 +291,6 @@ def rotation(r: Floating) -> Affine:
     return index_update(base, index, m)  # type: ignore
 
 
-@jit
-@partial(vectorize, signature="()->(3,3)")
 def rotation_angle(r: Floating) -> Affine:
     "Create an affine rotation matrix in degrees"
     return rotation(to_radians(r))
@@ -358,6 +345,15 @@ def remove_translation(aff: Affine) -> Affine:
     "Remove translation from affine"
     index = (Ellipsis, slice(0, 1), 2)
     return index_update(aff, index, 0)  # type: ignore
+
+@jit
+@partial(vectorize, signature="(3,3)->(3,3)")
+def remove_scale(aff: Affine) -> Affine:
+    "Remove scaling from affine"
+    index = (Ellipsis, slice(0, 2), slice(0, 2))
+    det = np.linalg.det(aff[index])
+    print(aff[index], det)
+    return index_update(aff, index, aff[index] / np.sqrt(det[..., None, None]))  # type: ignore
 
 
 @jit
@@ -519,7 +515,7 @@ def ray_circle_intersection(
 
 
 @partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")
-def arc_to_bezier(theta1, theta2, n=2):
+def arc_to_bezier(theta1: ArrayLike, theta2:ArrayLike, n:int=2) -> ArrayLike:
     """
     Returns the bezier curves for the unit circle arc from angles *theta1* to
     *theta2* (in degrees).
@@ -631,5 +627,38 @@ def multi_vmap(fn: Callable, t: int) -> Callable[[ArrayLike], ArrayLike]:
 
 tree_map = jax.tree.map
 
+
+if TYPE_CHECKING:
+    from typing import Annotated as Batched # noqa: F401
+    
+else:
+    from jaxtyping import AbstractDtype
+    class Batched(AbstractDtype):
+        dtypes = ["chalk"]
+
+class Batchable:
+    @property
+    def dtype(self) -> str:
+        return "chalk"
+    
+    @property
+    def shape(self) -> Tuple[int, ...]:
+        assert False
+
+    def size(self) -> Tuple[int, ...]:
+        return self.shape
+    
+    def __getitem__(self, ind):
+        shape = self.shape
+        if Ellipsis in ind:
+            # We only want ... to apply to the prefix args
+            return jax.tree_map(lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self)
+        else:
+            return jax.tree_map(lambda x: x[ind], self)
+
+
+def prefix_broadcast(x, target, suffix_length):
+    return np.broadcast_to(x, target + x.shape[-suffix_length:])
+
 # Explicit rexport
-__all__ = ["ArrayLike", "np", "jit", "vmap", "multi_vmap", "tree_map"]
+__all__ = ["ArrayLike", "np", "jit", "vmap", "multi_vmap", "tree_map", "Batchable", "Batched"]

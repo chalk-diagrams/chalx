@@ -1,7 +1,7 @@
 # + tags=["hide_inp"]
-# from jaxtyping import install_import_hook
-# with install_import_hook("chalk", "typeguard.typechecked"):
-#     import chalk 
+from jaxtyping import install_import_hook
+with install_import_hook("chalk", "typeguard.typechecked"):
+    import chalk 
 from chalk.core import BaseDiagram
 from chalk import *
 import math
@@ -26,6 +26,9 @@ help(BaseDiagram.show_origin)
 #
 
 triangle(1).show_origin()
+
+
+triangle(1).show_origin().render_svg("/tmp/test.svg")
 
 # ### Diagram.show_envelope
 

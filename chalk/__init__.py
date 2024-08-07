@@ -9,6 +9,12 @@ else:
     import importlib_metadata as metadata
 
 
+import os
+if eval(os.environ.get("CHALK_CHECK", "1")):
+    from jaxtyping import install_import_hook
+    hook = install_import_hook("chalk", "typeguard.typechecked")
+
+    
 import chex
 import jax
 
@@ -20,6 +26,7 @@ import chalk.shapes
 import chalk.style
 import chalk.trace
 import chalk.trail
+import chalk.path
 from chalk.align import *  # noqa: F403
 from chalk.arrow import ArrowOpts, arrow_at, arrow_between, arrow_v
 from chalk.combinators import *  # noqa: F403
@@ -28,8 +35,9 @@ from chalk.envelope import Envelope
 from chalk.monoid import Maybe, MList, Monoid
 from chalk.shapes import *  # noqa: F403
 from chalk.style import Style, to_color
+import chalk.segment
 from chalk.subdiagram import Name
-from chalk.trail import Trail
+import chalk.trail as Trail
 from chalk.transform import (
     P2,
     V2,
@@ -42,7 +50,9 @@ from chalk.transform import (
 )
 from chalk.types import Diagram
 
-# if eval(os.environ.get("CHALK_JAX", "0")):
+
+if eval(os.environ.get("CHALK_CHECK", "1")):
+    hook.uninstall()
 
 
 jax_type = [
@@ -56,15 +66,15 @@ jax_type = [
     chalk.envelope.EnvDistance,
     chalk.trace.TraceDistances,
     chalk.style.StyleHolder,
-    chalk.shapes.Trail,
-    chalk.shapes.Path,
-    chalk.shapes.Segment,
+    chalk.trail.Trail,
+    chalk.path.Path,
     chalk.trail.Located,
     chalk.trail.Trail,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
     chalk.path.Text,
     chalk.subdiagram.Subdiagram,
+    chalk.segment.Segment,
 ]
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
@@ -75,6 +85,8 @@ jax.tree_util.register_pytree_node(
     lambda tree: ((tree.diagram,), (tree.dname,)),
     lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),
 )
+
+
 
 if not TYPE_CHECKING:
     # Set library name the same as on PyPI

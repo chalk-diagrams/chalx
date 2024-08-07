@@ -4,7 +4,7 @@ import chalk.transform as tx
 from chalk.monoid import associative_reduce
 from chalk.path import Path
 from chalk.transform import Floating, Scalars, V2_t
-from chalk.types import B1, B2, B, Batched, Diagram, Reduced
+from chalk.types import Diagram, BatchDiagram, BroadDiagram, EmptyDiagram, ExtraDiagram
 
 # Functions mirroring Diagrams.Combinators and Diagrams.2d.Combinators
 
@@ -37,21 +37,21 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
 # extrudeEnvelope, intrudeEnvelope
 
 
-def atop(self: B1, other: B2) -> B:
+def atop(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
     return self.compose(None, other)
 
 
 # beneath
 
 
-def above(self: B1, other: B2) -> B:
+def above(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
     return beside(self, other, tx.unit_y)
 
 
 # appends
 
 
-def beside(self: B1, other: B2, direction: V2_t) -> B:
+def beside(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
     return atop(self, juxtapose(self, other, direction))
 
 
@@ -65,19 +65,19 @@ def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
     return concat(d.translate_by(p) for d, p in zip(diagrams, path.points()))
 
 
-def batch_hcat(self: Batched, sep: Optional[Floating] = None) -> Reduced:
+def batch_hcat(self: ExtraDiagram, sep: Optional[Floating] = None) -> BatchDiagram:
     "Hcat a batched diagram along the outermost axis."
     return batch_cat(self, tx.unit_x, sep)
 
 
-def batch_vcat(self: Batched, sep: Optional[Floating] = None) -> Reduced:
+def batch_vcat(self: ExtraDiagram, sep: Optional[Floating] = None) -> BatchDiagram:
     "Vcat a batched diagram along the outermost axis."
     return batch_cat(self, tx.unit_y, sep)
 
 
 def batch_cat(
-    diagram: Batched, v: V2_t, sep: Optional[Floating] = None
-) -> Reduced:
+    diagram: ExtraDiagram, v: V2_t, sep: Optional[Floating] = None
+) -> BatchDiagram:
     """
     Cat a batched diagram along the outermost axis.
     i.e. if it is size (a,b) it will now be (b)
@@ -139,13 +139,13 @@ def cat(
     return fn(start, associative_reduce(fn, diagrams, empty()))
 
 
-def batch_concat(self: Diagram) -> Diagram:
+def batch_concat(self: ExtraDiagram) -> BatchDiagram:
     size = self.size()
     assert size != ()
     return self.compose_axis()
 
 
-def concat(diagrams: Iterable[Diagram]) -> Diagram:
+def concat(diagrams: Iterable[BatchDiagram]) -> BroadDiagram:
     """
     Concat diagrams atop of each other with atop.
 
@@ -162,7 +162,7 @@ def concat(diagrams: Iterable[Diagram]) -> Diagram:
     return BaseDiagram.concat2(diagrams)  # type: ignore
 
 
-def empty() -> Diagram:
+def empty() -> EmptyDiagram:
     "Create an empty diagram"
     from chalk.core import BaseDiagram
 
@@ -175,8 +175,8 @@ def empty() -> Diagram:
 
 
 def hcat(
-    diagrams: Iterable[Diagram], sep: Optional[Floating] = None
-) -> Diagram:
+    diagrams: Iterable[BatchDiagram], sep: Optional[Floating] = None
+) -> BroadDiagram:
     """
     Stack diagrams next to each other with `besides`.
 
@@ -192,8 +192,8 @@ def hcat(
 
 
 def vcat(
-    diagrams: Iterable[Diagram], sep: Optional[Floating] = None
-) -> Diagram:
+    diagrams: Iterable[BatchDiagram], sep: Optional[Floating] = None
+) -> BroadDiagram:
     """
     Stack diagrams above each other with `above`.
 
@@ -211,7 +211,7 @@ def vcat(
 # Extra
 
 
-def above2(self: Diagram, other: Diagram) -> Diagram:
+def above2(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
     """Given two diagrams ``a`` and ``b``, ``a.above2(b)``
     places ``a`` on top of ``b``. This moves ``a`` down to
     touch ``b``.
@@ -228,7 +228,7 @@ def above2(self: Diagram, other: Diagram) -> Diagram:
     return beside(other, self, -tx.unit_y)
 
 
-def juxtapose_snug(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
+def juxtapose_snug(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
     trace1 = self.get_trace()
     trace2 = other.get_trace()
     d1, m1 = trace1.trace_v(tx.origin, direction)
@@ -240,11 +240,11 @@ def juxtapose_snug(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     return other.apply_transform(t)
 
 
-def beside_snug(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
+def beside_snug(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
     return atop(self, juxtapose_snug(self, other, direction))
 
 
-def juxtapose(self: B1, other: B2, direction: V2_t) -> B:
+def juxtapose(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
     """Given two diagrams ``a`` and ``b``, ``a.juxtapose(b, v)``
     places ``b`` to touch ``a`` along angle ve .
 
@@ -263,7 +263,7 @@ def juxtapose(self: B1, other: B2, direction: V2_t) -> B:
     return other.apply_transform(t)
 
 
-def at_center(self: Diagram, other: Diagram) -> Diagram:
+def at_center(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
     """Center two given diagrams.
 
     💡 `a.at_center(b)` means center of ``a`` is translated

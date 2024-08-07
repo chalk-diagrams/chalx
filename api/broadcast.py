@@ -1,24 +1,40 @@
-# + tags=["hide_inp"]
-# from jaxtyping import install_import_hook
-# with install_import_hook("chalk", "typeguard.typechecked"):
-#     import chalk 
+# ---
+# jupyter:
+#   jupytext:
+#     cell_metadata_filter: tags,-all
+#     text_representation:
+#       extension: .py
+#       format_name: light
+#       format_version: '1.5'
+#       jupytext_version: 1.16.4
+#   kernelspec:
+#     display_name: chalk
+#     language: python
+#     name: chalk
+# ---
 
+# + tags=["hide_inp"]
 from chalk import *
 import numpy as np
 def help(f):
     import pydoc
     from IPython.display import HTML
     return HTML(pydoc.HTMLDoc().docroutine(f))
-# -
 
+
+# -
 
 # Diagrams are set-up so that they can take 
 # numpy arguments. They work like standard 
 # numpy arrays to support broadcasting.
 
+cs1 = circle(np.arange(1, 5)) + circle(np.arange(1, 5))
+
+
 cs1 = circle(1).translate(np.arange(5), np.arange(5))
 print(cs1.size())
 cs1.concat()
+cs1.concat().render_svg("/tmp/x.svg")
 
 # Style changes will broadcast over the diagram.
 
@@ -61,10 +77,10 @@ r[4]
 # couple of them.
 
 
-grid = square(np.ones((5, 5))).named("grid").hcat().vcat()
+grid = square(np.ones((5, 5))).named(Name("grid")).hcat().vcat()
 grid
 
 f = np.array([[1, 1], [2, 3]])
-sub = grid.get_subdiagram("grid")
+sub = grid.get_subdiagram(Name("grid"))
 env = sub.get_envelope()
 grid + circle(0.5).fill_color("red").translate_by(env.center[f[0, :], f[1, :]]).concat()

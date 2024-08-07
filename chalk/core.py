@@ -22,10 +22,12 @@ import chalk.trace
 import chalk.transform as tx
 import chalk.types
 from chalk.broadcast import broadcast_diagrams
+
 from chalk.path import Path
-from chalk.style import Style, StyleHolder
+from chalk.style import BatchStyle, Style, StyleHolder
 from chalk.transform import Affine
-from chalk.types import Diagram
+from chalk.types import BatchDiagram, BroadDiagram, Diagram
+from chalk.transform import Batched
 from chalk.visitor import DiagramVisitor
 
 Trail = Any
@@ -55,43 +57,49 @@ class BaseDiagram(chalk.types.Diagram):
     __add__ = chalk.combinators.atop
 
     @property
-    def dtype(self) -> str:
-        return "batched_diagram"
-
-    @property
     def shape(self) -> Tuple[int, ...]:
         return self.size()
 
-    def __rmatmul__(self, t: Affine) -> BaseDiagram:  # type: ignore
+    def __rmatmul__(self: BatchDiagram, t: Affine) -> BroadDiagram:  # type: ignore
         return self.apply_transform(t)  # type: ignore
 
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         raise NotImplementedError
 
     @classmethod
-    def empty(cls) -> Diagram:  # type: ignore
+    def empty(cls) -> EmptyDia:  # type: ignore
         return Empty()
 
     # Tranformable
-    def apply_transform(self, t: Affine) -> Diagram:  # type: ignore
+    def apply_transform(self: B1, t: Affine) -> B:  # type: ignore
         new_diagram = ApplyTransform(t, Empty())
         new, other = broadcast_diagrams(new_diagram, self)
+        assert isinstance(new, ApplyTransform)
         return ApplyTransform(new.transform, other)
 
-    def compose_axis(self) -> Diagram:  # type: ignore
+
+    def compose_axis(self: BatchedDia) -> ReducedDia:  # type: ignore
         return ComposeAxis(self)
 
     # Stylable
-    def apply_style(self, style: StyleHolder) -> Diagram:  # type: ignore
+    def apply_style(self: B1, style: StyleHolder) -> B:  # type: ignore
         new_diagram = ApplyStyle(style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return ApplyStyle(new_diagram.style, self)
 
+    def __repr__(self) -> str:
+        return f"Diagram[self.shape]"
+
+    def __tree_pp__(self, **kwargs):
+        import jax._src.pretty_printer as pp
+
+        return pp.text(f"Diagram[{self.shape}]")
+    
     def compose(
         self,
-        envelope: Optional[Diagram] = None,
-        other: Optional[Diagram] = None,
-    ) -> Diagram:
+        envelope: Optional[BatchDiagram] = None,
+        other: Optional[BatchDiagram] = None,
+    ) -> BroadDiagram:
         if other is None and isinstance(self, Compose):
             return Compose(envelope, tuple(self.diagrams))
         if other is None and isinstance(self, Compose):
@@ -215,6 +223,7 @@ class BaseDiagram(chalk.types.Diagram):
         return self._repr_svg_()
 
 
+
 @dataclass(frozen=True)
 class Primitive(BaseDiagram):
     """Primitive class.
@@ -227,39 +236,25 @@ class Primitive(BaseDiagram):
     transform: Affine
     order: Optional[tx.Ints] = None
 
-    def set_order(self, order: tx.Ints) -> Primitive:
+    def set_order(self: BatchPrimitive, order: tx.Ints) -> BatchPrimitive:
         return Primitive(self.prim_shape, self.style, self.transform, order)
 
-    def split(self, ind: int) -> Primitive:
-        return Primitive(
-            self.prim_shape.split(ind),
-            self.style.split(ind) if self.style is not None else None,
-            self.transform[ind],
-        )
-
     @classmethod
-    def from_path(cls, shape: Path) -> Primitive:
+    def from_path(cls, shape: Path) -> BatchPrimitive:
         assert shape.size() == (), f"Shape size: {shape.size()}"
         return cls(shape, None, tx.make_ident(shape.size()))
 
-    def apply_transform(self, t: Affine) -> Primitive:
-        try:
-            tx.np.broadcast_arrays(t, self.transform)
-        except tx.np.ValueError:
-            assert (
-                False
-            ), f"Diagram shape: {self.shape} Transform shape: {t.shape[:-2]}"
+    def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
+        chalk.broadcast.check(t.shape[:-2], self.shape,
+                              str(type(self)), "Transform")
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
-        new_diagram, self = broadcast_diagrams(new_diagram, self)  # type: ignore
+        new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(self.prim_shape, self.style, new_diagram.transform)
 
-    def apply_style(self, other_style: StyleHolder) -> Primitive:
-        if other_style is None:
-            return Primitive(self.prim_shape, None, self.transform, self.order)
+    def apply_style(self: BatchPrimitive, other_style: BatchStyle) -> BatchPrimitive:
         new_diagram = ApplyStyle(other_style, Empty())
-        new_diagram, self = broadcast_diagrams(new_diagram, self)  # type: ignore
-
+        new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(
             self.prim_shape,
             (
@@ -274,6 +269,7 @@ class Primitive(BaseDiagram):
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_primitive(self, args)
 
+BatchPrimitive = Batched[Primitive, "#*B"]
 
 @dataclass(unsafe_hash=True, frozen=True)
 class Empty(BaseDiagram):
@@ -296,7 +292,7 @@ class Compose(BaseDiagram):
         return visitor.visit_compose(self, args)
 
 
-@dataclass(unsafe_hash=True, frozen=True)
+@dataclass(frozen=True)
 class ComposeAxis(BaseDiagram):
     diagrams: Diagram
 
@@ -314,7 +310,7 @@ class ApplyTransform(BaseDiagram):
 
     def apply_transform(self, t: Affine) -> ApplyTransform:
         new_diagram = ApplyTransform(t @ self.transform, Empty())
-        new, other = broadcast_diagrams(new_diagram, self.diagram)  # type: ignore
+        new, other = broadcast_diagrams(new_diagram, self.diagram)
         return ApplyTransform(new.transform, other)
 
 
@@ -326,13 +322,9 @@ class ApplyStyle(BaseDiagram):
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_style(self, args)
 
-    def apply_style(self, style: Optional[StyleHolder]) -> ApplyStyle:
-        if style is None:
-            return ApplyStyle(Style(), self.diagram)
-
+    def apply_style(self, style: BatchStyle) -> ApplyStyle:
         new_style = ApplyStyle(style, Empty())
         new_style, self = broadcast_diagrams(new_style, self)
-
         app_style = new_style.style.merge(self.style)
         return ApplyStyle(app_style, self.diagram)
 

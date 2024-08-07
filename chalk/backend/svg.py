@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import svgwrite
 from svgwrite import Drawing
 from svgwrite.base import BaseElement
 
+import chalk.transform as tx
 import chalk.backend.patch
 from chalk.backend.patch import Patch
 from chalk.types import Diagram
 
 
-def to_svg(patch: Patch, dwg: Drawing, ind: int) -> BaseElement:
+def to_svg(patch: Patch, dwg: Drawing, ind: Tuple[int, ...]) -> BaseElement:
     line = dwg.path(style="vector-effect: non-scaling-stroke;")
     v, c = patch.vert[ind], patch.command[ind]
     if v.shape[0] == 0:
@@ -55,9 +56,9 @@ def write_style(d: Dict[str, Any]) -> str:
     return out
 
 
-def render_svg_patches(patches: List[Patch], dwg: Drawing, height) -> None:
+def render_svg_patches(patches: List[Patch], dwg: Drawing) -> None:
     for ind, patch, style_new in chalk.backend.patch.order_patches(
-        patches, height
+        patches
     ):
         inner = to_svg(patch, dwg, ind)
         g = dwg.g(style=write_style(style_new))
@@ -66,11 +67,11 @@ def render_svg_patches(patches: List[Patch], dwg: Drawing, height) -> None:
 
 
 def patches_to_file(
-    patches: List[Patch], path: str, height: float, width: float, draw_height
+    patches: List[Patch], path: str, height: tx.IntLike, width: tx.IntLike
 ) -> None:
     dwg = svgwrite.Drawing(path, size=(int(width), int(height)))
     render_svg_patches(
-        patches, dwg, draw_height if draw_height is not None else height
+        patches, dwg
     )
     dwg.save()
 
@@ -96,5 +97,5 @@ def render(
 
     """
     assert self.size() == (), "Must be a size () diagram"
-    patches, h, w = self.layout(height, width)
-    patches_to_file(patches, path, h, w, draw_height)  # type: ignore
+    patches, h, w = self.layout(height, width, draw_height)
+    patches_to_file(patches, path, h, w)  # type: ignore

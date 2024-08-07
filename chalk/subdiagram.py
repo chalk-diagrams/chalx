@@ -24,23 +24,18 @@ if TYPE_CHECKING:
 AtomicName = Any
 
 
-@dataclass
+@dataclass(frozen=True)
 class Name:
     atomic_names: Tuple[AtomicName, ...]
-
-    def __init__(self, atomic_name: AtomicName):
-        self.atomic_names = (atomic_name,)
 
     def __hash__(self) -> int:
         return hash(self.atomic_names)
 
     def __str__(self) -> str:
-        return "·".join(map(str, self.atomic_names))
+        return "-".join(map(str, self.atomic_names))
 
     def __add__(self, other: Name) -> Name:
-        new_name = Name(None)
-        new_name.atomic_names = self.atomic_names + other.atomic_names
-        return new_name
+        return Name((self.atomic_names, other.atomic_names))
 
     def qualify(self, name: Name) -> Name:
         return name + self
@@ -105,6 +100,8 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 
 
 def get_subdiagram(self: Diagram, name: Name) -> Optional[Subdiagram]:
+    if not isinstance(name, Name):
+        name = Name(name)
     return self.accept(GetSubdiagram(name), tx.ident).data
 
 
@@ -166,15 +163,19 @@ def get_sub_map(self: Diagram, t: Affine) -> Dict[Name, List[Subdiagram]]:
     return self.accept(GetSubMap(), t).data
 
 
-def qualify(self, name: Name) -> Diagram:
+def qualify(self: Diagram, name: Name) -> Diagram:
     """Prefix names in the diagram by a given name or sequence of names."""
+    if not isinstance(name, Name):
+        name = Name(name)
+
     return self.accept(Qualify(name), None)
 
 
-def named(self, name: Name) -> Diagram:
+def named(self: Diagram, name: Name) -> Diagram:
     """Add a name (or a sequence of names) to a diagram."""
     from chalk.core import ApplyName
-
+    if not isinstance(name, Name):
+        name = Name(name)
     return ApplyName(name, self)
 
 
@@ -217,5 +218,5 @@ class Qualify(DiagramVisitor[Diagram, None]):
         from chalk.core import ApplyName
 
         return ApplyName(
-            (self.name,) + (diagram.dname,), diagram.diagram.accept(self, None)
+            self.name + diagram.dname, diagram.diagram.accept(self, None)
         )

@@ -19,7 +19,8 @@ def get_primitives(self) -> List[Primitive]:
 
 
 def layout(
-    self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None
+    self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None,
+    draw_height: Optional[tx.IntLike] = None
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     """
     Layout a diagram before rendering.
@@ -54,7 +55,9 @@ def layout(
 
     style = StyleHolder.root(tx.np.maximum(width, height))  # type: ignore
     s = s.apply_style(style)
-    patches = [Patch.from_prim(prim, style) for prim in get_primitives(s)]
+    if draw_height is None:
+        draw_height = height
+    patches = [Patch.from_prim(prim, style, draw_height) for prim in get_primitives(s)]
     return patches, height, width
 
 

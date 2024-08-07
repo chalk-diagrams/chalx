@@ -23,6 +23,8 @@ set_svg_height(100)
 help(BaseDiagram.named)
 # -
 
+(square(1).show_origin() + chalk.arrowheads.dart()).render_svg("tri.svg", 56)
+
 diagram = circle(0.5).named("x") | square(1)
 diagram
 
@@ -97,7 +99,6 @@ pairs = [
 ]
 
 dia
-print(dia)
 
 for pair in pairs:
     print(pair)
@@ -120,7 +121,7 @@ help(BaseDiagram.connect)
 # -
 
 diagram = circle(0.5).named("x") | hstrut(1) | square(1).named("y")
-diagram.connect("x", "y")
+diagram.connect("y", "x")
 
 # ### Diagram.connect_outside
 
@@ -129,4 +130,6 @@ help(BaseDiagram.connect_outside)
 # -
 
 diagram = circle(0.5).named("x") | hstrut(1) | square(1).named("y")
-diagram.connect_outside("x", "y")
+d = diagram.connect_outside("x", "y")
+d.render_svg("connected.svg")
+d

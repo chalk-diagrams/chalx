@@ -2,9 +2,11 @@ from colour import Color
 
 import chalk.transform as tx
 from chalk.combinators import concat
-from chalk.shapes import Path, circle, seg, text
+from chalk.shapes import circle, text
+from chalk.path import Path
 from chalk.transform import V2_t
 from chalk.types import Diagram
+from chalk.trail import seg
 
 RED = Color("red")
 BLUE = Color("blue")
@@ -96,7 +98,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     return one.beside(two, direction)
 
 
-def show_labels(self: Diagram, font_size: int = 1) -> Diagram:
+def show_labels(self: Diagram, font_size: tx.Floating = 1) -> Diagram:
     """Shows the labels of all named subdiagrams of a diagram at their
     corresponding origin."""
     for name, subs in self.get_sub_map(tx.ident).items():

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable, Iterable, Optional, Self, Tuple
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
-from chalk.segment import Segment, arc_envelope
+from chalk.segment import BatchSegment, Segment, arc_envelope
 from chalk.transform import (
     P2,
     V2,
@@ -17,6 +17,7 @@ from chalk.transform import (
     Transformable,
     V2_t,
 )
+from chalk.transform import Batchable, Batched
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -67,8 +68,8 @@ def post_transform(
 
 
 @dataclass
-class Envelope(Transformable, Monoid):
-    segment: Segment
+class Envelope(Transformable, Monoid, Batchable):
+    segment: BatchSegment
 
     def __call__(self, direction: V2_t) -> Scalars:
         def run(d):
@@ -82,12 +83,13 @@ class Envelope(Transformable, Monoid):
                 ).max()
                 return v
 
-            return env(self.segment.t, self.segment.angles)
+            return env(self.segment.transform, 
+                       self.segment.angles)
 
         run = tx.multi_vmap(run, len(direction.shape) - 2)  # type: ignore
         return run(direction)  # type: ignore
 
-    def __add__(self, other):
+    def __add__(self: BatchEnvelope, other: BatchEnvelope) -> BatchEnvelope:
         return Envelope(self.segment + other.segment)
 
     all_dir = tx.np.stack(
@@ -193,3 +195,5 @@ def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
         t = tx.ident
     segment = self.accept(GetLocatedSegments(), t)
     return Envelope(segment)
+
+BatchEnvelope = Batched[Envelope, "*#B"]

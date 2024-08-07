@@ -1,15 +1,15 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from colour import Color
 
 import chalk.transform as tx
-from chalk.shapes import arc_seg, dart
+from chalk.arrowheads import dart
 from chalk.style import StyleHolder
 from chalk.subdiagram import Name, Subdiagram
-from chalk.trail import Trail
+from chalk.trail import Trail, arc_seg
 from chalk.transform import P2_t, V2_t
-from chalk.types import Diagram
+from chalk.types import BatchDiagram, Diagram
 
 black = Color("black")
 # arrow heads
@@ -30,8 +30,8 @@ class ArrowOpts:
 
 
 def connect(
-    self: Diagram, name1: Name, name2: Name, style: ArrowOpts = ArrowOpts()
-) -> Diagram:
+    self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts = ArrowOpts()
+) -> BatchDiagram:
     def f(subs: List[Subdiagram], dia: Diagram) -> Diagram:
         sub1, sub2 = subs
 
@@ -43,8 +43,8 @@ def connect(
 
 
 def connect_outside(
-    self: Diagram, name1: Name, name2: Name, style: ArrowOpts = ArrowOpts()
-) -> Diagram:
+    self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts = ArrowOpts()
+) -> BatchDiagram:
     def f(subs: List[Subdiagram], dia: Diagram) -> Diagram:
         sub1, sub2 = subs
 
@@ -69,13 +69,13 @@ def connect_outside(
 
 
 def connect_perim(
-    self: Diagram,
-    name1: Name,
-    name2: Name,
+    self: BatchDiagram,
+    name1: Any,
+    name2: Any,
     v1: V2_t,
     v2: V2_t,
     style: ArrowOpts = ArrowOpts(),
-) -> Diagram:
+) -> BatchDiagram:
     def f(subs: List[Subdiagram], dia: Diagram) -> Diagram:
         sub1, sub2 = subs
 
@@ -84,7 +84,6 @@ def connect_perim(
 
         tr1 = sub1.get_trace()
         tr2 = sub2.get_trace()
-
         ps, m1 = tr1.max_trace_p(loc1, v1)
         pe, m2 = tr2.max_trace_p(loc2, v2)
         assert m1.all(), f"Cannot connect, trace failed {name1} {name2} {m1}"
@@ -118,9 +117,10 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
         if style.arc_height < 0:
             arrow = arrow.rotate(180)
     else:
+
         shaft = style.trail.stroke().scale_uniform_to_x(l_adj).fill_opacity(0)
 
-        arrow = arrow.rotate(-style.trail.segments.angle)
+        arrow = arrow.rotate(-style.trail.segments.angles[-1, 0])
     return shaft.apply_style(style.shaft_style).translate_by(
         t * tx.unit_x
     ) + arrow.translate_by((l_adj + t) * tx.unit_x)

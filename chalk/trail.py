@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Tuple
 
 import chalk.segment as arc
 import chalk.transform as tx
@@ -28,8 +28,8 @@ class Located(Transformable):
     trail: Trail
     location: P2_t
 
-    def split(self, i: int) -> Located:
-        return Located(self.trail.split(i), self.location[i])
+    # def split(self, i: int) -> Located:
+    #     return Located(self.trail.split(i), self.location[i])
 
     def located_segments(self) -> Segment:
         pts = self.points()
@@ -65,8 +65,8 @@ class Trail(Monoid, Transformable, TrailLike):
 
     closed: tx.Mask = field(default_factory=lambda: tx.np.asarray(False))
 
-    def split(self, i: int) -> Trail:
-        return Trail(self.segments.split(i), self.closed[i])
+    # def split(self, i: int) -> Trail:
+    #     return Trail(self.segments.split(i), self.closed[i])
 
     # Monoid
     @staticmethod
@@ -113,64 +113,89 @@ class Trail(Monoid, Transformable, TrailLike):
 
     def centered(self) -> Located:
         return self.at(
-            -tx.np.sum(self.points(), axis=-3) / self.segments.t.shape[0]
+            -tx.np.sum(self.points(), axis=-3) / self.segments.transform.shape[0]
         )
+
+
+    # Misc. Constructors
+    # Todo: Move out of this class?
+    @staticmethod
+    def from_array(offsets: V2_t, closed: bool = False) -> Trail:
+        trail = seg(offsets)
+        if closed:
+            trail = trail.close()
+        return trail
 
     # Misc. Constructors
     # Todo: Move out of this class?
     @staticmethod
     def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
-        trail = Trail.concat([arc.seg(off) for off in offsets])
-        if closed:
-            trail = trail.close()
-        return trail
+        return Trail.from_array(tx.np.stack(offsets), closed)
 
-    @staticmethod
-    def hrule(length: Floating) -> Trail:
-        return arc.seg(length * tx.unit_x)
 
-    @staticmethod
-    def vrule(length: Floating) -> Trail:
-        return arc.seg(length * tx.unit_y)
+def hrule(length: Floating) -> Trail:
+    return seg(length * tx.unit_x)
 
-    @staticmethod
-    def square() -> Trail:
-        t = arc.seg(tx.unit_x) + arc.seg(tx.unit_y)
-        return (t + t.rotate_by(0.5)).close()
 
-    @staticmethod
-    def rounded_rectangle(
-        width: Floating, height: Floating, radius: Floating
-    ) -> Trail:
-        r = radius
-        edge1 = math.sqrt(2 * r * r) / 2
-        edge3 = math.sqrt(r * r - edge1 * edge1)
-        corner = arc.arc_seg(tx.V2(r, r), -(r - edge3))
-        b = [height - r, width - r, height - r, width - r]
-        trail = Trail.concat(
-            (arc.seg(b[i] * tx.unit_y) + corner).rotate_by(i / 4)
-            for i in range(4)
-        ) + arc.seg(0.01 * tx.unit_y)
-        return trail.close()
+def vrule(length: Floating) -> Trail:
+    return seg(length * tx.unit_y)
 
-    @staticmethod
-    def circle(clockwise: bool = True) -> Trail:
-        sides = 4
-        dangle = -90
-        rotate_by = 1
-        if not clockwise:
-            dangle = 90
-            rotate_by *= -1
-        return Trail.concat(
-            [
-                arc.arc_seg_angle(0, dangle).rotate_by(rotate_by * i / sides)
-                for i in range(sides)
-            ]
-        ).close()
 
-    @staticmethod
-    def regular_polygon(sides: int, side_length: Floating) -> Trail:
-        edge = Trail.hrule(1)
-        return Trail.concat(
-            edge.rotate_by(i / sides) for i in range(sides)
-        ).close()
+def square() -> Trail:
+    t = seg(tx.unit_x) + seg(tx.unit_y)
+    return (t + t.rotate_by(0.5)).close()
+
+
+def rounded_rectangle(
+    width: Floating, height: Floating, radius: Floating
+) -> Trail:
+    r = radius
+    edge1 = math.sqrt(2 * r * r) / 2
+    edge3 = math.sqrt(r * r - edge1 * edge1)
+    corner = arc_seg(tx.V2(r, r), -(r - edge3))
+    b = [height - r, width - r, height - r, width - r]
+    trail = Trail.concat(
+        (seg(b[i] * tx.unit_y) + corner).rotate_by(i / 4)
+        for i in range(4)
+    ) + seg(0.01 * tx.unit_y)
+    return trail.close()
+
+
+def circle(clockwise: bool = True) -> Trail:
+    sides = 4
+    dangle = -90
+    rotate_by = 1
+    if not clockwise:
+        dangle = 90
+        rotate_by *= -1
+    return Trail.concat(
+        [
+            arc_seg_angle(0, dangle).rotate_by(rotate_by * i / sides)
+            for i in range(sides)
+        ]
+    ).close()
+
+
+def regular_polygon(sides: int, side_length: Floating) -> Trail:
+    edge = hrule(1)
+    return Trail.concat(
+        edge.rotate_by(i / sides) for i in range(sides)
+    ).close()
+
+def seg(offset: V2_t) -> Trail:
+    return arc_seg(offset, 1e-3)
+
+
+def arc_seg(q: V2_t, height: tx.Floating) -> Trail:
+    return arc_between_trail(q, tx.ftos(height))
+
+
+def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
+    arc_p = tx.to_point(tx.polar(angle))
+    return Segment.make(
+        tx.translation(-arc_p), tx.np.asarray([angle, dangle])
+    ).to_trail()
+
+
+def arc_between_trail(q: P2_t, height: tx.Scalars) -> Trail:
+    return arc.arc_between(tx.P2(0, 0), q, height).to_trail()

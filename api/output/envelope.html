@@ -14674,6 +14674,25 @@ body[data-format='mobile'] .jp-OutputArea-child .jp-OutputArea-output {
 <div class="jp-OutputArea-child">
 
     
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False,  True,  True,  True, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
+
+<div class="jp-OutputArea-child">
+
+    
     <div class="jp-OutputPrompt jp-OutputArea-prompt">Out[3]:</div>
 
 
@@ -14808,34 +14827,76 @@ File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-pa
 <span class="ansi-green-intense-fg ansi-bold">    348</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">return</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>
 <span class="ansi-green-intense-fg ansi-bold">    349</span> <span class="ansi-bold" style="color: rgb(0,135,0)">else</span>:
 
-File <span class="ansi-green-fg">~/Projects/chalk/chalk/core.py:215</span>, in <span class="ansi-cyan-fg">BaseDiagram._repr_html_</span><span class="ansi-blue-fg">(self)</span>
-<span class="ansi-green-intense-fg ansi-bold">    213</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">_repr_html_</span>(<span style="color: rgb(0,135,0)">self</span>) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> <span style="color: rgb(0,135,0)">str</span> <span style="color: rgb(98,98,98)">|</span> <span style="color: rgb(0,135,0)">tuple</span>[<span style="color: rgb(0,135,0)">str</span>, Any]:
-<span class="ansi-green-intense-fg ansi-bold">    214</span> <span style="color: rgb(188,188,188)">    </span><span style="color: rgb(175,0,0)">&#34;&#34;&#34;Returns a rich HTML representation of an object.&#34;&#34;&#34;</span>
-<span class="ansi-green-fg">--&gt; 215</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">return</span> <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">_repr_svg_</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">)</span>
+    <span class="ansi-red-fg">[... skipping hidden 1 frame]</span>
 
-File <span class="ansi-green-fg">~/Projects/chalk/chalk/core.py:207</span>, in <span class="ansi-cyan-fg">BaseDiagram._repr_svg_</span><span class="ansi-blue-fg">(self)</span>
-<span class="ansi-green-intense-fg ansi-bold">    205</span> <span class="ansi-bold" style="color: rgb(0,135,0)">global</span> SVG_HEIGHT
-<span class="ansi-green-intense-fg ansi-bold">    206</span> f <span style="color: rgb(98,98,98)">=</span> tempfile<span style="color: rgb(98,98,98)">.</span>NamedTemporaryFile(delete<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">False</span>)
-<span class="ansi-green-fg">--&gt; 207</span> <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">render_svg</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">f</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">name</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_HEIGHT</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">draw_height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_DRAW_HEIGHT</span><span class="ansi-yellow-bg">)</span>
-<span class="ansi-green-intense-fg ansi-bold">    208</span> f<span style="color: rgb(98,98,98)">.</span>close()
-<span class="ansi-green-intense-fg ansi-bold">    209</span> svg <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">open</span>(f<span style="color: rgb(98,98,98)">.</span>name)<span style="color: rgb(98,98,98)">.</span>read()
+File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-packages/jaxtyping/_decorator.py:449</span>, in <span class="ansi-cyan-fg">jaxtyped.&lt;locals&gt;.wrapped_fn_impl</span><span class="ansi-blue-fg">(args, kwargs, bound, memos)</span>
+<span class="ansi-green-intense-fg ansi-bold">    446</span>             <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> TypeCheckError(msg) <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">e</span>
+<span class="ansi-green-intense-fg ansi-bold">    448</span> <span style="color: rgb(95,135,135)"># Actually call the function.</span>
+<span class="ansi-green-fg">--&gt; 449</span> out <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">fn</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    451</span> <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> full_signature<span style="color: rgb(98,98,98)">.</span>return_annotation <span class="ansi-bold" style="color: rgb(175,0,255)">is</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> inspect<span style="color: rgb(98,98,98)">.</span>Signature<span style="color: rgb(98,98,98)">.</span>empty:
+<span class="ansi-green-intense-fg ansi-bold">    452</span>     <span style="color: rgb(95,135,135)"># Now type-check the return value. We need to include the</span>
+<span class="ansi-green-intense-fg ansi-bold">    453</span>     <span style="color: rgb(95,135,135)"># parameters in the type-checking here in case there are any</span>
+<span class="ansi-green-fg">   (...)</span>
+<span class="ansi-green-intense-fg ansi-bold">    464</span>     <span style="color: rgb(95,135,135)"># checking of the parameters. Unfortunately there doesn&#39;t seem</span>
+<span class="ansi-green-intense-fg ansi-bold">    465</span>     <span style="color: rgb(95,135,135)"># to be a way around that, so c&#39;est la vie.</span>
+<span class="ansi-green-intense-fg ansi-bold">    466</span>     kwargs[output_name] <span style="color: rgb(98,98,98)">=</span> out
 
-File <span class="ansi-green-fg">~/Projects/chalk/chalk/backend/svg.py:98</span>, in <span class="ansi-cyan-fg">render</span><span class="ansi-blue-fg">(self, path, height, width, draw_height)</span>
-<span class="ansi-green-intense-fg ansi-bold">     78</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">render</span>(
-<span class="ansi-green-intense-fg ansi-bold">     79</span>     <span style="color: rgb(0,135,0)">self</span>: Diagram,
-<span class="ansi-green-intense-fg ansi-bold">     80</span>     path: <span style="color: rgb(0,135,0)">str</span>,
+File <span class="ansi-green-fg">~/Projects/chalk/chalk/core.py:223</span>, in <span class="ansi-cyan-fg">BaseDiagram._repr_html_</span><span class="ansi-blue-fg">(self)</span>
+<span class="ansi-green-intense-fg ansi-bold">    221</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">_repr_html_</span>(<span style="color: rgb(0,135,0)">self</span>) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> <span style="color: rgb(0,135,0)">str</span> <span style="color: rgb(98,98,98)">|</span> <span style="color: rgb(0,135,0)">tuple</span>[<span style="color: rgb(0,135,0)">str</span>, Any]:
+<span class="ansi-green-intense-fg ansi-bold">    222</span> <span style="color: rgb(188,188,188)">    </span><span style="color: rgb(175,0,0)">&#34;&#34;&#34;Returns a rich HTML representation of an object.&#34;&#34;&#34;</span>
+<span class="ansi-green-fg">--&gt; 223</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">return</span> <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">_repr_svg_</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">)</span>
+
+    <span class="ansi-red-fg">[... skipping hidden 1 frame]</span>
+
+File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-packages/jaxtyping/_decorator.py:449</span>, in <span class="ansi-cyan-fg">jaxtyped.&lt;locals&gt;.wrapped_fn_impl</span><span class="ansi-blue-fg">(args, kwargs, bound, memos)</span>
+<span class="ansi-green-intense-fg ansi-bold">    446</span>             <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> TypeCheckError(msg) <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">e</span>
+<span class="ansi-green-intense-fg ansi-bold">    448</span> <span style="color: rgb(95,135,135)"># Actually call the function.</span>
+<span class="ansi-green-fg">--&gt; 449</span> out <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">fn</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    451</span> <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> full_signature<span style="color: rgb(98,98,98)">.</span>return_annotation <span class="ansi-bold" style="color: rgb(175,0,255)">is</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> inspect<span style="color: rgb(98,98,98)">.</span>Signature<span style="color: rgb(98,98,98)">.</span>empty:
+<span class="ansi-green-intense-fg ansi-bold">    452</span>     <span style="color: rgb(95,135,135)"># Now type-check the return value. We need to include the</span>
+<span class="ansi-green-intense-fg ansi-bold">    453</span>     <span style="color: rgb(95,135,135)"># parameters in the type-checking here in case there are any</span>
 <span class="ansi-green-fg">   (...)</span>
-<span class="ansi-green-intense-fg ansi-bold">     83</span>     draw_height: Optional[<span style="color: rgb(0,135,0)">int</span>] <span style="color: rgb(98,98,98)">=</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>,
-<span class="ansi-green-intense-fg ansi-bold">     84</span> ) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>:
-<span class="ansi-green-intense-fg ansi-bold">     85</span> <span style="color: rgb(188,188,188)">    </span><span style="color: rgb(175,0,0)">&#34;&#34;&#34;Render the diagram to an SVG file.</span>
-<span class="ansi-green-intense-fg ansi-bold">     86</span> 
-<span class="ansi-green-intense-fg ansi-bold">     87</span> <span style="color: rgb(175,0,0)">    Args:</span>
+<span class="ansi-green-intense-fg ansi-bold">    464</span>     <span style="color: rgb(95,135,135)"># checking of the parameters. Unfortunately there doesn&#39;t seem</span>
+<span class="ansi-green-intense-fg ansi-bold">    465</span>     <span style="color: rgb(95,135,135)"># to be a way around that, so c&#39;est la vie.</span>
+<span class="ansi-green-intense-fg ansi-bold">    466</span>     kwargs[output_name] <span style="color: rgb(98,98,98)">=</span> out
+
+File <span class="ansi-green-fg">~/Projects/chalk/chalk/core.py:215</span>, in <span class="ansi-cyan-fg">BaseDiagram._repr_svg_</span><span class="ansi-blue-fg">(self)</span>
+<span class="ansi-green-intense-fg ansi-bold">    213</span> <span class="ansi-bold" style="color: rgb(0,135,0)">global</span> SVG_HEIGHT
+<span class="ansi-green-intense-fg ansi-bold">    214</span> f <span style="color: rgb(98,98,98)">=</span> tempfile<span style="color: rgb(98,98,98)">.</span>NamedTemporaryFile(delete<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">False</span>)
+<span class="ansi-green-fg">--&gt; 215</span> <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">render_svg</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">f</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">name</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_HEIGHT</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">draw_height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_DRAW_HEIGHT</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    216</span> f<span style="color: rgb(98,98,98)">.</span>close()
+<span class="ansi-green-intense-fg ansi-bold">    217</span> svg <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">open</span>(f<span style="color: rgb(98,98,98)">.</span>name)<span style="color: rgb(98,98,98)">.</span>read()
+
+    <span class="ansi-red-fg">[... skipping hidden 1 frame]</span>
+
+File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-packages/jaxtyping/_decorator.py:449</span>, in <span class="ansi-cyan-fg">jaxtyped.&lt;locals&gt;.wrapped_fn_impl</span><span class="ansi-blue-fg">(args, kwargs, bound, memos)</span>
+<span class="ansi-green-intense-fg ansi-bold">    446</span>             <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> TypeCheckError(msg) <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">e</span>
+<span class="ansi-green-intense-fg ansi-bold">    448</span> <span style="color: rgb(95,135,135)"># Actually call the function.</span>
+<span class="ansi-green-fg">--&gt; 449</span> out <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">fn</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    451</span> <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> full_signature<span style="color: rgb(98,98,98)">.</span>return_annotation <span class="ansi-bold" style="color: rgb(175,0,255)">is</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> inspect<span style="color: rgb(98,98,98)">.</span>Signature<span style="color: rgb(98,98,98)">.</span>empty:
+<span class="ansi-green-intense-fg ansi-bold">    452</span>     <span style="color: rgb(95,135,135)"># Now type-check the return value. We need to include the</span>
+<span class="ansi-green-intense-fg ansi-bold">    453</span>     <span style="color: rgb(95,135,135)"># parameters in the type-checking here in case there are any</span>
 <span class="ansi-green-fg">   (...)</span>
-<span class="ansi-green-intense-fg ansi-bold">     96</span> 
-<span class="ansi-green-intense-fg ansi-bold">     97</span> <span style="color: rgb(175,0,0)">    &#34;&#34;&#34;</span>
-<span class="ansi-green-fg">---&gt; 98</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">assert</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>size() <span style="color: rgb(98,98,98)">==</span> (), <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">Must be a size () diagram</span><span style="color: rgb(175,0,0)">&#34;</span>
-<span class="ansi-green-intense-fg ansi-bold">     99</span>     patches, h, w <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>layout(height, width)
-<span class="ansi-green-intense-fg ansi-bold">    100</span>     patches_to_file(patches, path, h, w, draw_height)
+<span class="ansi-green-intense-fg ansi-bold">    464</span>     <span style="color: rgb(95,135,135)"># checking of the parameters. Unfortunately there doesn&#39;t seem</span>
+<span class="ansi-green-intense-fg ansi-bold">    465</span>     <span style="color: rgb(95,135,135)"># to be a way around that, so c&#39;est la vie.</span>
+<span class="ansi-green-intense-fg ansi-bold">    466</span>     kwargs[output_name] <span style="color: rgb(98,98,98)">=</span> out
+
+File <span class="ansi-green-fg">~/Projects/chalk/chalk/backend/svg.py:100</span>, in <span class="ansi-cyan-fg">render</span><span class="ansi-blue-fg">(self, path, height, width, draw_height)</span>
+<span class="ansi-green-intense-fg ansi-bold">     80</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">render</span>(
+<span class="ansi-green-intense-fg ansi-bold">     81</span>     <span style="color: rgb(0,135,0)">self</span>: Diagram,
+<span class="ansi-green-intense-fg ansi-bold">     82</span>     path: <span style="color: rgb(0,135,0)">str</span>,
+<span class="ansi-green-fg">   (...)</span>
+<span class="ansi-green-intense-fg ansi-bold">     85</span>     draw_height: Optional[<span style="color: rgb(0,135,0)">int</span>] <span style="color: rgb(98,98,98)">=</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>,
+<span class="ansi-green-intense-fg ansi-bold">     86</span> ) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>:
+<span class="ansi-green-intense-fg ansi-bold">     87</span> <span style="color: rgb(188,188,188)">    </span><span style="color: rgb(175,0,0)">&#34;&#34;&#34;Render the diagram to an SVG file.</span>
+<span class="ansi-green-intense-fg ansi-bold">     88</span> 
+<span class="ansi-green-intense-fg ansi-bold">     89</span> <span style="color: rgb(175,0,0)">    Args:</span>
+<span class="ansi-green-fg">   (...)</span>
+<span class="ansi-green-intense-fg ansi-bold">     98</span> 
+<span class="ansi-green-intense-fg ansi-bold">     99</span> <span style="color: rgb(175,0,0)">    &#34;&#34;&#34;</span>
+<span class="ansi-green-fg">--&gt; 100</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">assert</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>size() <span style="color: rgb(98,98,98)">==</span> (), <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">Must be a size () diagram</span><span style="color: rgb(175,0,0)">&#34;</span>
+<span class="ansi-green-intense-fg ansi-bold">    101</span>     patches, h, w <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>layout(height, width)
+<span class="ansi-green-intense-fg ansi-bold">    102</span>     patches_to_file(patches, path, h, w, draw_height)
 
 <span class="ansi-red-fg">AssertionError</span>: Must be a size () diagram</pre>
 </div>
@@ -14858,29 +14919,57 @@ File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-pa
 <span class="ansi-green-intense-fg ansi-bold">    348</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">return</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>
 <span class="ansi-green-intense-fg ansi-bold">    349</span> <span class="ansi-bold" style="color: rgb(0,135,0)">else</span>:
 
-File <span class="ansi-green-fg">~/Projects/chalk/chalk/core.py:207</span>, in <span class="ansi-cyan-fg">BaseDiagram._repr_svg_</span><span class="ansi-blue-fg">(self)</span>
-<span class="ansi-green-intense-fg ansi-bold">    205</span> <span class="ansi-bold" style="color: rgb(0,135,0)">global</span> SVG_HEIGHT
-<span class="ansi-green-intense-fg ansi-bold">    206</span> f <span style="color: rgb(98,98,98)">=</span> tempfile<span style="color: rgb(98,98,98)">.</span>NamedTemporaryFile(delete<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">False</span>)
-<span class="ansi-green-fg">--&gt; 207</span> <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">render_svg</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">f</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">name</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_HEIGHT</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">draw_height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_DRAW_HEIGHT</span><span class="ansi-yellow-bg">)</span>
-<span class="ansi-green-intense-fg ansi-bold">    208</span> f<span style="color: rgb(98,98,98)">.</span>close()
-<span class="ansi-green-intense-fg ansi-bold">    209</span> svg <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">open</span>(f<span style="color: rgb(98,98,98)">.</span>name)<span style="color: rgb(98,98,98)">.</span>read()
+    <span class="ansi-red-fg">[... skipping hidden 1 frame]</span>
 
-File <span class="ansi-green-fg">~/Projects/chalk/chalk/backend/svg.py:98</span>, in <span class="ansi-cyan-fg">render</span><span class="ansi-blue-fg">(self, path, height, width, draw_height)</span>
-<span class="ansi-green-intense-fg ansi-bold">     78</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">render</span>(
-<span class="ansi-green-intense-fg ansi-bold">     79</span>     <span style="color: rgb(0,135,0)">self</span>: Diagram,
-<span class="ansi-green-intense-fg ansi-bold">     80</span>     path: <span style="color: rgb(0,135,0)">str</span>,
+File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-packages/jaxtyping/_decorator.py:449</span>, in <span class="ansi-cyan-fg">jaxtyped.&lt;locals&gt;.wrapped_fn_impl</span><span class="ansi-blue-fg">(args, kwargs, bound, memos)</span>
+<span class="ansi-green-intense-fg ansi-bold">    446</span>             <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> TypeCheckError(msg) <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">e</span>
+<span class="ansi-green-intense-fg ansi-bold">    448</span> <span style="color: rgb(95,135,135)"># Actually call the function.</span>
+<span class="ansi-green-fg">--&gt; 449</span> out <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">fn</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    451</span> <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> full_signature<span style="color: rgb(98,98,98)">.</span>return_annotation <span class="ansi-bold" style="color: rgb(175,0,255)">is</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> inspect<span style="color: rgb(98,98,98)">.</span>Signature<span style="color: rgb(98,98,98)">.</span>empty:
+<span class="ansi-green-intense-fg ansi-bold">    452</span>     <span style="color: rgb(95,135,135)"># Now type-check the return value. We need to include the</span>
+<span class="ansi-green-intense-fg ansi-bold">    453</span>     <span style="color: rgb(95,135,135)"># parameters in the type-checking here in case there are any</span>
 <span class="ansi-green-fg">   (...)</span>
-<span class="ansi-green-intense-fg ansi-bold">     83</span>     draw_height: Optional[<span style="color: rgb(0,135,0)">int</span>] <span style="color: rgb(98,98,98)">=</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>,
-<span class="ansi-green-intense-fg ansi-bold">     84</span> ) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>:
-<span class="ansi-green-intense-fg ansi-bold">     85</span> <span style="color: rgb(188,188,188)">    </span><span style="color: rgb(175,0,0)">&#34;&#34;&#34;Render the diagram to an SVG file.</span>
-<span class="ansi-green-intense-fg ansi-bold">     86</span> 
-<span class="ansi-green-intense-fg ansi-bold">     87</span> <span style="color: rgb(175,0,0)">    Args:</span>
+<span class="ansi-green-intense-fg ansi-bold">    464</span>     <span style="color: rgb(95,135,135)"># checking of the parameters. Unfortunately there doesn&#39;t seem</span>
+<span class="ansi-green-intense-fg ansi-bold">    465</span>     <span style="color: rgb(95,135,135)"># to be a way around that, so c&#39;est la vie.</span>
+<span class="ansi-green-intense-fg ansi-bold">    466</span>     kwargs[output_name] <span style="color: rgb(98,98,98)">=</span> out
+
+File <span class="ansi-green-fg">~/Projects/chalk/chalk/core.py:215</span>, in <span class="ansi-cyan-fg">BaseDiagram._repr_svg_</span><span class="ansi-blue-fg">(self)</span>
+<span class="ansi-green-intense-fg ansi-bold">    213</span> <span class="ansi-bold" style="color: rgb(0,135,0)">global</span> SVG_HEIGHT
+<span class="ansi-green-intense-fg ansi-bold">    214</span> f <span style="color: rgb(98,98,98)">=</span> tempfile<span style="color: rgb(98,98,98)">.</span>NamedTemporaryFile(delete<span style="color: rgb(98,98,98)">=</span><span class="ansi-bold" style="color: rgb(0,135,0)">False</span>)
+<span class="ansi-green-fg">--&gt; 215</span> <span class="ansi-yellow-bg" style="color: rgb(0,135,0)">self</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">render_svg</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg">f</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">.</span><span class="ansi-yellow-bg">name</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_HEIGHT</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg">draw_height</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">=</span><span class="ansi-yellow-bg">SVG_DRAW_HEIGHT</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    216</span> f<span style="color: rgb(98,98,98)">.</span>close()
+<span class="ansi-green-intense-fg ansi-bold">    217</span> svg <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">open</span>(f<span style="color: rgb(98,98,98)">.</span>name)<span style="color: rgb(98,98,98)">.</span>read()
+
+    <span class="ansi-red-fg">[... skipping hidden 1 frame]</span>
+
+File <span class="ansi-green-fg">~/Projects/chalk/.venv12/lib/python3.12/site-packages/jaxtyping/_decorator.py:449</span>, in <span class="ansi-cyan-fg">jaxtyped.&lt;locals&gt;.wrapped_fn_impl</span><span class="ansi-blue-fg">(args, kwargs, bound, memos)</span>
+<span class="ansi-green-intense-fg ansi-bold">    446</span>             <span class="ansi-bold" style="color: rgb(0,135,0)">raise</span> TypeCheckError(msg) <span class="ansi-bold" style="color: rgb(0,135,0)">from</span> <span class="ansi-bold" style="color: rgb(0,0,255)">e</span>
+<span class="ansi-green-intense-fg ansi-bold">    448</span> <span style="color: rgb(95,135,135)"># Actually call the function.</span>
+<span class="ansi-green-fg">--&gt; 449</span> out <span style="color: rgb(98,98,98)">=</span> <span class="ansi-yellow-bg">fn</span><span class="ansi-yellow-bg">(</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">args</span><span class="ansi-yellow-bg">,</span><span class="ansi-yellow-bg"> </span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg" style="color: rgb(98,98,98)">*</span><span class="ansi-yellow-bg">kwargs</span><span class="ansi-yellow-bg">)</span>
+<span class="ansi-green-intense-fg ansi-bold">    451</span> <span class="ansi-bold" style="color: rgb(0,135,0)">if</span> full_signature<span style="color: rgb(98,98,98)">.</span>return_annotation <span class="ansi-bold" style="color: rgb(175,0,255)">is</span> <span class="ansi-bold" style="color: rgb(175,0,255)">not</span> inspect<span style="color: rgb(98,98,98)">.</span>Signature<span style="color: rgb(98,98,98)">.</span>empty:
+<span class="ansi-green-intense-fg ansi-bold">    452</span>     <span style="color: rgb(95,135,135)"># Now type-check the return value. We need to include the</span>
+<span class="ansi-green-intense-fg ansi-bold">    453</span>     <span style="color: rgb(95,135,135)"># parameters in the type-checking here in case there are any</span>
 <span class="ansi-green-fg">   (...)</span>
-<span class="ansi-green-intense-fg ansi-bold">     96</span> 
-<span class="ansi-green-intense-fg ansi-bold">     97</span> <span style="color: rgb(175,0,0)">    &#34;&#34;&#34;</span>
-<span class="ansi-green-fg">---&gt; 98</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">assert</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>size() <span style="color: rgb(98,98,98)">==</span> (), <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">Must be a size () diagram</span><span style="color: rgb(175,0,0)">&#34;</span>
-<span class="ansi-green-intense-fg ansi-bold">     99</span>     patches, h, w <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>layout(height, width)
-<span class="ansi-green-intense-fg ansi-bold">    100</span>     patches_to_file(patches, path, h, w, draw_height)
+<span class="ansi-green-intense-fg ansi-bold">    464</span>     <span style="color: rgb(95,135,135)"># checking of the parameters. Unfortunately there doesn&#39;t seem</span>
+<span class="ansi-green-intense-fg ansi-bold">    465</span>     <span style="color: rgb(95,135,135)"># to be a way around that, so c&#39;est la vie.</span>
+<span class="ansi-green-intense-fg ansi-bold">    466</span>     kwargs[output_name] <span style="color: rgb(98,98,98)">=</span> out
+
+File <span class="ansi-green-fg">~/Projects/chalk/chalk/backend/svg.py:100</span>, in <span class="ansi-cyan-fg">render</span><span class="ansi-blue-fg">(self, path, height, width, draw_height)</span>
+<span class="ansi-green-intense-fg ansi-bold">     80</span> <span class="ansi-bold" style="color: rgb(0,135,0)">def</span> <span style="color: rgb(0,0,255)">render</span>(
+<span class="ansi-green-intense-fg ansi-bold">     81</span>     <span style="color: rgb(0,135,0)">self</span>: Diagram,
+<span class="ansi-green-intense-fg ansi-bold">     82</span>     path: <span style="color: rgb(0,135,0)">str</span>,
+<span class="ansi-green-fg">   (...)</span>
+<span class="ansi-green-intense-fg ansi-bold">     85</span>     draw_height: Optional[<span style="color: rgb(0,135,0)">int</span>] <span style="color: rgb(98,98,98)">=</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>,
+<span class="ansi-green-intense-fg ansi-bold">     86</span> ) <span style="color: rgb(98,98,98)">-</span><span style="color: rgb(98,98,98)">&gt;</span> <span class="ansi-bold" style="color: rgb(0,135,0)">None</span>:
+<span class="ansi-green-intense-fg ansi-bold">     87</span> <span style="color: rgb(188,188,188)">    </span><span style="color: rgb(175,0,0)">&#34;&#34;&#34;Render the diagram to an SVG file.</span>
+<span class="ansi-green-intense-fg ansi-bold">     88</span> 
+<span class="ansi-green-intense-fg ansi-bold">     89</span> <span style="color: rgb(175,0,0)">    Args:</span>
+<span class="ansi-green-fg">   (...)</span>
+<span class="ansi-green-intense-fg ansi-bold">     98</span> 
+<span class="ansi-green-intense-fg ansi-bold">     99</span> <span style="color: rgb(175,0,0)">    &#34;&#34;&#34;</span>
+<span class="ansi-green-fg">--&gt; 100</span>     <span class="ansi-bold" style="color: rgb(0,135,0)">assert</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>size() <span style="color: rgb(98,98,98)">==</span> (), <span style="color: rgb(175,0,0)">&#34;</span><span style="color: rgb(175,0,0)">Must be a size () diagram</span><span style="color: rgb(175,0,0)">&#34;</span>
+<span class="ansi-green-intense-fg ansi-bold">    101</span>     patches, h, w <span style="color: rgb(98,98,98)">=</span> <span style="color: rgb(0,135,0)">self</span><span style="color: rgb(98,98,98)">.</span>layout(height, width)
+<span class="ansi-green-intense-fg ansi-bold">    102</span>     patches_to_file(patches, path, h, w, draw_height)
 
 <span class="ansi-red-fg">AssertionError</span>: Must be a size () diagram</pre>
 </div>
@@ -15038,6 +15127,21 @@ File <span class="ansi-green-fg">~/Projects/chalk/chalk/backend/svg.py:98</span>
 
 
 <div class="jp-OutputArea jp-Cell-outputArea">
+
+<div class="jp-OutputArea-child">
+
+    
+    <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+
+
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain">
+<pre>() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+() StyleHolder(base=array([0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]), mask=array([False, False, False, False, False, False, False, False, False,
+       False, False, False]))
+</pre>
+</div>
+</div>
 
 <div class="jp-OutputArea-child">
 
