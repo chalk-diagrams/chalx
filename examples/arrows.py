@@ -11,14 +11,13 @@ orange = Color("orange")
 octagon = regular_polygon(9, 1.5).rotate_by(1 / 16).line_color(grey).line_width(0.5)
 dias = octagon.named("first").show_origin() | hstrut(3) | octagon.named("second").show_origin()
 ex1 = octagon
-print(dias.shape)
 
 ex1 = dias.connect(
      "first",
     "second",
     ArrowOpts(trail=Trail.from_offsets([unit_x, 0.25 * unit_y, unit_x, 0.25 * unit_y]))
 )
-ex1
+ex1._repr_svg()
 
 output_path = "examples/output/t1.svg"
 ex1.render_svg(output_path)

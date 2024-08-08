@@ -16,10 +16,6 @@
 # + tags=["hide_inp"]
 from chalk import *
 import numpy as np
-def help(f):
-    import pydoc
-    from IPython.display import HTML
-    return HTML(pydoc.HTMLDoc().docroutine(f))
 
 
 # -
@@ -77,10 +73,11 @@ r[4]
 # couple of them.
 
 
-grid = square(np.ones((5, 5))).named(Name("grid")).hcat().vcat()
+grid = square(np.ones((5, 5))).named("grid").hcat().vcat()
 grid
 
 f = np.array([[1, 1], [2, 3]])
-sub = grid.get_subdiagram(Name("grid"))
+sub = grid.get_subdiagram("grid")
+assert sub is not None
 env = sub.get_envelope()
 grid + circle(0.5).fill_color("red").translate_by(env.center[f[0, :], f[1, :]]).concat()

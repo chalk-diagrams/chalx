@@ -48,7 +48,8 @@ class Subdiagram(Monoid):
     # style: Style
 
     def get_location(self) -> P2_t:
-        return self.transform @ tx.origin
+        r: P2_t = self.transform @ tx.origin
+        return r
 
     def get_envelope(self) -> Envelope:
         return self.diagram.get_envelope().apply_transform(self.transform)
@@ -99,7 +100,7 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
             return diagram.diagram.accept(self, t)
 
 
-def get_subdiagram(self: Diagram, name: Name) -> Optional[Subdiagram]:
+def get_subdiagram(self: Diagram, name: Any) -> Optional[Subdiagram]:
     if not isinstance(name, Name):
         name = Name(name)
     return self.accept(GetSubdiagram(name), tx.ident).data
@@ -107,7 +108,7 @@ def get_subdiagram(self: Diagram, name: Name) -> Optional[Subdiagram]:
 
 def with_names(
     self: Diagram,
-    names: List[Name],
+    names: List[Any],
     f: Callable[[List[Subdiagram], Diagram], Diagram],
 ) -> Diagram:
     # NOTE Instead of performing a pass of the AST for each `name` in `names`,

@@ -93,7 +93,7 @@ def batch_cat(
     def call_scan(diagram: Diagram) -> Diagram:
         diagram.get_envelope()
 
-        @tx.vmap
+        @tx.vmap  # type: ignore
         def offset(diagram: Diagram) -> Tuple[Scalars, Scalars]:
             env = diagram.get_envelope()
             right = env(v)
@@ -105,11 +105,11 @@ def batch_cat(
         off = tx.index_update(off, 0, 0)
         off = tx.np.cumsum(off, axis=0)
 
-        @tx.vmap
-        def translate(x) -> Diagram:
+        @tx.vmap  # type: ignore
+        def translate(x) -> Diagram: # Type: ignore
             off, diagram = x
             t = v * off[..., None, None]
-            dia = diagram.translate_by(t)
+            dia : Diagram = diagram.translate_by(t)
             return dia
 
         return translate((off, diagram))  # type: ignore
@@ -166,7 +166,7 @@ def empty() -> EmptyDiagram:
     "Create an empty diagram"
     from chalk.core import BaseDiagram
 
-    return BaseDiagram.empty()
+    return BaseDiagram.empty() # type: ignore
 
 
 # CompaseAligned.

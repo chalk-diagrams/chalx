@@ -36,7 +36,8 @@ class Located(Transformable):
         return self.trail.segments.apply_transform(tx.translation(pts))
 
     def points(self) -> P2_t:
-        return self.trail.points() + self.location[..., None, :, :]
+        r : P2_t = self.trail.points() + self.location[..., None, :, :]
+        return r
 
     def _promote(self) -> Located:
         return Located(self.trail._promote(), self.location)
@@ -126,11 +127,10 @@ class Trail(Monoid, Transformable, TrailLike):
             trail = trail.close()
         return trail
 
-    # Misc. Constructors
-    # Todo: Move out of this class?
-    @staticmethod
-    def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
-        return Trail.from_array(tx.np.stack(offsets), closed)
+# Misc. Constructors
+# Todo: Move out of this class?
+def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
+    return Trail.from_array(tx.np.stack(offsets), closed)
 
 
 def hrule(length: Floating) -> Trail:

@@ -40,8 +40,8 @@ class EnvDistance(Monoid):
         return EnvDistance(tx.np.max(self.d, axis=axis))
 
 
-@tx.jit
-@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")
+@tx.jit # type: ignore
+@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()") # type: ignore
 def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
     rt = tx.remove_translation(t)
     inv_t = tx.inv(rt)
@@ -72,12 +72,12 @@ class Envelope(Transformable, Monoid, Batchable):
     segment: BatchSegment
 
     def __call__(self, direction: V2_t) -> Scalars:
-        def run(d):
+        def run(d): # type: ignore
             if self.segment.angles.shape[0] == 0:
-                return 0
+                return tx.np.array(0.0)
 
             @partial(tx.np.vectorize, signature="(a,3,3),(a,2)->()")
-            def env(t, ang):
+            def env(t, ang): # type: ignore
                 v = Envelope.general_transform(
                     t, lambda x: arc_envelope(t, ang, x), d
                 ).max()
@@ -126,7 +126,8 @@ class Envelope(Transformable, Monoid, Batchable):
     @staticmethod
     def from_bounding_box(box: BoundingBox, d: V2_t) -> Scalars:
         v = box.rotate_rad(tx.rad(d)).br[:, 0, 0]
-        return v / tx.length(d)
+        v = v / tx.length(d)
+        return v
 
     def to_bounding_box(self: Envelope) -> BoundingBox:
         d = [
@@ -153,7 +154,7 @@ class Envelope(Transformable, Monoid, Batchable):
         t: Affine, fn: Callable[[V2_t], Scalars], d: V2_t
     ) -> tx.ScalarsC:
         pre = pre_transform(t, d)
-        return post_transform(pre[1], pre[2], pre[3], fn(pre[0]))
+        return post_transform(pre[1], pre[2], pre[3], fn(pre[0])) # type: ignore
 
     def apply_transform(self, t: Affine) -> Envelope:
         return Envelope(self.segment.apply_transform(t[..., None, :, :]))

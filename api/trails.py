@@ -1,10 +1,6 @@
 # + tags=["hide_inp"]
 import math
 from chalk import *
-def help(f):
-    import pydoc
-    from IPython.display import HTML
-    return HTML(pydoc.HTMLDoc().docroutine(f))
 # -
 
 # Chalk also includes a ``Trail`` primitive which allows for creating new ``Diagram``s and more complex shapes.
@@ -22,7 +18,7 @@ trail = Trail.from_offsets([V2(1, 0), V2(1, 1), V2(0, 1)])
 # In order to render, `Trail`s have to be turned into ``Diagram``s, which can be achieved using the `stroke` method.
 
 # + tags=["hide_inp"]
-help(Trail.stroke)
+help(Trail.Trail.stroke)
 # -
 
 trail.stroke()
@@ -32,9 +28,6 @@ trail.stroke()
 # `Trail`s can be transformed using the usual geometric transformations, which are also applied to the ``Diagram`` object.
 # For example, ``Trail``s can be rotated:
 
-# + tags=["hide_inp"]
-help(Trail.rotate_by)
-# -
 
 trail2 = trail.rotate_by(0.2)
 trail2.stroke()
@@ -46,8 +39,5 @@ trail2.stroke()
 # ``Trail``s form a monoid with addition given by list concatenation and identity given by the empty list.
 # Intuitively, adding two ``Trails`` appends the two sequences of offsets.
 
-# + tags=["hide_inp"]
-help(Trail.__add__)
-# -
 
 (trail + trail2).stroke()

@@ -9,7 +9,7 @@ d
 
 
 d.render("text.png", height=200)
-Image("text.png")
+Image("text.png") # type: ignore
 
 d.render_mpl("text.png", height=200)
-Image("text.png")
+Image("text.png") # type: ignore

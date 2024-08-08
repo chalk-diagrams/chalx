@@ -90,7 +90,7 @@ class BaseDiagram(chalk.types.Diagram):
     def __repr__(self) -> str:
         return f"Diagram[self.shape]"
 
-    def __tree_pp__(self, **kwargs):
+    def __tree_pp__(self, **kwargs): # type: ignore
         import jax._src.pretty_printer as pp
 
         return pp.text(f"Diagram[{self.shape}]")
@@ -142,7 +142,6 @@ class BaseDiagram(chalk.types.Diagram):
     repeat_axis = chalk.broadcast.repeat_axis
     broadcast_diagrams = chalk.broadcast.broadcast_diagrams
     size = chalk.broadcast.size
-    __getitem__ = chalk.broadcast.getitem
 
     # Combinators
     with_envelope = chalk.combinators.with_envelope

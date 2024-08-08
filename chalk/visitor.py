@@ -26,12 +26,11 @@ B = TypeVar("B")
 class DiagramVisitor(Generic[A, B]):
     """
     Class for traversing the diagram tree.
-    Can be thought of as a tree fold.
-    Type B is passed up the tree.
-    Type A is accumulated down the tree.
-    Type A needs to be a monoid type.
+    Can be thought of as a tree fold. 
+    Type B is passed up the tree. 
+    Type A is accumulated down the tree. 
+    Type A needs to be a monoid type.   
     """
-
     A_type: type[A]
 
     def visit_primitive(self, diagram: Primitive, arg: B) -> A:
@@ -43,7 +42,7 @@ class DiagramVisitor(Generic[A, B]):
         return self.A_type.empty()
 
     def visit_compose(self, diagram: Compose, arg: B) -> A:
-        "Compose defaults to monoid over children"
+        # Compose defaults to monoid over children
         return self.A_type.concat(
             [d.accept(self, arg) for d in diagram.diagrams]
         )
@@ -55,6 +54,7 @@ class DiagramVisitor(Generic[A, B]):
         axis = len(diagram.diagrams.size()) - 1
         fn = diagram.diagrams.accept.__func__  # type: ignore
         fn = partial(fn, visitor=self, args=t)
+        ed : A
         if not tx.JAX_MODE:
             ds = []
             for k in range(size[-1]):
@@ -64,17 +64,17 @@ class DiagramVisitor(Generic[A, B]):
         else:
             import jax
 
-            ed: A = jax.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
+            ed = jax.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
         return self.A_type.reduce(ed, axis)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:
-        "Defaults to pass over"
+        # Defaults to passing over transform
         return diagram.diagram.accept(self, arg)
 
     def visit_apply_style(self, diagram: ApplyStyle, arg: B) -> A:
-        "Defaults to pass over"
+        # Defaults to passing over style
         return diagram.diagram.accept(self, arg)
 
     def visit_apply_name(self, diagram: ApplyName, arg: B) -> A:
-        "Defaults to pass over"
+        # Defaults to passing over name
         return diagram.diagram.accept(self, arg)

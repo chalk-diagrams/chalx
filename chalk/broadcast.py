@@ -19,9 +19,9 @@ if TYPE_CHECKING:
 
 
 def add_axis(self: Diagram, size: int) -> Diagram:
-    return tx.tree_map(
+    return tx.tree_map( # type: ignore
         lambda x: tx.np.repeat(x[None], size, axis=0), self
-    )  # type: ignore
+    )  
 
 
 def size(self: Diagram) -> Tuple[int, ...]:
@@ -31,18 +31,14 @@ def size(self: Diagram) -> Tuple[int, ...]:
 
 def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     old_shape = len(self.size())
-    return tx.tree_map(
+    return tx.tree_map(  # type: ignore
         lambda x: x.reshape(shape + x.shape[old_shape:]), self
-    )  # type: ignore
+    ) 
 
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
     return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore
 
-
-def getitem(self: Diagram, ind: Union[None, int, Tuple[int, ...]]) -> Diagram:
-    "Extract element [i] from a batched diagram."
-    return tx.tree_map(lambda x: x[ind], self)  # type: ignore
 
 def check(a: Tuple[int, ...], b: Tuple[int, ...],
           s1: str, s2:str) -> None:
@@ -53,9 +49,9 @@ def check(a: Tuple[int, ...], b: Tuple[int, ...],
             False
         ), f"Broadcast error: {s1} Shape: {a} {s2} Shape: {b}"
 
-def check_consistent(self):
+def check_consistent(self: Diagram) -> None:
     shape = self.shape
-    def check(x):
+    def check(x: tx.Array) -> None:
         assert x.shape[:len(shape)] == shape
     tx.tree_map(check, self)
 
@@ -76,13 +72,13 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
     for i in range(ml):
         off = -1 - i
         if i > len(other_size) - 1:
-            other = other.add_axis(size[off])
+            other = other.add_axis(size[off])  # type: ignore
         elif i > len(size) - 1:
-            self = self.add_axis(other_size[off])
+            self = self.add_axis(other_size[off])  # type: ignore
         elif size[off] == 1 and other_size[off] != 1:
-            self = self.repeat_axis(other_size[off], len(size) + off)
+            self = self.repeat_axis(other_size[off], len(size) + off)  # type: ignore
         elif size[off] != 1 and other_size[off] == 1:
-            other = other.repeat_axis(size[off], len(other_size) + off)
+            other = other.repeat_axis(size[off], len(other_size) + off)  # type: ignore
     check_consistent(self)
     check_consistent(other)
     assert (

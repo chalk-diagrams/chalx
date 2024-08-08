@@ -2,11 +2,7 @@
 from colour import Color
 from chalk.core import BaseDiagram
 from chalk import *
-
-def help(f):
-    import pydoc
-    from IPython.display import HTML
-    return HTML(pydoc.HTMLDoc().docroutine(f))
+from typing import List
 
 set_svg_height(100)
 # -
@@ -23,7 +19,7 @@ set_svg_height(100)
 help(BaseDiagram.named)
 # -
 
-(square(1).show_origin() + chalk.arrowheads.dart()).render_svg("tri.svg", 56)
+(square(1).show_origin() + dart()).render_svg("tri.svg", 56)
 
 diagram = circle(0.5).named("x") | square(1)
 diagram
@@ -45,6 +41,7 @@ help(BaseDiagram.get_subdiagram)
 
 diagram = circle(0.5).named("x") | square(1)
 sub = diagram.get_subdiagram("x")
+assert sub is not None
 diagram + circle(0.2).translate_by(sub.get_location())
 
 # ### Diagram.with_names
@@ -54,13 +51,14 @@ help(BaseDiagram.with_names)
 # -
 
 root = circle(1).named("root")
-leaves = hcat([circle(1).named(c) for c in "abcde"], sep=0.5).center()
+leaves = hcat([circle(1).named(c) for c in "abcde"], sep=0.5).center_xy()
 
-def connect(subs, nodes):
+def connect(subs: List[Subdiagram], nodes: Diagram) -> Diagram:
     root, leaf = subs
     pp = root.boundary_from(unit_y)
     pc = leaf.boundary_from(-unit_y)
-    return nodes + Path.from_points([pp, pc]).stroke()
+    d: Diagram = nodes + Path.from_points([pp, pc]).stroke()
+    return d
 
 nodes = root / vstrut(2) / leaves
 
@@ -76,14 +74,14 @@ help(BaseDiagram.qualify)
 
 red = Color("red")
 
-def attach(subs, dia):
+def attach(subs: List[Subdiagram], dia: Diagram) -> Diagram:
     sub1, sub2 = subs
     p1 = sub1.get_location()
     p2 = sub2.get_location()
     return dia + Path.from_points([p1, p2]).stroke().line_color(red)
 
 
-def squares():
+def squares() -> Diagram:
     s = square(1)
     return (
         (s.named("NW") | s.named("NE")) /
@@ -102,7 +100,7 @@ dia
 
 for pair in pairs:
     print(pair)
-    dia = dia.with_names(pair, attach)
+    dia = dia.with_names(list(pair), attach)
 
 dia
 

@@ -84,7 +84,7 @@ def patches_to_file(
 
 def render(
     self: Diagram, path: str, height: int = 128, width: Optional[int] = None,
-    draw_height=None
+    draw_height: Optional[int]=None
 ) -> None:
     """Render the diagram to a PNG file.
 

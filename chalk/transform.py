@@ -9,30 +9,56 @@ import math
 import os
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Tuple, Union
+from typing import TYPE_CHECKING, Callable, List, Tuple, TypeVar, Union, Any
 
 import array_api_compat.numpy as onp
 import jax
+
 from jaxtyping import Bool, Float, Int
-from typing_extensions import Self
+from typing_extensions import Self, TypeAlias
+
 
 # TODO: This is a bit hacky, but not sure
 # how to make things work with both numpy and jax
 # Use an environment variable to switch between the two.
-if not TYPE_CHECKING and not eval(os.environ.get("CHALK_JAX", "0")):
+if TYPE_CHECKING or not eval(os.environ.get("CHALK_JAX", "0")):
     ops = None
     import numpy as np
-
-    Array = np.ndarray
-    ArrayLike = Array
+    from numpy import ndarray 
     JAX_MODE = False
+    A = TypeVar("A")
+    B = TypeVar("B", bound=np.float64)
+    Array = ndarray[A, np.dtype[B]]
 
     # In numpy mode jit and vectorize are no-ops
-    def jit(x):
+    def jit(x: Callable[..., Array]) -> Callable[..., Array]:
         return x
 
-    def vectorize(x, signature, excluded=None):
-        return x
+    def vectorize(x: Any, signature: str, excluded: List[int] =[]) -> Callable[..., Array]:
+        return x # type: ignore
+    
+    def vmap(fn: Callable[[Array], Array]) -> Callable[[Array], Array]:
+        "Fake jax vmap for numpy as a for loop."
+        if JAX_MODE:
+            return vmap(fn)
+
+        def vmap2(x: Array) -> Array:
+            if isinstance(x, tuple):
+                size = x[-1].size() # type: ignore
+            elif isinstance(x, np.ndarray):
+                size = x.shape
+            else:
+                size = x.size()
+            ds = []
+            for k in range(size[0]):
+                d = jax.tree_map(lambda x: x[k], x)
+                ds.append(fn(d))
+            final = jax.tree_map(lambda *x: np.stack(x, 0), *ds)
+
+            return final # type: ignore
+
+        return vmap2
+
 
 else:
     jit = jax.jit
@@ -41,33 +67,34 @@ else:
     from jaxtyping import Array
 
     vectorize = np.vectorize
-    ArrayLike = Array
+    vmap = jax.vmap
     JAX_MODE = True
     config.update("jax_enable_x64", True)  # type: ignore
     config.update("jax_debug_nans", True)  # type: ignore
-    from chalk.types import Diagram
+
+    
 
 # Core shaped types used throughout
 # *#B means arbitrary or no batch dimension
-Affine = Float[ArrayLike, "*#B 3 3"]
-Angles = Float[ArrayLike, "*#B 2"]
-V2_t = Float[ArrayLike, "*#B 3 1"]
+Affine = Float[Array, "*#B 3 3"]
+Angles = Float[Array, "*#B 2"]
+V2_t: TypeAlias = Float[Array, "*#B 3 1"]
 
-P2_t = Float[ArrayLike, "*#B 3 1"]
-Scalars = Float[ArrayLike, "*#B"]
-IntLike = Union[Int[ArrayLike, "*#B"], int, onp.int64]
-Ints = Int[ArrayLike, "*#B"]
+P2_t = Float[Array, "*#B 3 1"]
+Scalars = Float[Array, "*#B"]
+IntLike = Union[Int[Array, "*#B"], int, onp.int64]
+Ints = Int[Array, "*#B"]
 Floating = Union[Scalars, IntLike, float, int, onp.int64, onp.float64]
-Mask = Bool[ArrayLike, "*#B"]
-ColorVec = Float[ArrayLike, "#*B 3"]
-Property = Float[ArrayLike, "#*B"]
+Mask = Bool[Array, "*#B"]
+ColorVec = Float[Array, "#*B 3"]
+Property = Float[Array, "#*B"]
 
-V2_tC = Float[ArrayLike, "*#C 3 1"]
-IntLikeC = Union[Int[ArrayLike, "*#C"], int, onp.int64]
-ScalarsC = Float[ArrayLike, "*#C"]
+V2_tC = Float[Array, "*#C 3 1"]
+IntLikeC = Union[Int[Array, "*#C"], int, onp.int64]
+ScalarsC = Float[Array, "*#C"]
 
 
-def index_update(arr: ArrayLike, index, values) -> ArrayLike:  # type:ignore
+def index_update(arr: Array, index, values) -> Array:  # type:ignore
     """
     Update the array `arr` at the given `index` with `values`
     and return the updated array.
@@ -80,12 +107,13 @@ def index_update(arr: ArrayLike, index, values) -> ArrayLike:  # type:ignore
         return new_arr  # type:ignore
     else:
         # If the array is a JAX array
-        return arr.at[index].set(values)
+        arr: Array = arr.at[index].set(values) # type: ignore
+        return arr
 
 
 def union(
-    x: Tuple[ArrayLike, ArrayLike], y: Tuple[ArrayLike, ArrayLike]
-) -> Tuple[ArrayLike, ArrayLike]:
+    x: Tuple[Array, Array], y: Tuple[Array, Array]
+) -> Tuple[Array, Array]:
     """
     Union two pairs arrays along the second axis.
     And optionally filter by mask (numpy only).
@@ -102,8 +130,8 @@ def union(
 
 
 def union_axis(
-    x: Tuple[ArrayLike, ArrayLike], axis: int
-) -> Tuple[ArrayLike, ArrayLike]:
+    x: Tuple[Array, Array], axis: int
+) -> Tuple[Array, Array]:
     n = [
         np.squeeze(x, axis=axis)
         for x in np.split(x[0], x[0].shape[axis], axis=axis)
@@ -143,31 +171,34 @@ def V2(x: Floating, y: Floating) -> V2_t:
         return np.array([x, y, 0]).reshape(3, 1)
 
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
-    return np.stack([x, y, o], axis=-1)[..., None]
+    s: V2_t = np.stack([x, y, o], axis=-1)[..., None]
+    return s
 
 
 # @partial(vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
     "Map (x,y) of any shape to a (batched) point."
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
-    return np.stack([x, y, o], axis=-1)[..., None]
+    s: P2_t = np.stack([x, y, o], axis=-1)[..., None]
+    return s
 
 
 def norm(v: V2_t) -> V2_t:
-    return v / length(v)[..., None, None]
+    v = v / length(v)[..., None, None]
+    return v
+    
 
 
 def length(v: V2_t) -> Scalars:
     "Length of a vector"
     return np.asarray(np.sqrt(length2(v)))
 
-
-@jit
 @partial(vectorize, signature="(3,1),()->(3,1)")
 def scale_vec(v: V2_t, d: Floating) -> V2_t:
     "Scale a vector by a scalar"
     d = np.asarray(d)
-    return d[..., None, None] * v
+    v = d[..., None, None] * v
+    return v
 
 
 @jit
@@ -212,7 +243,8 @@ def make_affine(
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
     vals = np.broadcast_arrays(*vals)
     x = np.stack(vals, axis=-1)
-    return x.reshape(vals[0].shape + (3, 3))
+    r : Affine = x.reshape(vals[0].shape + (3, 3))
+    return r
 
 
 @jit
@@ -226,7 +258,8 @@ def dot(v1: V2_t, v2: V2_t) -> Scalars:
 @partial(vectorize, signature="(3,1),(3,1)->()")
 def cross(v1: V2_t, v2: V2_t) -> Scalars:
     "Cross of vectors"
-    return np.cross(v1, v2)
+    s: Scalars = np.cross(v1, v2)
+    return s
 
 
 def to_point(v: V2_t) -> P2_t:
@@ -301,7 +334,8 @@ def rotation_angle(r: Floating) -> Affine:
 def inv(aff: Affine) -> Affine:
     "Fast invert an affine"
     det = np.linalg.det(aff)
-    assert np.all(np.abs(det) > 1e-10), "Object scaled to 0"
+    if not JAX_MODE:
+        assert np.all(np.abs(det) > 1e-10), "Object scaled to 0"
     idet = 1.0 / det
     sa, sb, sc = aff[..., 0, 0], aff[..., 0, 1], aff[..., 0, 2]
     sd, se, sf = aff[..., 1, 0], aff[..., 1, 1], aff[..., 1, 2]
@@ -321,7 +355,8 @@ def inv(aff: Affine) -> Affine:
         np.ones(ra.shape),
     )
     x = np.stack(vals, axis=-1)
-    return x.reshape(vals[0].shape + (3, 3))
+    r : Affine = x.reshape(vals[0].shape + (3, 3))
+    return r
 
 
 from_rad = 180 / math.pi
@@ -352,7 +387,6 @@ def remove_scale(aff: Affine) -> Affine:
     "Remove scaling from affine"
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     det = np.linalg.det(aff[index])
-    print(aff[index], det)
     return index_update(aff, index, aff[index] / np.sqrt(det[..., None, None]))  # type: ignore
 
 
@@ -429,7 +463,8 @@ class Ray:
     v: V2_t
 
     def point(self, len: Scalars) -> P2_t:
-        return self.pt + len[..., None, None] * self.v
+        p: P2_t = self.pt + len[..., None, None] * self.v
+        return p
 
 
 @dataclass
@@ -447,13 +482,15 @@ class BoundingBox(Transformable):
 
     @property
     def width(self) -> Scalars:
-        return (self.br - self.tl)[..., 0, 0]
+        s:Scalars = (self.br - self.tl)[..., 0, 0]
+        return s
 
     @property
     def height(self) -> Scalars:
-        return (self.br - self.tl)[..., 1, 0]
+        s: Scalars = (self.br - self.tl)[..., 1, 0]
+        return s
 
-    def to_rect(self):
+    def to_rect(self) -> "Diagram":
         "Convert bounding box to a rectangle"
         from chalk import rectangle
 
@@ -464,7 +501,7 @@ class BoundingBox(Transformable):
         )
 
 
-@partial(vectorize, signature="(3,1),(3,1),()->(),()")
+@partial(vectorize, signature="(3,1),(3,1),()->(),()") # type: ignore
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
 ) -> Tuple[Scalars, Mask]:
@@ -515,7 +552,7 @@ def ray_circle_intersection(
 
 
 @partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")
-def arc_to_bezier(theta1: ArrayLike, theta2:ArrayLike, n:int=2) -> ArrayLike:
+def arc_to_bezier(theta1: Array, theta2:Array, n:int=2) -> Array:
     """
     Returns the bezier curves for the unit circle arc from angles *theta1* to
     *theta2* (in degrees).
@@ -595,30 +632,9 @@ def arc_to_bezier(theta1: ArrayLike, theta2:ArrayLike, n:int=2) -> ArrayLike:
     return vertices
 
 
-def vmap(fn) -> Callable[[ArrayLike], ArrayLike]:
-    "Fake jax vmap for numpy as a for loop."
-    if JAX_MODE:
-        return vmap(fn)
-
-    def vmap2(x):
-        if isinstance(x, tuple):
-            size = x[-1].size()
-        elif isinstance(x, np.ndarray):
-            size = x.shape
-        else:
-            size = x.size()
-        ds = []
-        for k in range(size[0]):
-            d = jax.tree_map(lambda x: x[k], x)
-            ds.append(fn(d))
-        final = jax.tree_map(lambda *x: np.stack(x, 0), *ds)
-
-        return final
-
-    return vmap2
 
 
-def multi_vmap(fn: Callable, t: int) -> Callable[[ArrayLike], ArrayLike]:
+def multi_vmap(fn: Callable[[Array], Array], t: int) -> Callable[[Array], Array]:
     "Apply vmap t times"
     for j in range(t):
         fn = vmap(fn)
@@ -648,17 +664,17 @@ class Batchable:
     def size(self) -> Tuple[int, ...]:
         return self.shape
     
-    def __getitem__(self, ind):
+    def __getitem__(self, ind: Tuple[int, ...]) -> Self:
         shape = self.shape
-        if Ellipsis in ind:
+        if isinstance(ind, tuple) and Ellipsis in ind: # type: ignore
             # We only want ... to apply to the prefix args
-            return jax.tree_map(lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self)
+            return jax.tree_map(lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self) # type: ignore
         else:
-            return jax.tree_map(lambda x: x[ind], self)
+            return jax.tree_map(lambda x: x[ind], self) # type: ignore
 
 
-def prefix_broadcast(x, target, suffix_length):
+def prefix_broadcast(x: Array, target: Tuple[int, ...], suffix_length: int) -> Array:
     return np.broadcast_to(x, target + x.shape[-suffix_length:])
 
 # Explicit rexport
-__all__ = ["ArrayLike", "np", "jit", "vmap", "multi_vmap", "tree_map", "Batchable", "Batched"]
+__all__ = ["Array", "np", "jit", "vmap", "multi_vmap", "tree_map", "Batchable", "Batched"]

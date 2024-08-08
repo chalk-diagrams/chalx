@@ -32,8 +32,8 @@ class TraceDistances(Monoid):
         if i == 1:
             return self.mask
 
-    def __add__(self, other: Self) -> Self:  # type: ignore
-        return TraceDistances(*tx.union(self.tuple(), other))
+    def __add__(self, other: TraceDistances) -> TraceDistances:  # type: ignore
+        return TraceDistances(*tx.union(self.tuple(), other.tuple()))
 
     @staticmethod
     def empty() -> TraceDistances:

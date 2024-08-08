@@ -8,18 +8,20 @@ from chalk.backend.patch import Patch
 from chalk.monoid import Monoid
 from chalk.style import StyleHolder
 from chalk.transform import Affine
+from chalk.types import Diagram, SingleDiagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
     from chalk.core import ApplyStyle, ApplyTransform, ComposeAxis, Primitive
 
 
-def get_primitives(self) -> List[Primitive]:
+def get_primitives(self: SingleDiagram) -> List[Primitive]:
     return self.accept(ToListOrder(), tx.ident).ls
 
 
 def layout(
-    self, height: tx.IntLike = 128, width: Optional[tx.IntLike] = None,
+    self: SingleDiagram, 
+    height: tx.IntLike = 128, width: Optional[tx.IntLike] = None,
     draw_height: Optional[tx.IntLike] = None
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     """

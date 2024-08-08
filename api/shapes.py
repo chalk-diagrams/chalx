@@ -2,13 +2,6 @@
 from chalk.core import BaseDiagram
 from chalk import *
 
-
-def help(f):
-    import pydoc
-    from IPython.display import HTML
-
-    return HTML(pydoc.HTMLDoc().docroutine(f))
-
 # -
 
 # Elementary diagrams can be created using shapes: polygons, circle-like shapes, text and paths.

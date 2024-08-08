@@ -1,5 +1,5 @@
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import chalk.subdiagram
 
@@ -28,27 +28,12 @@ import chalk.trace
 import chalk.trail
 import chalk.path
 from chalk.align import *  # noqa: F403
-from chalk.arrow import ArrowOpts, arrow_at, arrow_between, arrow_v
 from chalk.combinators import *  # noqa: F403
-from chalk.core import set_svg_draw_height, set_svg_height
-from chalk.envelope import Envelope
-from chalk.monoid import Maybe, MList, Monoid
 from chalk.shapes import *  # noqa: F403
-from chalk.style import Style, to_color
 import chalk.segment
-from chalk.subdiagram import Name
-import chalk.trail as Trail
-from chalk.transform import (
-    P2,
-    V2,
-    Affine,
-    BoundingBox,
-    from_radians,
-    to_radians,
-    unit_x,
-    unit_y,
-)
-from chalk.types import Diagram
+from chalk.subdiagram import *
+from chalk.export import *
+from chalk.arrowheads import *
 
 
 if eval(os.environ.get("CHALK_CHECK", "1")):
@@ -83,9 +68,13 @@ for t in jax_type:
 jax.tree_util.register_pytree_node(
     chalk.core.ApplyName,
     lambda tree: ((tree.diagram,), (tree.dname,)),
-    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),
+    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]), # type: ignore
 )
 
+def help(f: Any): # type: ignore
+    import pydoc
+    from IPython.display import HTML
+    return HTML(pydoc.HTMLDoc().docroutine(f)) # type: ignore
 
 
 if not TYPE_CHECKING:

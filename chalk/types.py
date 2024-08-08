@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from chalk.trace import Trace
     from chalk.trail import Located, Trail
     from chalk.visitor import A, DiagramVisitor
+    from chalk.arrow import ArrowOpts
 
 class TrailLike(Protocol):
     def to_trail(self) -> Trail:
@@ -106,7 +107,7 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
     def center_xy(self: Diagram) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def get_subdiagram(self, name: Name) -> Optional[Subdiagram]:
+    def get_subdiagram(self, name: Any) -> Optional[Subdiagram]:
         ...
 
     def get_sub_map(  # type: ignore[empty-body]
@@ -116,7 +117,7 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
 
     def with_names(  # type: ignore[empty-body]
         self,
-        names: List[Name],
+        names: List[Any],
         f: Callable[[List[Subdiagram], Diagram], Diagram],
     ) -> Diagram:
         ...
@@ -139,9 +140,16 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
     def show_origin(self) -> Diagram:  # type: ignore[empty-body]
         ...
 
+    def show_labels(self: Diagram, font_size: tx.Floating = 1) -> Diagram:  # type: ignore[empty-body]
+        ...
+
     def show_envelope(  # type: ignore[empty-body]
         self, phantom: bool = False, angle: int = 45
     ) -> Diagram:
+        ...
+
+    def show_beside( # type: ignore[empty-body]
+            self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
         ...
 
     def compose(  # type: ignore[empty-body]
@@ -165,7 +173,9 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         ...
 
     def layout(  # type: ignore[empty-body]
-        self, height: tx.IntLike, width: Optional[tx.IntLike] = None
+        self, height: tx.IntLike, 
+        width: Optional[tx.IntLike] = None,
+        draw_height: Optional[tx.IntLike] = None
     ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
         ...
 
@@ -175,30 +185,37 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
     def compose_axis(self) -> Diagram:  # type: ignore[empty-body]
         ...
 
-    def hcat(
-        self: ExtraDiagram, sep: Optional[tx.Floating]) -> BatchDiagram:  # type: ignore[empty-body]
+    def named(self: Diagram, name: Any) -> Diagram:     # type: ignore[empty-body]
         ...
 
-    def vcat(
-        self: ExtraDiagram, sep: Optional[tx.Floating]) -> BatchDiagram:  # type: ignore[empty-body]
+    def qualify(self: Diagram, name: Any) -> Diagram:     # type: ignore[empty-body]
         ...
 
-    def concat(self: ExtraDiagram) -> BatchDiagram:  # type: ignore[empty-body]
+    def hcat(# type: ignore[empty-body]
+        self: ExtraDiagram, sep: Optional[tx.Floating] = None) -> BatchDiagram:  
+        ...
+
+    def vcat( # type: ignore[empty-body]
+        self: ExtraDiagram, sep: Optional[tx.Floating] = None) -> BatchDiagram: 
+        ...
+
+    def concat( # type: ignore[empty-body, override]
+            self: ExtraDiagram) -> BatchDiagram:  
         ...
 
     def juxtapose_snug(  # type: ignore[empty-body]
         self: BatchDiagram, other: BatchDiagram, direction: V2_t
-    ) -> B:
+    ) -> BroadDiagram:
         ...
 
     def beside_snug(  # type: ignore[empty-body]
         self: BatchDiagram, other: BatchDiagram, direction: V2_t
-    ) -> B:
+    ) -> BroadDiagram:
         ...
 
     def juxtapose(  # type: ignore[empty-body]
         self: BatchDiagram, other: BatchDiagram, direction: V2_t
-    ) -> B:
+    ) -> BroadDiagram:
         ...
 
     def atop(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:  # type: ignore[empty-body]
@@ -212,6 +229,16 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
     ) -> BroadDiagram:
         ...
 
+    def connect(  # type: ignore[empty-body]
+        self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts 
+    ) -> BatchDiagram:
+        ...
+
+    def connect_outside(  # type: ignore[empty-body]
+        self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts
+    ) -> BatchDiagram:
+        ...
+
     def add_axis(self, size: int) -> Diagram:  # type: ignore[empty-body]
         ... 
 
@@ -220,13 +247,27 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
 
     def broadcast_diagrams(  # type: ignore[empty-body]
         self: BatchDiagram, other: BatchDiagram
-    ) -> Tuple[B, B]:
+    ) -> Tuple[BroadDiagram, BroadDiagram]:
         ...
 
     def reshape(  # type: ignore[empty-body]
         self, shape: Tuple[int, ...]
     ) -> Diagram:
         ...
+
+    def render(  # type: ignore[empty-body]
+        self: SingleDiagram, path: str, height: int = 128, width: Optional[int] = None,
+        draw_height: Optional[int]=None
+    ) -> None: ...
+    def render_svg(  # type: ignore[empty-body]
+        self: SingleDiagram, path: str, height: int = 128, width: Optional[int] = None,
+        draw_height: Optional[int]=None
+    ) -> None: ...
+    def render_mpl(  # type: ignore[empty-body]
+        self: SingleDiagram, path: str, height: int = 128, width: Optional[int] = None,
+        draw_height: Optional[int]=None
+    ) -> None: ...
+
 
 # Diagram with shape
 BatchDiagram =  tx.Batched[Diagram, "*#B"]
@@ -237,4 +278,5 @@ BroadDiagram =  tx.Batched[Diagram, "*B"]
 # Diagram before composition
 ExtraDiagram =  tx.Batched[Diagram, "*#B A"]
 EmptyDiagram = tx.Batched[Diagram, ""]
+SingleDiagram = tx.Batched[Diagram, ""]
 

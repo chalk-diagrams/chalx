@@ -4,10 +4,6 @@ import math
 from chalk.core import BaseDiagram
 from chalk import *
 
-def help(f):
-    import pydoc
-    from IPython.display import HTML
-    return HTML(pydoc.HTMLDoc().docroutine(f))
 # -
 
 # Chalk supports three back-ends (Cairo, SVG, TikZ),
@@ -23,7 +19,7 @@ help(BaseDiagram.render)
 
 circle(1).render("circle.png")
 from IPython.display import Image
-Image("circle.png")
+Image("circle.png") # type: ignore
 
 # ### Diagram.render_svg
 

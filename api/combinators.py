@@ -2,10 +2,6 @@
 import math
 from chalk import *
 from chalk.transform import polar
-def help(f):
-    import pydoc
-    from IPython.display import HTML
-    return HTML(pydoc.HTMLDoc().docroutine(f))
 # -
 
 

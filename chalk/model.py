@@ -3,7 +3,7 @@ from colour import Color
 import chalk.transform as tx
 from chalk.combinators import concat
 from chalk.shapes import circle, text
-from chalk.path import Path
+from chalk.path import from_points
 from chalk.transform import V2_t
 from chalk.types import Diagram
 from chalk.trail import seg
@@ -40,7 +40,7 @@ def show_envelope(
     self.show_origin()
     envelope = self.get_envelope()
     outer: Diagram = (
-        Path.from_points(list(envelope.to_path(angle)))
+        from_points(list(envelope.to_path(angle)))
         .stroke()
         .fill_opacity(0)
         .line_color(RED)
@@ -68,7 +68,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     envelope2 = other.get_envelope()
     v1 = envelope1.envelope_v(direction)
     one: Diagram = (
-        Path.from_points([tx.origin, v1])
+        from_points([tx.origin, v1])
         .stroke()
         .line_color(RED)
         .dashing([0.01, 0.01], 0)
@@ -76,14 +76,14 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     )
     v2 = envelope2.envelope_v(-direction)
     two: Diagram = (
-        Path.from_points([tx.origin, v2])
+        from_points([tx.origin, v2])
         .stroke()
         .line_color(RED)
         .dashing([0.01, 0.01], 0)
         .line_width(0.01)
     )
     split: Diagram = (
-        Path.from_points(
+        from_points(
             [
                 v1 + tx.perpendicular(direction),
                 v1 - tx.perpendicular(direction),

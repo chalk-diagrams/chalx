@@ -299,11 +299,13 @@ VT_DIR := api
 vis: $(VISTESTS)
 	@echo "🎁 Generate all vis tests ... ⏳"
 
+
 $(VISTESTS):
+	@echo "$@"
 	CHALK_CHECK=1 python $(VT_DIR)/$@.py
-	jupytext --to ipynb -o $(VT_DIR)/output/$@.ipynb $(VT_DIR)/$@.py
-	jupyter nbconvert --execute --inplace --to ipynb $(VT_DIR)/output/$@.ipynb 
-	jupyter nbconvert --to html $(VT_DIR)/output/$@.ipynb 
+	# jupytext --to ipynb -o $(VT_DIR)/output/$@.ipynb $(VT_DIR)/$@.py
+	# jupyter nbconvert --execute --inplace --to ipynb $(VT_DIR)/output/$@.ipynb 
+	# jupyter nbconvert --to html $(VT_DIR)/output/$@.ipynb 
 
 
 .PHONY: images $(IMAGES) vis $(VISTESTS)
