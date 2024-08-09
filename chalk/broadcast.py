@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Tuple, TypeVar, Union
+from typing import TYPE_CHECKING, Tuple, TypeVar
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -91,8 +91,8 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
 class Size(Monoid):
     d: Tuple[int, ...]
 
-    @staticmethod
-    def empty() -> Size:
+    @classmethod
+    def empty(cls) -> Size:
         return Size(())
 
     def __add__(self, other: Size) -> Size:
@@ -120,7 +120,7 @@ class ToSize(DiagramVisitor[Size, Size]):
         return diagram.diagram.accept(self, t)
 
     def visit_apply_style(self, diagram: ApplyStyle, t: Size) -> Size:
-        if diagram.style is None:
+        if diagram.style is None: # type: ignore
             return diagram.diagram.accept(self, t)
         return Size(diagram.style.size())
 

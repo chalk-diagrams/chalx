@@ -1,5 +1,4 @@
 # + tags=["hide_inp"]
-import math
 from chalk import *
 from chalk.transform import polar
 # -

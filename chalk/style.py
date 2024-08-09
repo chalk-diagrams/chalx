@@ -184,22 +184,16 @@ class StyleHolder(Stylable, tx.Batchable):
 
     def to_mpl(self) -> Dict[str, Any]:
         style = {}
-        if self.fill_color_ is not None:
-            f = self.fill_color_
-            style["facecolor"] = f  # (f[0], f[1], f[2])
+        f = self.fill_color_
+        style["facecolor"] = f  # (f[0], f[1], f[2])
             # style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
-        if self.line_color_ is not None:
-            lc = self.line_color_
-            style["edgecolor"] = lc  # (lc[0], lc[1], lc[2])
-        else:
-            style["edgecolor"] = "black"
+        lc = self.line_color_
+        style["edgecolor"] = lc  # (lc[0], lc[1], lc[2])
 
         # Set by observation
-        if self.line_width_ is not None:
-            lw = self.line_width_
-            style["linewidth"] = lw.reshape(-1)[0]
-        if self.fill_opacity_ is not None:
-            style["alpha"] = self.fill_opacity_[0]
+        lw = self.line_width_
+        style["linewidth"] = lw.reshape(-1)[0]
+        style["alpha"] = self.fill_opacity_[0]
         return style
 
 BatchStyle = tx.Batched[StyleHolder, "#*B"]

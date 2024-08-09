@@ -3,11 +3,9 @@
 # A more general implementation is provided by Jeremy Gibbons using diagrams in Haskell:
 # https://archives.haskell.org/projects.haskell.org/diagrams/gallery/SquareLimit.html
 
-import math
+# pyright: basic
 
-from toolz import take, iterate  # type: ignore
-
-from chalk import concat, make_path, square, strut
+from chalk import concat, make_path, strut
 
 
 # fmt: off

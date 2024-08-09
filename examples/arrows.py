@@ -1,7 +1,7 @@
 from chalk import *
 from chalk.trail import Trail
 from colour import Color
-from PIL import Image as PILImage
+# pyright: basic
 
 grey = Color("grey")
 blue = Color("blue")
@@ -17,7 +17,7 @@ ex1 = dias.connect(
     "second",
     ArrowOpts(trail=Trail.from_offsets([unit_x, 0.25 * unit_y, unit_x, 0.25 * unit_y]))
 )
-ex1._repr_svg()
+ex1
 
 output_path = "examples/output/t1.svg"
 ex1.render_svg(output_path)

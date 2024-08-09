@@ -1,7 +1,7 @@
 from colour import Color
 from chalk import *
 import math
-
+# pyright: basic
 # This code is for a Vogel subflower, ported from:
 # https://diagrams.github.io/gallery/Sunflower.html
 
@@ -29,19 +29,19 @@ colors = [Color(h) for h in ["#18b0dc",
 circles = list([circle(0.6).line_width(0).fill_color(colors[n]) for n in range(len(colors))])
 
 
-def floret(r):
+def floretf(r):
     n = math.floor(1.8 * math.sqrt(r)) % 5
     return circles[n]
 
 
 def florets(m):
-    return [floret(math.sqrt(i)) for i in range(1,m+1)]
+    return [floretf(math.sqrt(i)) for i in range(1,m+1)]
     
-def sunflower(n):
+def sunflower(n) -> Diagram:
     return concat(flor.translate(cord[0], cord[1]) 
                   for cord, flor in zip(mkCoords(n), florets(n)))
         
-floret = sunflower(1900).center_xy().scale_uniform_to_x(1).center_xy()
+floret: Diagram = sunflower(1900).center_xy().scale_uniform_to_x(1).center_xy()
 background = rectangle(1.6, 1).fill_color(black).line_width(0).translate(-0.15, 0)
 logo = text("Chalk", 0.35).fill_color(grey).line_width(0.1).line_color(black).translate(-0.4, -0.1)
 mask = rectangle(1.6, 0.6).translate(-0.15, 0)

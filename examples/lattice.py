@@ -2,8 +2,7 @@ import sys
 
 from chalk import *
 from colour import Color
-
-sys.setrecursionlimit(100_000)
+# pyright: basic
 
 BLACK = Color("black")
 STEPS = 7

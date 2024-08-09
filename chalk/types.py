@@ -230,15 +230,25 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         ...
 
     def connect(  # type: ignore[empty-body]
-        self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts 
+        self: BatchDiagram, name1: Any, name2: Any, style: Optional[ArrowOpts]=None 
     ) -> BatchDiagram:
         ...
 
     def connect_outside(  # type: ignore[empty-body]
-        self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts
+        self: BatchDiagram, name1: Any, name2: Any, style: Optional[ArrowOpts]=None
     ) -> BatchDiagram:
         ...
 
+
+    def connect_perim(
+        self: BatchDiagram,
+        name1: Any,
+        name2: Any,
+        v1: V2_t,
+        v2: V2_t,
+        style: Optional[ArrowOpts] = None
+    ) -> BatchDiagram:
+        ...
     def add_axis(self, size: int) -> Diagram:  # type: ignore[empty-body]
         ... 
 

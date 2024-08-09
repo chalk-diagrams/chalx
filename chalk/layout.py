@@ -8,7 +8,7 @@ from chalk.backend.patch import Patch
 from chalk.monoid import Monoid
 from chalk.style import StyleHolder
 from chalk.transform import Affine
-from chalk.types import Diagram, SingleDiagram
+from chalk.types import SingleDiagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -156,6 +156,6 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
 def add_dim(m: Any, size: int) -> Any:
     if not isinstance(m, StyleHolder):
         m = tx.np.asarray(m)
-    for s in range(size):
+    for _ in range(size):
         m = m[..., None]  # type: ignore
     return m

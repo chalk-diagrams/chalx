@@ -10,6 +10,7 @@ else:
 
 
 import os
+hook = None
 if eval(os.environ.get("CHALK_CHECK", "1")):
     from jaxtyping import install_import_hook
     hook = install_import_hook("chalk", "typeguard.typechecked")
@@ -18,7 +19,6 @@ if eval(os.environ.get("CHALK_CHECK", "1")):
 import chex
 import jax
 
-import chalk.align as align
 import chalk.backend.patch
 import chalk.core
 import chalk.envelope
@@ -32,11 +32,11 @@ from chalk.combinators import *  # noqa: F403
 from chalk.shapes import *  # noqa: F403
 import chalk.segment
 from chalk.subdiagram import *
-from chalk.export import *
 from chalk.arrowheads import *
-
+from chalk.export import *
 
 if eval(os.environ.get("CHALK_CHECK", "1")):
+    assert hook is not None
     hook.uninstall()
 
 

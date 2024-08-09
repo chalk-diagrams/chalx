@@ -1,6 +1,7 @@
 from PIL import Image as PILImage
 from chalk import *
 from colour import Color
+# pyright: basic
 
 h = hstrut(2.5)
 papaya = Color("#ff9700")
@@ -22,13 +23,14 @@ def draw_tensor(depth, rows, columns):
     "Draw a tensor"
     cube  = draw_cube()
     # Fix this ...
-    hyp = (unit_y * 0.5).shear_x(-1)
+    shear_x = tx.make_affine(1.0, -1, 0.0, 0.0, 1.0, 0.0)
+    hyp = shear_x @ (unit_y * 0.5)
     # Build a matrix. 
     front = cat([hcat([cube for i in range(columns)])
                  for j in reversed(range(rows))], -unit_y).align_t()
 
     # Build depth
-    return concat(front.translate(-k * hyp.x, -k * hyp.y)
+    return concat(front.translate_by(-k * hyp)
                   for k in reversed(range(depth)))
 
 draw_tensor(2, 3, 4)
@@ -52,4 +54,3 @@ path = "examples/output/tensor.png"
 m.render(path, 500)
 PILImage.open(path)
 
-m.render_pdf("examples/output/tensor.pdf", 50)

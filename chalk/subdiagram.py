@@ -164,7 +164,7 @@ def get_sub_map(self: Diagram, t: Affine) -> Dict[Name, List[Subdiagram]]:
     return self.accept(GetSubMap(), t).data
 
 
-def qualify(self: Diagram, name: Name) -> Diagram:
+def qualify(self: Diagram, name: Any) -> Diagram:
     """Prefix names in the diagram by a given name or sequence of names."""
     if not isinstance(name, Name):
         name = Name(name)
@@ -172,7 +172,7 @@ def qualify(self: Diagram, name: Name) -> Diagram:
     return self.accept(Qualify(name), None)
 
 
-def named(self: Diagram, name: Name) -> Diagram:
+def named(self: Diagram, name: Any) -> Diagram:
     """Add a name (or a sequence of names) to a diagram."""
     from chalk.core import ApplyName
     if not isinstance(name, Name):

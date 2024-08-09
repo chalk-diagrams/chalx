@@ -1,10 +1,6 @@
 # + tags=["hide_inp"]
-from jaxtyping import install_import_hook
-with install_import_hook("chalk", "typeguard.typechecked"):
-    import chalk 
 from chalk.core import BaseDiagram
 from chalk import *
-import math
 # -
 
 
@@ -96,7 +92,6 @@ help(BaseDiagram.with_envelope)
 
 #
 
-from colour import Color
 
 (rectangle(1, 1) + triangle(0.5)) | rectangle(1, 1)
 

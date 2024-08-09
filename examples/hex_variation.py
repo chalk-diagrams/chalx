@@ -1,3 +1,5 @@
+# pyright: basic
+
 import math
 import random
 
@@ -46,7 +48,6 @@ dia = dia.rotate_by(-1 / 4)
 dia.render_svg("examples/output/hex-variation.svg", height=512)
 try:
     dia.render("examples/output/hex-variation.png", height=512)
-    dia.render_pdf("examples/output/hex-variation.pdf", height=512)
 except ModuleNotFoundError:
     print("Need to install Cairo")
 

@@ -1,6 +1,3 @@
-from jaxtyping import install_import_hook
-with install_import_hook("chalk", "typeguard.typechecked"):
-    import chalk 
 from chalk import *
 
 

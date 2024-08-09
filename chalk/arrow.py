@@ -6,7 +6,7 @@ from colour import Color
 import chalk.transform as tx
 from chalk.arrowheads import dart
 from chalk.style import StyleHolder
-from chalk.subdiagram import Name, Subdiagram
+from chalk.subdiagram import Subdiagram
 from chalk.trail import Trail, arc_seg
 from chalk.transform import P2_t, V2_t
 from chalk.types import BatchDiagram, Diagram
@@ -30,20 +30,20 @@ class ArrowOpts:
 
 
 def connect(
-    self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts = ArrowOpts()
+    self: BatchDiagram, name1: Any, name2: Any, style: Optional[ArrowOpts] = None
 ) -> BatchDiagram:
     def f(subs: List[Subdiagram], dia: Diagram) -> Diagram:
         sub1, sub2 = subs
 
         ps = sub1.get_location()
         pe = sub2.get_location()
-        return dia + arrow_between(ps, pe, style)
+        return dia + arrow_between(ps, pe, style if style is not None else ArrowOpts())
 
     return self.with_names([name1, name2], f)
 
 
 def connect_outside(
-    self: BatchDiagram, name1: Any, name2: Any, style: ArrowOpts = ArrowOpts()
+    self: BatchDiagram, name1: Any, name2: Any, style: Optional[ArrowOpts] = None
 ) -> BatchDiagram:
     def f(subs: List[Subdiagram], dia: Diagram) -> Diagram:
         sub1, sub2 = subs
@@ -63,7 +63,7 @@ def connect_outside(
         assert m1.all(), "Cannot connect"
         assert m2.all(), "Cannot connect"
 
-        return dia + arrow_between(ps, pe, style)
+        return dia + arrow_between(ps, pe, style if style is not None else ArrowOpts())
 
     return self.with_names([name1, name2], f)
 
@@ -74,7 +74,7 @@ def connect_perim(
     name2: Any,
     v1: V2_t,
     v2: V2_t,
-    style: ArrowOpts = ArrowOpts(),
+    style: Optional[ArrowOpts] = None
 ) -> BatchDiagram:
     def f(subs: List[Subdiagram], dia: Diagram) -> Diagram:
         sub1, sub2 = subs
@@ -88,7 +88,7 @@ def connect_perim(
         pe, m2 = tr2.max_trace_p(loc2, v2)
         assert m1.all(), f"Cannot connect, trace failed {name1} {name2} {m1}"
         assert m2.all(), f"Cannot connect, trace failed {name1} {name2} {m2}"
-        return dia + arrow_between(ps, pe, style)
+        return dia + arrow_between(ps, pe, style if style is not None else ArrowOpts())
 
     return self.with_names([name1, name2], f)
 

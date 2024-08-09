@@ -1,15 +1,13 @@
 # Based on the following example from Diagrams
 # https://archives.haskell.org/projects.haskell.org/diagrams/gallery/Hanoi.html
 
+# pyright: basic
+
 from PIL import Image as PILImage
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 from colour import Color  # type: ignore
-from chalk import Diagram, rectangle, concat, hcat, vcat, unit_x
-
-# from jaxtyping import install_import_hook
-# with install_import_hook("chalk", "typeguard.typechecked"):
-#     import chalk          # Any module imported inside this `with` block, whose
+from chalk import Diagram, rectangle, concat, vcat, unit_x
 
 Disk = int
 Stack = List[Disk]  # disks on one peg

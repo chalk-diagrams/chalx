@@ -1,16 +1,16 @@
 # Based on the following example from Diagrams
 # https://archives.haskell.org/projects.haskell.org/diagrams/gallery/Koch.html
+# pyright: basic
 
 from PIL import Image as PILImage
 from chalk import *
 from chalk.transform import *
-import chalk
 
-unit_x = Trail.hrule(1)
+base_unit = Trail.hrule(1)
 
 def koch(n):
     if n == 0:
-        return unit_x.scale_x(5)
+        return base_unit.scale_x(5)
     else:
         return (
             koch(n - 1).scale(1 / 3)

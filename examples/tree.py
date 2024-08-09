@@ -1,9 +1,9 @@
+# pyright: basic
 from PIL import Image as PILImage
 from chalk import *
 from chalk.transform import *
 import random
 
-from chalk import transform as tx
 from colour import Color
 
 blue = Color("blue")

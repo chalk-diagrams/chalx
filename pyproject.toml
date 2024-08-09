@@ -5,3 +5,17 @@ requires = [
 ]
 
 build-backend = "setuptools.build_meta"
+
+[tool.pyright]
+include = ["chalk", "api", "examples"]
+reportUnknownMemberType = "none"
+reportUnknownParameterType = "none"
+reportUnknownArgumentType = "none"
+reportUnknownVariableType = "none"
+reportMissingTypeArgument = "none"
+reportMissingTypeStubs = "none"
+reportUnusedExpression = "none"
+reportUnknownLambdaType = "none"
+reportIncompatibleMethodOverride = "none"
+reportPrivateUsage = "none"
+

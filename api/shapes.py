@@ -1,5 +1,4 @@
 # + tags=["hide"]
-from chalk.core import BaseDiagram
 from chalk import *
 
 # -

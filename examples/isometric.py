@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from PIL import Image as PILImage
 from chalk import *
 from colour import Color
 import numpy as np
-from numpy.typing import ArrayLike
+
+# pyright: basic
 
 h = hstrut(2.5)
 papaya = Color("#ff9700")
@@ -11,7 +11,7 @@ white = Color("white")
 black = Color("black")
 
 
-def lookAt(eye: ArrayLike, center: ArrayLike, up: ArrayLike):
+def lookAt(eye: np.ndarray, center: np.ndarray, up: np.ndarray):
     "Python version of the haskell lookAt function in linear.projections"
     f = (center - eye) / np.linalg.norm(center - eye)
     s = np.cross(f, up) / np.linalg.norm(np.cross(f, up))
@@ -55,11 +55,11 @@ def cube():
     )
 
 
-def to_trail(trail: ArrayLike, locations: ArrayLike):
+def to_trail(trail: np.ndarray, locations: np.ndarray):
     return [
         (
-            Path(
-                [Trail.from_offsets([V2(*v[:2]) for v in trail]).close().at(V2(*l[:2]))]
+            Path.Path(
+                (Trail.from_offsets([V2(*v[:2]) for v in trail]).close().at(V2(*l[:2])),)
             ),
             l[2],
         )

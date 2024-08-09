@@ -45,7 +45,7 @@ if TYPE_CHECKING or not eval(os.environ.get("CHALK_JAX", "0")):
         def vmap2(x: Array) -> Array:
             if isinstance(x, tuple):
                 size = x[-1].size() # type: ignore
-            elif isinstance(x, np.ndarray):
+            elif isinstance(x, np.ndarray): # type: ignore
                 size = x.shape
             else:
                 size = x.size()
@@ -100,7 +100,7 @@ def index_update(arr: Array, index, values) -> Array:  # type:ignore
     and return the updated array.
     Supports both NumPy and JAX arrays.
     """
-    if isinstance(arr, onp.ndarray):
+    if isinstance(arr, onp.ndarray): # type: ignore
         # If the array is a NumPy array
         new_arr = arr.copy()
         new_arr[index] = values
@@ -241,7 +241,7 @@ def make_affine(
 ) -> Affine:
     "Create affine array from values"
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
-    vals = np.broadcast_arrays(*vals)
+    vals = np.broadcast_arrays(*vals) # type: ignore
     x = np.stack(vals, axis=-1)
     r : Affine = x.reshape(vals[0].shape + (3, 3))
     return r
@@ -490,7 +490,7 @@ class BoundingBox(Transformable):
         s: Scalars = (self.br - self.tl)[..., 1, 0]
         return s
 
-    def to_rect(self) -> "Diagram":
+    def to_rect(self) -> "Diagram": # type: ignore
         "Convert bounding box to a rectangle"
         from chalk import rectangle
 
@@ -636,7 +636,7 @@ def arc_to_bezier(theta1: Array, theta2:Array, n:int=2) -> Array:
 
 def multi_vmap(fn: Callable[[Array], Array], t: int) -> Callable[[Array], Array]:
     "Apply vmap t times"
-    for j in range(t):
+    for _ in range(t):
         fn = vmap(fn)
     return fn
 
@@ -664,7 +664,7 @@ class Batchable:
     def size(self) -> Tuple[int, ...]:
         return self.shape
     
-    def __getitem__(self, ind: Tuple[int, ...]) -> Self:
+    def __getitem__(self, ind: int | Tuple[int, ...]) -> Self:
         shape = self.shape
         if isinstance(ind, tuple) and Ellipsis in ind: # type: ignore
             # We only want ... to apply to the prefix args

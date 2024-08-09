@@ -2,6 +2,7 @@ from PIL import Image as PILImage
 from chalk import *
 from colour import Color
 from chalk import BoundingBox
+# pyright: basic
 
 # Colors
 papaya = Color("#ff9700")

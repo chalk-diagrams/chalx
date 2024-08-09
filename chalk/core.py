@@ -24,7 +24,7 @@ import chalk.types
 from chalk.broadcast import broadcast_diagrams
 
 from chalk.path import Path
-from chalk.style import BatchStyle, Style, StyleHolder
+from chalk.style import BatchStyle, StyleHolder
 from chalk.transform import Affine
 from chalk.types import BatchDiagram, BroadDiagram, Diagram
 from chalk.transform import Batched
@@ -33,20 +33,20 @@ from chalk.visitor import DiagramVisitor
 Trail = Any
 A = TypeVar("A", bound=chalk.monoid.Monoid)
 
-SVG_HEIGHT = 200
-SVG_DRAW_HEIGHT = None
+Svg_Height = 200
+Svg_Draw_Height = None
 
 
 def set_svg_height(height: int) -> None:
     "Globally set the svg preview height for notebooks."
-    global SVG_HEIGHT
-    SVG_HEIGHT = height
+    global Svg_Height
+    Svg_Height = height
 
 
 def set_svg_draw_height(height: int) -> None:
     "Globally set the svg preview height for notebooks."
-    global SVG_DRAW_HEIGHT
-    SVG_DRAW_HEIGHT = height
+    global Svg_Draw_Height
+    Svg_Draw_Height = height
 
 
 @dataclass(frozen=True)
@@ -209,9 +209,9 @@ class BaseDiagram(chalk.types.Diagram):
         return self
 
     def _repr_svg_(self) -> str:
-        global SVG_HEIGHT
+        global Svg_Height, Svg_Draw_Height
         f = tempfile.NamedTemporaryFile(delete=False)
-        self.render_svg(f.name, height=SVG_HEIGHT, draw_height=SVG_DRAW_HEIGHT)
+        self.render_svg(f.name, height=Svg_Height, draw_height=Svg_Draw_Height)
         f.close()
         svg = open(f.name).read()
         os.unlink(f.name)

@@ -5,7 +5,8 @@ import random
 from itertools import product
 
 from colour import Color
-from chalk import square, concat, empty
+from chalk import square, concat
+# pyright: basic
 
 random.seed(0)
 
@@ -43,8 +44,6 @@ try:
     diagram.render(path, height=256)
     PILImage.open(path)
 
-    path = "examples/output/squares.pdf"
-    diagram.render_pdf(path, height=256)
 
 except ModuleNotFoundError:
     print("Need to install Cairo")

@@ -106,7 +106,7 @@ def batch_cat(
         off = tx.np.cumsum(off, axis=0)
 
         @tx.vmap  # type: ignore
-        def translate(x) -> Diagram: # Type: ignore
+        def translate(x) -> Diagram: # type: ignore
             off, diagram = x
             t = v * off[..., None, None]
             dia : Diagram = diagram.translate_by(t)
