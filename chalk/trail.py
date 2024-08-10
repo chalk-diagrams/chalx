@@ -140,7 +140,7 @@ def hrule(length: Floating) -> Trail:
 def vrule(length: Floating) -> Trail:
     return seg(length * tx.unit_y)
 
-
+@tx.jit
 def square() -> Trail:
     t = seg(tx.unit_x) + seg(tx.unit_y)
     return (t + t.rotate_by(0.5)).close()
@@ -160,7 +160,7 @@ def rounded_rectangle(
     ) + seg(0.01 * tx.unit_y)
     return trail.close()
 
-
+@tx.jit
 def circle(clockwise: bool = True) -> Trail:
     sides = 4
     dangle = -90

@@ -16,7 +16,7 @@ def hilbert(n):
     h, h2 = hilbert(n -1), hilbert2(n-1)
     return (h2.reflect_y() + unit_y
             + h + unit_x
-            + h + tx.scale(V2(1, -1)) @ unit_y
+            + h + unit_y.reflect_y()
             + h2.reflect_x())
 
 d = hilbert(5).stroke().center_xy().line_width(0.05)

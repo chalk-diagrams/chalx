@@ -112,11 +112,14 @@ class BaseDiagram(chalk.types.Diagram):
         if isinstance(self, Empty):
             return other
         elif isinstance(self, Compose) and isinstance(other, Compose):
-            return Compose(envelope, self.diagrams + other.diagrams)
+            if self.envelope is None and other.envelope is None:
+                return Compose(envelope, self.diagrams + other.diagrams)
+            else:
+                return Compose(envelope, (self, other))
         elif isinstance(other, Empty) and not isinstance(self, Compose):
             return Compose(envelope, (self,))
 
-        elif isinstance(other, Compose):
+        elif isinstance(other, Compose) and other.envelope is None:
             return Compose(envelope, (self,) + other.diagrams)
         else:
             return Compose(envelope, (self, other))

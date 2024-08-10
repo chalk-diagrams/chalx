@@ -77,7 +77,7 @@ class WidthType(Enum):
     LOCAL = auto()
     NORMALIZED = auto()
 
-
+@tx.jit
 def Style(
     line_width_: Optional[PropLike] = None,
     line_color_: Optional[ColorLike] = None,

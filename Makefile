@@ -287,12 +287,12 @@ images: $(IMAGES)
 
 # Rule to process each image
 $(IMAGES):
-	python $(EXAMPLES_DIR)/$@.py
-	jupytext --execute --run-path . --set-kernel chalk  --to ipynb -o $(EXAMPLES_DIR)/output/$@.ipynb $(EXAMPLES_DIR)/$@.py
-	jupyter nbconvert --to html $(EXAMPLES_DIR)/output/$@.ipynb 
+	CHALK_CHECK=1 python $(EXAMPLES_DIR)/$@.py
+	# jupytext --execute --run-path . --set-kernel chalk  --to ipynb -o $(EXAMPLES_DIR)/output/$@.ipynb $(EXAMPLES_DIR)/$@.py
+	# jupyter nbconvert --to html $(EXAMPLES_DIR)/output/$@.ipynb 
 
 # List of images to be generated
-VISTESTS := alignment arc broadcast combinators envelope names path rendering shapes styles subdiagram trails transformations text
+VISTESTS := alignment arc broadcast combinators envelope names path rendering shapes styles subdiagram trails transformations trace text
 
 VT_DIR := api
 

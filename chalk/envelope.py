@@ -64,30 +64,31 @@ def post_transform(
     # Translation
     diff = tx.dot(tx.scale_vec(u, 1 / tx.dot(v, v)), v)
     return tx.np.asarray(after_linear - diff)
-    # return tx.np.max(out, axis=-1)
 
+
+@tx.jit
+def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
+    # Push the user batch dimensions to the left.
+    batch_shape = d.shape[:-2]
+    segments_shape = transform.shape[:-2]
+    return_shape = batch_shape + segments_shape[:-1]
+    if segments_shape[-1] == 0:
+        return tx.np.zeros(return_shape)
+    for _ in range(len(segments_shape)):
+        d = d[..., None, :, :]
+
+    pre = pre_transform(transform, d)
+    trans = arc_envelope(transform, angles, pre[0])
+    v= post_transform(pre[1], pre[2], pre[3], trans).max(-1) # type: ignore
+    assert v.shape == return_shape, f"{v.shape} {return_shape}"
+    return tx.np.asarray(v)
 
 @dataclass
 class Envelope(Transformable, Monoid, Batchable):
     segment: BatchSegment
 
-    def __call__(self, direction: V2_t) -> Scalars:
-        def run(d): # type: ignore
-            if self.segment.angles.shape[0] == 0:
-                return tx.np.array(0.0)
-
-            @partial(tx.np.vectorize, signature="(a,3,3),(a,2)->()")
-            def env(t, ang): # type: ignore
-                v = Envelope.general_transform(
-                    t, lambda x: arc_envelope(t, ang, x), d
-                ).max()
-                return v
-
-            return env(self.segment.transform, 
-                       self.segment.angles)
-
-        run = tx.multi_vmap(run, len(direction.shape) - 2)  # type: ignore
-        return run(direction)  # type: ignore
+    def __call__(self, direction: V2_t) -> tx.Array:
+        return env(*self.segment.tuple(), direction)
 
     def __add__(self: BatchEnvelope, other: BatchEnvelope) -> BatchEnvelope:
         return Envelope(self.segment + other.segment)
@@ -98,9 +99,7 @@ class Envelope(Transformable, Monoid, Batchable):
 
     @property
     def center(self) -> P2_t:
-        d = [
-            self(Envelope.all_dir[d]) for d in range(Envelope.all_dir.shape[0])
-        ]
+        d = self(Envelope.all_dir)
         return P2(
             (-d[1] + d[0]) / 2,
             (-d[3] + d[2]) / 2,
@@ -149,12 +148,6 @@ class Envelope(Transformable, Monoid, Batchable):
         v = tx.polar(tx.np.arange(0, 361, angle) * 1.0)
         return tx.scale_vec(v, self(v))
 
-    @staticmethod
-    def general_transform(
-        t: Affine, fn: Callable[[V2_t], Scalars], d: V2_t
-    ) -> tx.ScalarsC:
-        pre = pre_transform(t, d)
-        return post_transform(pre[1], pre[2], pre[3], fn(pre[0])) # type: ignore
 
     def apply_transform(self, t: Affine) -> Envelope:
         return Envelope(self.segment.apply_transform(t[..., None, :, :]))
@@ -189,7 +182,7 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
         "Defaults to pass over"
         return diagram.diagram.accept(self, t @ diagram.transform)
 
-
+@tx.jit
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     # assert self.size() == ()
     if t is None:

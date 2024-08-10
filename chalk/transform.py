@@ -124,6 +124,7 @@ def union(
         m = np.concatenate([x[1], y[1]], axis=1)
         return n1, m
     else:
+        print(x[0].shape)
         n1 = np.concatenate([x[0], y[0]], axis=1)
         m = np.concatenate([x[1], y[1]], axis=1)
         return n1, m
@@ -164,6 +165,7 @@ def ftos(f: Floating) -> Scalars:
     "Map a float to an array format."
     return np.asarray(f, dtype=np.double)
 
+@jit
 # @partial(vectorize, signature="(),()->(3,1)")
 def V2(x: Floating, y: Floating) -> V2_t:
     "Map (x,y) of any shape to a (batched) vector."
@@ -174,7 +176,7 @@ def V2(x: Floating, y: Floating) -> V2_t:
     s: V2_t = np.stack([x, y, o], axis=-1)[..., None]
     return s
 
-
+@jit
 # @partial(vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
     "Map (x,y) of any shape to a (batched) point."
@@ -182,13 +184,13 @@ def P2(x: Floating, y: Floating) -> P2_t:
     s: P2_t = np.stack([x, y, o], axis=-1)[..., None]
     return s
 
-
+@jit
 def norm(v: V2_t) -> V2_t:
     v = v / length(v)[..., None, None]
     return v
     
 
-
+@jit
 def length(v: V2_t) -> Scalars:
     "Length of a vector"
     return np.asarray(np.sqrt(length2(v)))
@@ -311,7 +313,7 @@ def get_translation(aff: Affine) -> V2_t:
     base = np.zeros((aff.shape[:-2]) + (3, 1))
     return index_update(base, index, aff[..., :2, 2])  # type: ignore
 
-
+@jit
 def rotation(r: Floating) -> Affine:
     "Create an affine rotation matrix in radians"
     rad = ftos(r)
@@ -463,7 +465,7 @@ class Ray:
     v: V2_t
 
     def point(self, len: Scalars) -> P2_t:
-        p: P2_t = self.pt + len[..., None, None] * self.v
+        p: P2_t = self.pt + scale_vec(self.v, len)
         return p
 
 
@@ -501,10 +503,10 @@ class BoundingBox(Transformable):
         )
 
 
-@partial(vectorize, signature="(3,1),(3,1),()->(),()") # type: ignore
+#@partial(vectorize, signature="(3,1),(3,1),()->(),()") # type: ignore
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
-) -> Tuple[Scalars, Mask]:
+) -> Tuple[Scalars, Mask, Scalars, Mask]:
     """Given a ray and a circle centered at the origin, return the parameter t
     where the ray meets the circle, that is:
 
@@ -532,27 +534,20 @@ def ray_circle_intersection(
     Δ = b**2 - 4 * a * c
     eps = 1e-10  # rounding error tolerance
 
-    mid = (((-eps <= Δ) & (Δ < 0)))[..., None]
-    mask = (Δ < -eps)[..., None] | (mid * np.asarray([1, 0]))
-
-    # Bump NaNs since they are going to me masked out.
-    ret: Array = np.stack(
-        [
-            (-b - np.sqrt(Δ + 1e9 * mask[..., 0])) / (2 * a),
-            (-b + np.sqrt(np.where(mid[..., 0], 0, Δ) + 1e9 * mask[..., 1]))
-            / (2 * a),
-        ],
-        -1,
-    )
-
-    ret2 = np.where(mid, (-b / (2 * a))[..., None], ret)
+    mid = (-eps <= Δ) & (Δ < 0)
+    mask1 = (Δ < -eps)
+    mask2 = mask1 | mid 
+    
+    ret1 = (-b - np.sqrt(Δ + 1e9 * mask1)) / (2 * a)
+    ret2 = (-b + np.sqrt(np.where(mid, 0, Δ) + 1e9 * mask2)) / (2 * a)
+    ret1 = np.where(mid, (-b / (2 * a)), ret1)
+    ret2 = np.where(mid, (-b / (2 * a)), ret2)
     assert not isinstance(ret2, tuple)
-    assert len(ret2.shape) == 3, ret2.shape
-    return ret2.transpose(2, 0, 1), 1 - mask.transpose(2, 0, 1)
+    return ret1, 1 - mask1, ret2, 1 -mask2
 
 
 @partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")
-def arc_to_bezier(theta1: Array, theta2:Array, n:int=2) -> Array:
+def arc_to_bezier(theta1: Array, theta2:Array, n:int=5) -> Array:
     """
     Returns the bezier curves for the unit circle arc from angles *theta1* to
     *theta2* (in degrees).
@@ -572,10 +567,10 @@ def arc_to_bezier(theta1: Array, theta2:Array, n:int=2) -> Array:
     theta1, theta2 = np.broadcast_arrays(theta1, theta2)
     extra = theta1.shape
     eta1 = theta1
-    eta2 = theta2 - 360 * np.floor((theta2 - theta1) / 360)
+    eta2 = theta2 # - 360 * np.floor((theta2 - theta1) / 360)
     # Ensure 2pi range is not flattened to 0 due to floating-point errors,
     # but don't try to expand existing 0 range.
-    eta2 = np.where((theta2 != theta1) & (eta2 <= eta1), eta2 + 360, eta2)
+    #eta2 = np.where((theta2 != theta1) & (eta2 <= eta1), eta2 + 360, eta2)
     eta1, eta2 = to_radians(eta1), to_radians(eta2)
 
     deta = (eta2 - eta1) / n

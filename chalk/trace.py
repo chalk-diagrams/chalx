@@ -14,35 +14,35 @@ if TYPE_CHECKING:
     from chalk.types import Diagram
 
 
-@dataclass
-class TraceDistances(Monoid):
-    distance: tx.Scalars
-    mask: tx.Mask
+# @dataclass
+# class TraceDistances(Monoid):
+#     distance: tx.Scalars
+#     mask: tx.Mask
 
-    def __iter__(self):  # type: ignore
-        yield self.distance
-        yield self.mask
+#     def __iter__(self):  # type: ignore
+#         yield self.distance
+#         yield self.mask
 
-    def tuple(self) -> Tuple[tx.Scalars, tx.Mask]:
-        return self.distance, self.mask
+#     def tuple(self) -> Tuple[tx.Scalars, tx.Mask]:
+#         return self.distance, self.mask
 
-    def __getitem__(self, i: int):  # type: ignore
-        if i == 0:
-            return self.distance
-        if i == 1:
-            return self.mask
+#     def __getitem__(self, i: int):  # type: ignore
+#         if i == 0:
+#             return self.distance
+#         if i == 1:
+#             return self.mask
 
-    def __add__(self, other: TraceDistances) -> TraceDistances:  # type: ignore
-        return TraceDistances(*tx.union(self.tuple(), other.tuple()))
+#     def __add__(self, other: TraceDistances) -> TraceDistances:  # type: ignore
+#         return TraceDistances(*tx.union(self.tuple(), other.tuple()))
 
-    @staticmethod
-    def empty() -> TraceDistances:
-        return TraceDistances(tx.np.asarray([]), tx.np.asarray([]))
+#     @staticmethod
+#     def empty() -> TraceDistances:
+#         return TraceDistances(tx.np.asarray([]), tx.np.asarray([]))
 
-    def reduce(self, axis: int = 0) -> TraceDistances:
-        return TraceDistances(
-            *tx.union_axis((self.distance, self.mask), axis=axis)
-        )
+#     def reduce(self, axis: int = 0) -> TraceDistances:
+#         return TraceDistances(
+#             *tx.union_axis((self.distance, self.mask), axis=axis)
+#         )
 
 
 @dataclass
@@ -58,21 +58,25 @@ class Trace(Monoid, Transformable):
     segment: Segment
 
     def __call__(self, point: P2_t, direction: V2_t) -> TraceDistances:
-        if len(point.shape) == 2:
-            point = point.reshape(1, 3, 1)
-        if len(direction.shape) == 2:
-            direction = direction.reshape(1, 3, 1)
-        assert point[..., -1, 0] == 1.0, point
+        point, direction = tx.np.broadcast_arrays(point, direction)
+
+        # Push the __call__ batch dimensions to the left.
+        batch_shape = point.shape[:-2]
+        print(self.segment.transform.shape)
+        segments_shape = self.segment.transform.shape[:-2]
+        for _ in range(len(segments_shape)):
+            point = point[..., None, :, :]
+            direction = direction[..., None, :, :]
+
         d, m = Trace.general_transform(
             self.segment.transform,
-            lambda x: arc_trace(self.segment, x),
+            lambda x1, x2: arc_trace(self.segment.transform, self.segment.angles, x1, x2),
             Ray(point, direction),
         )
-
-        ad = tx.np.argsort(d + (1 - m) * 1e10, axis=1)
-        d = tx.np.take_along_axis(d, ad, axis=1)
-        m = tx.np.take_along_axis(m, ad, axis=1)
-        return TraceDistances(d, m)
+        ad = tx.np.argsort(d + (1 - m) * 1e10, axis=-1)
+        d = tx.np.take_along_axis(d, ad, axis=-1)
+        m = tx.np.take_along_axis(m, ad, axis=-1)
+        return (d, m)
 
     @staticmethod
     def general_transform(
@@ -82,16 +86,11 @@ class Trace(Monoid, Transformable):
 
         def wrapped(
             ray: Ray,
-        ) -> TraceDistances:
-            td = TraceDistances(
-                *fn(
-                    Ray(
-                        t1 @ ray.pt[..., None, :, :],
-                        t1 @ ray.v[..., None, :, :],
-                    )
-                )
-            )
-            return td.reduce(axis=-1)
+        ) :
+            d, m = fn(t1 @ ray.pt, t1 @ ray.v)
+            d = d.reshape(d.shape[:-2] + (-1,))
+            m = m.reshape(m.shape[:-2] + (-1,))
+            return d, m
 
         return wrapped(r)
 
@@ -106,29 +105,29 @@ class Trace(Monoid, Transformable):
         ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=1)
         m = tx.np.take_along_axis(m, ad, axis=1)
         s = d[:, 0]
-        return TraceDistances(s[..., None] * v, m[:, 0])
+        return (s[..., None] * v, m[:, 0])
 
     def trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
         u, m = self.trace_v(p, v)
-        return TraceDistances(p + u, m)
+        return (p + u, m)
 
     def max_trace_v(self, p: P2_t, v: V2_t) -> TraceDistances:
         return self.trace_v(p, -v)
 
     def max_trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
         u, m = self.max_trace_v(p, v)
-        return TraceDistances(p + u, m)
+        return (p + u, m)
 
-    @staticmethod
-    def combine(p1: TraceDistances, p2: TraceDistances) -> TraceDistances:
-        ps, m = p1
-        ps2, m2 = p2
-        ps = tx.np.concatenate([ps, ps2], axis=1)
-        m = tx.np.concatenate([m, m2], axis=1)
-        ad = tx.np.argsort(ps + (1 - m) * 1e10, axis=1)
-        ps = tx.np.take_along_axis(ps, ad, axis=1)
-        m = tx.np.take_along_axis(m, ad, axis=1)
-        return TraceDistances(ps, m)
+    # @staticmethod
+    # def combine(p1: TraceDistances, p2: TraceDistances) -> TraceDistances:
+    #     ps, m = p1
+    #     ps2, m2 = p2
+    #     ps = tx.np.concatenate([ps, ps2], axis=1)
+    #     m = tx.np.concatenate([m, m2], axis=1)
+    #     ad = tx.np.argsort(ps + (1 - m) * 1e10, axis=1)
+    #     ps = tx.np.take_along_axis(ps, ad, axis=1)
+    #     m = tx.np.take_along_axis(m, ad, axis=1)
+    #     return TraceDistances(ps, m)
 
 
 class GetLocatedSegments(DiagramVisitor[Segment, Affine]):

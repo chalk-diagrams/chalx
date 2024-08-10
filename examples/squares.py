@@ -43,8 +43,6 @@ try:
     path = "examples/output/squares.png"
     diagram.render(path, height=256)
     PILImage.open(path)
-
-
 except ModuleNotFoundError:
     print("Need to install Cairo")
 

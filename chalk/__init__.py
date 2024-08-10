@@ -35,7 +35,7 @@ from chalk.subdiagram import *
 from chalk.arrowheads import *
 from chalk.export import *
 
-if eval(os.environ.get("CHALK_CHECK", "1")):
+if eval(os.environ.get("CHALK_CHECK", "0")):
     assert hook is not None
     hook.uninstall()
 
@@ -49,7 +49,6 @@ jax_type = [
     chalk.core.ApplyStyle,
     chalk.core.ComposeAxis,
     chalk.envelope.EnvDistance,
-    chalk.trace.TraceDistances,
     chalk.style.StyleHolder,
     chalk.trail.Trail,
     chalk.path.Path,

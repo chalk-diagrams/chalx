@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 import chalk.transform as tx
-from chalk.backend.patch import Patch
+from chalk.backend.patch import Patch, patch_from_prim
 from chalk.monoid import Monoid
 from chalk.style import StyleHolder
 from chalk.transform import Affine
@@ -59,7 +59,7 @@ def layout(
     s = s.apply_style(style)
     if draw_height is None:
         draw_height = height
-    patches = [Patch.from_prim(prim, style, draw_height) for prim in get_primitives(s)]
+    patches = [patch_from_prim(prim, style, draw_height) for prim in get_primitives(s)]
     return patches, height, width
 
 
