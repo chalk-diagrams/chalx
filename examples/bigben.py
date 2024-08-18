@@ -273,7 +273,7 @@ def fit_in(b: Diagram, s: Diagram, frame=0.1) -> Diagram:
     # Find the inner radius
     trace = b.get_trace()
     p, m = trace(tx.origin, unit_x)
-    m = min([x for x, m1 in zip(p[0], m[0]) if m1 and x > 0])
+    m = min([x for x, m1 in zip(p, m) if m1 and x > 0])
 
     # Scale the inner diagram to that size
     return b + s.scale_uniform_to_x(2 * m - frame)

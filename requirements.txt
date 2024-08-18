@@ -3,5 +3,6 @@ imageio
 jaxtyping
 numpy
 jax
+chex
 typing-extensions
 importlib-metadata

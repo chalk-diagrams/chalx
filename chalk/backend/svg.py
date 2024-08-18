@@ -51,24 +51,25 @@ def write_style(d: Dict[str, Any]) -> str:
     return out
 
 
-def render_svg_patches(patches: List[Patch], dwg: str) -> None:
+def render_svg_patches(patches: List[Patch]) -> str:
+    out = ""
     for ind, patch, style_new in chalk.backend.patch.order_patches(patches):
         inner = to_svg(patch, ind)
 
-        dwg += f"""
+        out += f"""
 <g style="{write_style(style_new)}">
     {inner}
 </g>
     """
+    return out
 
 def patches_to_file(
     patches: List[Patch], path: str, height: tx.IntLike, width: tx.IntLike
 ) -> None:
-    dwg = f"""
-    <?xml version="1.0" encoding="utf-8" ?>
-    <svg baseProfile="full" height="{int(height)}" version="1.1" width="{int(width)}" xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink">
+    dwg = f"""<?xml version="1.0" encoding="utf-8" ?>
+<svg baseProfile="full" height="{int(height)}" version="1.1" width="{int(width)}" xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink">
     """
-    render_svg_patches(patches, dwg)
+    dwg += render_svg_patches(patches)
     dwg += "</svg>"
     with open(path, "w") as f:
         f.write(dwg)
