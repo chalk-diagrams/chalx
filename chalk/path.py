@@ -93,7 +93,7 @@ def from_point(point: P2_t) -> Path:
 
 
 def from_text(s: str) -> Path:
-    return Path((), Text(tx.np.array(list(s), dtype="U1")))
+    return Path((), Text(tx.np.frombuffer(s, dtype="<U3")))
 
 
 def from_pairs(segs: List[Tuple[P2_t, P2_t]], closed: bool = False) -> Path:
