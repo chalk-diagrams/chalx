@@ -39,6 +39,10 @@ class Name:
 
     def qualify(self, name: Name) -> Name:
         return name + self
+    
+    @staticmethod
+    def make(x: AtomicName) -> Name:
+        return Name((x,))
 
 
 @dataclass

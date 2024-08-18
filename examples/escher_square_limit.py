@@ -5,7 +5,7 @@
 
 # pyright: basic
 
-from chalk import concat, make_path, strut
+from chalk import concat, make_path, strut, tx
 
 
 # fmt: off
@@ -86,7 +86,7 @@ blank = strut(1, 1)
 
 
 def normalize(coords):
-    def center(val: float) -> float:
+    def center(val: float) -> tx.Floating:
         return (val - 8) / 16
 
     return [(center(x), -center(y)) for x, y in coords]

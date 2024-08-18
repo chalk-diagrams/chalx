@@ -35,7 +35,7 @@ def draw_tensor(depth, rows, columns):
 
 draw_tensor(2, 3, 4)
 
-def t(d, r, c):
+def t_(d, r, c):
     return draw_tensor(d, r, c).fill_color(white)
 
 def label(te, s=1.5):
@@ -44,8 +44,8 @@ def label(te, s=1.5):
 
 # Create a diagram.
 d, r, c = 3, 4, 5
-base = t(d, r, c).line_color(papaya)
-m = hcat([t(1, r, c),  t(d, 1, c), label("→"), (base + t(1, r, c)), (base + t(d, 1, c) ), label("="), t(d, r, c)], sep=2.5).line_width(0.02)
+base = t_(d, r, c).line_color(papaya)
+m = hcat([t_(1, r, c),  t_(d, 1, c), label("→"), (base + t_(1, r, c)), (base + t_(d, 1, c) ), label("="), t_(d, r, c)], sep=2.5).line_width(0.02)
 
 
 pathsvg = "examples/output/tensor.svg"

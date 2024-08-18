@@ -1,12 +1,8 @@
-toolz
 colour
 svgwrite
-cairosvg
 Pillow
 jaxtyping
 numpy
 jax
-latextools
-loguru
 typing-extensions
 importlib-metadata

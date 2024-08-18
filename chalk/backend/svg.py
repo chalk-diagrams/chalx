@@ -2,44 +2,37 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-import svgwrite
-from svgwrite import Drawing
-from svgwrite.base import BaseElement
-
 import chalk.backend.patch
 import chalk.transform as tx
 from chalk.backend.patch import Patch
 from chalk.types import Diagram
 
 
-def to_svg(patch: Patch, dwg: Drawing, ind: Tuple[int, ...]) -> BaseElement:
-    line = dwg.path(style="vector-effect: non-scaling-stroke;")
+def to_svg(patch: Patch, ind: Tuple[int, ...]) -> str:
     v, c = patch.vert[ind], patch.command[ind]
     if v.shape[0] == 0:
-        return dwg.g()
+        return "<g></g>"
+    line = ""
     i = 0
-
     while i < c.shape[0]:
         if c[i] == chalk.backend.patch.Command.MOVETO.value:
-            line.push(f"M {v[i, 0]} {v[i, 1]}")
+            line += f"M {v[i, 0]} {v[i, 1]}"
             i += 1
         elif c[i] == chalk.backend.patch.Command.LINETO.value:
-            line.push(f"L {v[i, 0]} {v[i, 1]}")
+            line += f"L {v[i, 0]} {v[i, 1]}"
             i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE3.value:
-            line.push(f"Q {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]}")
+            line += f"Q {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]}"
             i += 2
         elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
-            line.push("Z")
+            line += "Z"
             i += 1
         elif c[i] == chalk.backend.patch.Command.SKIP.value:
             i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE4.value:
-            line.push(
-                f"C {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]} {v[i+2, 0]} {v[i+2, 1]}"
-            )
+            line += f"C {v[i, 0]} {v[i, 1]} {v[i+1, 0]} {v[i+1, 1]} {v[i+2, 0]} {v[i+2, 1]}"
             i += 3
-    return line
+    return f"<path d='{line}'/>"
 
 
 def write_style(d: Dict[str, Any]) -> str:
@@ -58,20 +51,27 @@ def write_style(d: Dict[str, Any]) -> str:
     return out
 
 
-def render_svg_patches(patches: List[Patch], dwg: Drawing) -> None:
+def render_svg_patches(patches: List[Patch], dwg: str) -> None:
     for ind, patch, style_new in chalk.backend.patch.order_patches(patches):
-        inner = to_svg(patch, dwg, ind)
-        g = dwg.g(style=write_style(style_new))
-        g.add(inner)
-        dwg.add(g)
+        inner = to_svg(patch, ind)
 
+        dwg += f"""
+<g style="{write_style(style_new)}">
+    {inner}
+</g>
+    """
 
 def patches_to_file(
     patches: List[Patch], path: str, height: tx.IntLike, width: tx.IntLike
 ) -> None:
-    dwg = svgwrite.Drawing(path, size=(int(width), int(height)))
+    dwg = f"""
+    <?xml version="1.0" encoding="utf-8" ?>
+    <svg baseProfile="full" height="{int(height)}" version="1.1" width="{int(width)}" xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink">
+    """
     render_svg_patches(patches, dwg)
-    dwg.save()
+    dwg += "</svg>"
+    with open(path, "w") as f:
+        f.write(dwg)
 
 
 def render(

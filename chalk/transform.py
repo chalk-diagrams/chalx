@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Tuple
 
-from array_types import (
+from chalk.array_types import (
     JAX_MODE,
     Array,
     Batchable,

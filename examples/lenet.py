@@ -3,6 +3,7 @@ from chalk import *
 from colour import Color
 from chalk import BoundingBox
 # pyright: basic
+# pyright: reportUnusedExpression=none
 
 # Colors
 papaya = Color("#ff9700")

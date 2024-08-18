@@ -15,7 +15,9 @@
 # <img style="height:300px;width:300px;max-width:auto;" src="chalk_bigben.svg">
 
 # ## Preliminary: Roman Numerals
+
 # pyright: basic
+# pyright: reportUnusedExpression=none
 
 from chalk import *
 from colour import Color

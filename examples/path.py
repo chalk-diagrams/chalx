@@ -19,7 +19,7 @@ d = []
 
 d += [circle(1).show_origin()]
 
-d += [(Trail.square().centered().to_path() + Trail.square().scale(V2(0.5, 0.5)).reverse().centered().to_path()).stroke()]
+# d += [(Trail.square().centered().to_path() + Trail.square().scale(V2(0.5, 0.5)).reverse().centered().to_path()).stroke()]
 
 d += [(Trail.circle().scale(V2(2, 2)).centered().to_path() + Trail.circle(False).centered().to_path()).stroke()]
 

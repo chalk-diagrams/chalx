@@ -1,7 +1,7 @@
 from chalk import *
-from chalk.trail import Trail
 from colour import Color
 # pyright: basic
+# pyright: reportUnusedExpression=none
 
 grey = Color("grey")
 blue = Color("blue")

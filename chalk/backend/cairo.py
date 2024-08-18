@@ -129,4 +129,4 @@ def animate(
             path = path_frame.format(i)
             patches_to_file(patches, path, h, w, (i,))
             image = imageio.imread(path)
-            writer.append_data(image)
+            writer.append_data(image) # type: ignore
