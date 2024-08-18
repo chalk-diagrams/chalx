@@ -2,7 +2,7 @@ colour
 pycairo
 imageio
 jaxtyping
-numpy
+numpy>=2.0.0
 IPython
 matplotlib
 jax

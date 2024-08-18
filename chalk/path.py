@@ -15,7 +15,7 @@ class Text:
     text: tx.Array
 
     def to_str(self) -> str:
-        return self.text.tostring().decode("utf-8")  # type: ignore
+        return tx.np.ndarray.tobytes(self.text).decode("utf-8")  # type: ignore
 
 
 @dataclass(unsafe_hash=True)
@@ -93,7 +93,7 @@ def from_point(point: P2_t) -> Path:
 
 
 def from_text(s: str) -> Path:
-    return Path((), Text(tx.np.frombuffer(s.encode(encoding="utf-8"), dtype="<U3")))
+    return Path((), Text(tx.np.frombuffer(bytes(s.format(123456), 'utf-8'), dtype=tx.np.uint8)))
 
 
 def from_pairs(segs: List[Tuple[P2_t, P2_t]], closed: bool = False) -> Path:
