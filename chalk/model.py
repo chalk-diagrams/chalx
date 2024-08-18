@@ -1,15 +1,14 @@
-from colour import Color
+"""
+A set of helper functions that help users debug diagram properties.
+"""
 
 import chalk.transform as tx
 from chalk.combinators import concat
-from chalk.shapes import circle, text
 from chalk.path import from_points
+from chalk.shapes import circle, text
+from chalk.trail import seg
 from chalk.transform import V2_t
 from chalk.types import Diagram
-from chalk.trail import seg
-
-RED = Color("red")
-BLUE = Color("blue")
 
 
 def show_origin(self: Diagram) -> Diagram:
@@ -19,7 +18,7 @@ def show_origin(self: Diagram) -> Diagram:
     origin_size = tx.np.maximum(
         0.1, tx.np.minimum(envelope.height, envelope.width) / 50
     )
-    origin = circle(origin_size).line_color(RED)
+    origin = circle(origin_size).line_color("red")
     return self + origin
 
 
@@ -43,7 +42,7 @@ def show_envelope(
         from_points(list(envelope.to_path(angle)))
         .stroke()
         .fill_opacity(0)
-        .line_color(RED)
+        .line_color("red")
     )
     segments = envelope.to_segments(angle)
 
@@ -51,7 +50,7 @@ def show_envelope(
         concat(
             [seg(segments[i][None]).stroke() for i in range(segments.shape[0])]
         )
-        .line_color(BLUE)
+        .line_color("blue")
         .dashing([0.01, 0.01], 0)
     )
 
@@ -70,7 +69,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     one: Diagram = (
         from_points([tx.origin, v1])
         .stroke()
-        .line_color(RED)
+        .line_color("red")
         .dashing([0.01, 0.01], 0)
         .line_width(0.01)
     )
@@ -78,7 +77,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
     two: Diagram = (
         from_points([tx.origin, v2])
         .stroke()
-        .line_color(RED)
+        .line_color("red")
         .dashing([0.01, 0.01], 0)
         .line_width(0.01)
     )
@@ -90,7 +89,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
             ]
         )
         .stroke()
-        .line_color(BLUE)
+        .line_color("blue")
         .line_width(0.02)
     )
     one = (self.show_origin() + one + split).with_envelope(self)
@@ -105,5 +104,5 @@ def show_labels(self: Diagram, font_size: tx.Floating = 1) -> Diagram:
         for sub in subs:
             n = str(name)
             p = sub.get_location()
-            self = self + text(n, font_size).fill_color(RED).translate_by(p)
+            self = self + text(n, font_size).fill_color("red").translate_by(p)
     return self

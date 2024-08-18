@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Iterable, Optional, Self, Tuple
+from typing import TYPE_CHECKING, Iterable, Optional, Tuple
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -11,13 +11,14 @@ from chalk.transform import (
     P2,
     V2,
     Affine,
+    Batchable,
+    Batched,
     BoundingBox,
     P2_t,
     Scalars,
     Transformable,
     V2_t,
 )
-from chalk.transform import Batchable, Batched
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -25,23 +26,8 @@ if TYPE_CHECKING:
     from chalk.types import Diagram
 
 
-@dataclass
-class EnvDistance(Monoid):
-    d: Scalars
-
-    def __add__(self, other: Self) -> EnvDistance:
-        return EnvDistance(tx.np.maximum(self.d, other.d))
-
-    @staticmethod
-    def empty() -> EnvDistance:
-        return EnvDistance(tx.np.asarray(-1e5))
-
-    def reduce(self, axis: int = 0) -> EnvDistance:
-        return EnvDistance(tx.np.max(self.d, axis=axis))
-
-
-@tx.jit # type: ignore
-@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()") # type: ignore
+@tx.jit  # type: ignore
+@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")  # type: ignore
 def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
     rt = tx.remove_translation(t)
     inv_t = tx.inv(rt)
@@ -79,9 +65,10 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
 
     pre = pre_transform(transform, d)
     trans = arc_envelope(transform, angles, pre[0])
-    v= post_transform(pre[1], pre[2], pre[3], trans).max(-1) # type: ignore
+    v = post_transform(pre[1], pre[2], pre[3], trans).max(-1)  # type: ignore
     assert v.shape == return_shape, f"{v.shape} {return_shape}"
     return tx.np.asarray(v)
+
 
 @dataclass
 class Envelope(Transformable, Monoid, Batchable):
@@ -129,10 +116,7 @@ class Envelope(Transformable, Monoid, Batchable):
         return v
 
     def to_bounding_box(self: Envelope) -> BoundingBox:
-        d = [
-            self(Envelope.all_dir[d]) for d in range(Envelope.all_dir.shape[0])
-        ]
-        # d = self(Envelope.all_dir)
+        d = self(Envelope.all_dir)
         return tx.BoundingBox(V2(-d[1], -d[3]), V2(d[0], d[2]))
 
     def to_path(self, angle: int = 45) -> Iterable[P2_t]:
@@ -147,7 +131,6 @@ class Envelope(Transformable, Monoid, Batchable):
         "Draws an envelope by sampling every 10 degrees."
         v = tx.polar(tx.np.arange(0, 361, angle) * 1.0)
         return tx.scale_vec(v, self(v))
-
 
     def apply_transform(self, t: Affine) -> Envelope:
         return Envelope(self.segment.apply_transform(t[..., None, :, :]))
@@ -182,6 +165,7 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
         "Defaults to pass over"
         return diagram.diagram.accept(self, t @ diagram.transform)
 
+
 @tx.jit
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     # assert self.size() == ()
@@ -189,5 +173,6 @@ def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
         t = tx.ident
     segment = self.accept(GetLocatedSegments(), t)
     return Envelope(segment)
+
 
 BatchEnvelope = Batched[Envelope, "*#B"]

@@ -24,7 +24,7 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
     # Render Curves
     v, c = patch.vert[ind], patch.command[ind]
     i = 0
-    while i < c.shape[0] - 1:
+    while i < c.shape[0]:
         if c[i] == chalk.backend.patch.Command.MOVETO.value:
             ctx.move_to(v[i, 0], v[i, 1])
             i += 1
@@ -44,7 +44,9 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             )
             i += 2
         elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
-            # ctx.stroke()
+            ctx.close_path()
+            i += 1
+        elif c[i] == chalk.backend.patch.Command.SKIP.value:
             i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE4.value:
             ctx.curve_to(
@@ -59,10 +61,10 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
 
 
 def render_cairo_patches(
-    patches: List[Patch], ctx: PyCairoContext
+    patches: List[Patch], ctx: PyCairoContext, time: Tuple[int, ...]
 ) -> None:
     # Order the primitives
-    for ind, patch, style in order_patches(patches):
+    for ind, patch, style in order_patches(patches, time):
         to_cairo(patch, ctx, ind)
         write_style(style, ctx)
         ctx.stroke()
@@ -73,18 +75,22 @@ def patches_to_file(
     path: str,
     height: tx.IntLike,
     width: tx.IntLike,
+    time: Tuple[int, ...] = (),
 ) -> None:
     import cairo
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(width), int(height))
     ctx = cairo.Context(surface)
-    render_cairo_patches(patches, ctx)
+    render_cairo_patches(patches, ctx, time)
     surface.write_to_png(path)
 
 
 def render(
-    self: Diagram, path: str, height: int = 128, width: Optional[int] = None,
-    draw_height: Optional[int]=None
+    self: Diagram,
+    path: str,
+    height: int = 128,
+    width: Optional[int] = None,
+    draw_height: Optional[int] = None,
 ) -> None:
     """Render the diagram to a PNG file.
 
@@ -99,3 +105,28 @@ def render(
 
     patches, h, w = self.layout(height, width, draw_height)
     patches_to_file(patches, path, h, w)  # type: ignore
+
+
+def animate(
+    self: Diagram,
+    path: str,
+    height: int = 128,
+    width: Optional[int] = None,
+    draw_height: Optional[int] = None,
+) -> None:
+    shape = self.shape
+
+    assert len(shape) == 1, f"Must be one time dimension {shape}"
+
+    patches, h, w = self.layout(height, width, draw_height)
+    h = tx.np.max(h)
+    w = tx.np.max(w)
+    path_frame = "/tmp/frame-{:d}.png"
+    import imageio
+
+    with imageio.get_writer(path, fps=10, loop=0) as writer:
+        for i in range(shape[0]):
+            path = path_frame.format(i)
+            patches_to_file(patches, path, h, w, (i,))
+            image = imageio.imread(path)
+            writer.append_data(image)

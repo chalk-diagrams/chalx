@@ -8,32 +8,33 @@ if sys.version_info >= (3, 8):
 else:
     import importlib_metadata as metadata
 
-
 import os
+
 hook = None
 if eval(os.environ.get("CHALK_CHECK", "1")):
     from jaxtyping import install_import_hook
+
     hook = install_import_hook("chalk", "typeguard.typechecked")
 
-    
+
 import chex
 import jax
 
 import chalk.backend.patch
 import chalk.core
 import chalk.envelope
+import chalk.path
+import chalk.segment
 import chalk.shapes
 import chalk.style
 import chalk.trace
 import chalk.trail
-import chalk.path
 from chalk.align import *  # noqa: F403
-from chalk.combinators import *  # noqa: F403
-from chalk.shapes import *  # noqa: F403
-import chalk.segment
-from chalk.subdiagram import *
 from chalk.arrowheads import *
+from chalk.combinators import *  # noqa: F403
 from chalk.export import *
+from chalk.shapes import *  # noqa: F403
+from chalk.subdiagram import *
 
 if eval(os.environ.get("CHALK_CHECK", "0")):
     assert hook is not None
@@ -48,7 +49,6 @@ jax_type = [
     chalk.core.Empty,
     chalk.core.ApplyStyle,
     chalk.core.ComposeAxis,
-    chalk.envelope.EnvDistance,
     chalk.style.StyleHolder,
     chalk.trail.Trail,
     chalk.path.Path,
@@ -67,13 +67,16 @@ for t in jax_type:
 jax.tree_util.register_pytree_node(
     chalk.core.ApplyName,
     lambda tree: ((tree.diagram,), (tree.dname,)),
-    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]), # type: ignore
+    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),  # type: ignore
 )
 
-def help(f: Any): # type: ignore
+
+def help(f: Any):  # type: ignore
     import pydoc
+
     from IPython.display import HTML
-    return HTML(pydoc.HTMLDoc().docroutine(f)) # type: ignore
+
+    return HTML(pydoc.HTMLDoc().docroutine(f))  # type: ignore
 
 
 if not TYPE_CHECKING:

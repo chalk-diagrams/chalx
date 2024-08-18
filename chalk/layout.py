@@ -8,7 +8,7 @@ from chalk.backend.patch import Patch, patch_from_prim
 from chalk.monoid import Monoid
 from chalk.style import StyleHolder
 from chalk.transform import Affine
-from chalk.types import SingleDiagram
+from chalk.types import BatchDiagram, SingleDiagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -19,10 +19,20 @@ def get_primitives(self: SingleDiagram) -> List[Primitive]:
     return self.accept(ToListOrder(), tx.ident).ls
 
 
+def animate(
+    self: BatchDiagram,
+    height: tx.IntLike = 128,
+    width: Optional[tx.IntLike] = None,
+    draw_height: Optional[tx.IntLike] = None,
+) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
+    return layout(self, height, width, draw_height)
+
+
 def layout(
-    self: SingleDiagram, 
-    height: tx.IntLike = 128, width: Optional[tx.IntLike] = None,
-    draw_height: Optional[tx.IntLike] = None
+    self: BatchDiagram,
+    height: tx.IntLike = 128,
+    width: Optional[tx.IntLike] = None,
+    draw_height: Optional[tx.IntLike] = None,
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     """
     Layout a diagram before rendering.
@@ -33,7 +43,7 @@ def layout(
     envelope = self.get_envelope()
     assert envelope is not None
 
-    pad = 0.05
+    pad = tx.np.array(0.05)
 
     # infer width to preserve aspect ratio
     if width is None:
@@ -49,17 +59,18 @@ def layout(
         height / ((1 + pad) * envelope.height),
         width / ((1 + pad) * envelope.width),
     )
-
     s = self.scale(α).center_xy().pad(1 + pad)
     e = s.get_envelope()
     assert e is not None
     s = s.translate(e(-tx.unit_x), e(-tx.unit_y))
 
-    style = StyleHolder.root(tx.np.maximum(width, height))  # type: ignore
+    style = StyleHolder.root(0.0)  # type: ignore
     s = s.apply_style(style)
     if draw_height is None:
         draw_height = height
-    patches = [patch_from_prim(prim, style, draw_height) for prim in get_primitives(s)]
+    patches = [
+        patch_from_prim(prim, style, draw_height) for prim in get_primitives(s)
+    ]
     return patches, height, width
 
 

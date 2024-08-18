@@ -292,7 +292,7 @@ $(IMAGES):
 	# jupyter nbconvert --to html $(EXAMPLES_DIR)/output/$@.ipynb 
 
 # List of images to be generated
-VISTESTS := alignment arc broadcast combinators envelope names path rendering shapes styles subdiagram trails transformations trace text
+VISTESTS := alignment animation arc broadcast combinators envelope names path rendering shapes styles subdiagram trails transformations trace text
 
 VT_DIR := api
 

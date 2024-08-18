@@ -22,12 +22,10 @@ import chalk.trace
 import chalk.transform as tx
 import chalk.types
 from chalk.broadcast import broadcast_diagrams
-
 from chalk.path import Path
 from chalk.style import BatchStyle, StyleHolder
-from chalk.transform import Affine
+from chalk.transform import Affine, Batched
 from chalk.types import BatchDiagram, BroadDiagram, Diagram
-from chalk.transform import Batched
 from chalk.visitor import DiagramVisitor
 
 Trail = Any
@@ -77,7 +75,6 @@ class BaseDiagram(chalk.types.Diagram):
         assert isinstance(new, ApplyTransform)
         return ApplyTransform(new.transform, other)
 
-
     def compose_axis(self: BatchedDia) -> ReducedDia:  # type: ignore
         return ComposeAxis(self)
 
@@ -90,11 +87,11 @@ class BaseDiagram(chalk.types.Diagram):
     def __repr__(self) -> str:
         return f"Diagram[self.shape]"
 
-    def __tree_pp__(self, **kwargs): # type: ignore
+    def __tree_pp__(self, **kwargs):  # type: ignore
         import jax._src.pretty_printer as pp
 
         return pp.text(f"Diagram[{self.shape}]")
-    
+
     def compose(
         self,
         envelope: Optional[BatchDiagram] = None,
@@ -102,13 +99,12 @@ class BaseDiagram(chalk.types.Diagram):
     ) -> BroadDiagram:
         if other is None and isinstance(self, Compose):
             return Compose(envelope, tuple(self.diagrams))
-        if other is None and isinstance(self, Compose):
+        if other is None and not isinstance(self, Compose):
             return Compose(envelope, (self,))
 
-        other = other if other is not None else Empty()
         # Broadcast
         self, other = broadcast_diagrams(self, other)  # type: ignore
-
+        assert other is not None
         if isinstance(self, Empty):
             return other
         elif isinstance(self, Compose) and isinstance(other, Compose):
@@ -126,6 +122,7 @@ class BaseDiagram(chalk.types.Diagram):
 
     # Layout
     layout = chalk.layout.layout
+    animate = chalk.backend.cairo.animate
 
     # Getters
     get_envelope = chalk.envelope.get_envelope
@@ -225,7 +222,6 @@ class BaseDiagram(chalk.types.Diagram):
         return self._repr_svg_()
 
 
-
 @dataclass(frozen=True)
 class Primitive(BaseDiagram):
     """Primitive class.
@@ -247,14 +243,17 @@ class Primitive(BaseDiagram):
         return cls(shape, None, tx.make_ident(shape.size()))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
-        chalk.broadcast.check(t.shape[:-2], self.shape,
-                              str(type(self)), "Transform")
+        chalk.broadcast.check(
+            t.shape[:-2], self.shape, str(type(self)), "Transform"
+        )
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(self.prim_shape, self.style, new_diagram.transform)
 
-    def apply_style(self: BatchPrimitive, other_style: BatchStyle) -> BatchPrimitive:
+    def apply_style(
+        self: BatchPrimitive, other_style: BatchStyle
+    ) -> BatchPrimitive:
         new_diagram = ApplyStyle(other_style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(
@@ -271,7 +270,9 @@ class Primitive(BaseDiagram):
     def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_primitive(self, args)
 
+
 BatchPrimitive = Batched[Primitive, "#*B"]
+
 
 @dataclass(unsafe_hash=True, frozen=True)
 class Empty(BaseDiagram):

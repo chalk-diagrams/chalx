@@ -77,7 +77,8 @@ class WidthType(Enum):
     LOCAL = auto()
     NORMALIZED = auto()
 
-@tx.jit
+
+@tx.jit  # type: ignore
 def Style(
     line_width_: Optional[PropLike] = None,
     line_color_: Optional[ColorLike] = None,
@@ -186,7 +187,7 @@ class StyleHolder(Stylable, tx.Batchable):
         style = {}
         f = self.fill_color_
         style["facecolor"] = f  # (f[0], f[1], f[2])
-            # style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
+        # style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
         lc = self.line_color_
         style["edgecolor"] = lc  # (lc[0], lc[1], lc[2])
 
@@ -195,5 +196,6 @@ class StyleHolder(Stylable, tx.Batchable):
         style["linewidth"] = lw.reshape(-1)[0]
         style["alpha"] = self.fill_opacity_[0]
         return style
+
 
 BatchStyle = tx.Batched[StyleHolder, "#*B"]

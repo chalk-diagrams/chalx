@@ -63,8 +63,8 @@ class Subdiagram(Monoid):
         direction of the given vector `v`.
         """
         o = self.get_location()
-        td = self.get_trace().trace_p(o, -v)
-        return tx.np.where(td.mask, td.distance, tx.origin)
+        d, m = self.get_trace().trace_p(o, -v)
+        return tx.np.where(m, d, tx.origin)
 
 
 class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
@@ -175,6 +175,7 @@ def qualify(self: Diagram, name: Any) -> Diagram:
 def named(self: Diagram, name: Any) -> Diagram:
     """Add a name (or a sequence of names) to a diagram."""
     from chalk.core import ApplyName
+
     if not isinstance(name, Name):
         name = Name(name)
     return ApplyName(name, self)

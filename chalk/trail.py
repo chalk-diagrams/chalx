@@ -36,7 +36,7 @@ class Located(Transformable):
         return self.trail.segments.apply_transform(tx.translation(pts))
 
     def points(self) -> P2_t:
-        r : P2_t = self.trail.points() + self.location[..., None, :, :]
+        r: P2_t = self.trail.points() + self.location[..., None, :, :]
         return r
 
     def _promote(self) -> Located:
@@ -84,9 +84,9 @@ class Trail(Monoid, Transformable, TrailLike):
     # Transformable
     def apply_transform(self, t: Affine) -> Trail:
         t = tx.remove_translation(t)
-        return Trail(
-            self.segments.apply_transform(t[..., None, :, :]), self.closed
-        )
+        if len(t.shape) >= 3:
+            t = t[:, None, :, :]
+        return Trail(self.segments.apply_transform(t), self.closed)
 
     # Trail-like
     def to_trail(self) -> Trail:
@@ -114,9 +114,9 @@ class Trail(Monoid, Transformable, TrailLike):
 
     def centered(self) -> Located:
         return self.at(
-            -tx.np.sum(self.points(), axis=-3) / self.segments.transform.shape[0]
+            -tx.np.sum(self.points(), axis=-3)
+            / self.segments.transform.shape[0]
         )
-
 
     # Misc. Constructors
     # Todo: Move out of this class?
@@ -126,6 +126,7 @@ class Trail(Monoid, Transformable, TrailLike):
         if closed:
             trail = trail.close()
         return trail
+
 
 # Misc. Constructors
 # Todo: Move out of this class?
@@ -139,6 +140,7 @@ def hrule(length: Floating) -> Trail:
 
 def vrule(length: Floating) -> Trail:
     return seg(length * tx.unit_y)
+
 
 @tx.jit
 def square() -> Trail:
@@ -155,10 +157,10 @@ def rounded_rectangle(
     corner = arc_seg(tx.V2(r, r), -(r - edge3))
     b = [height - r, width - r, height - r, width - r]
     trail = Trail.concat(
-        (seg(b[i] * tx.unit_y) + corner).rotate_by(i / 4)
-        for i in range(4)
+        (seg(b[i] * tx.unit_y) + corner).rotate_by(i / 4) for i in range(4)
     ) + seg(0.01 * tx.unit_y)
     return trail.close()
+
 
 @tx.jit
 def circle(clockwise: bool = True) -> Trail:
@@ -181,6 +183,7 @@ def regular_polygon(sides: int, side_length: Floating) -> Trail:
     return Trail.concat(
         edge.rotate_by(i / sides) for i in range(sides)
     ).close()
+
 
 def seg(offset: V2_t) -> Trail:
     return arc_seg(offset, 1e-3)

@@ -6,8 +6,8 @@ import svgwrite
 from svgwrite import Drawing
 from svgwrite.base import BaseElement
 
-import chalk.transform as tx
 import chalk.backend.patch
+import chalk.transform as tx
 from chalk.backend.patch import Patch
 from chalk.types import Diagram
 
@@ -19,7 +19,7 @@ def to_svg(patch: Patch, dwg: Drawing, ind: Tuple[int, ...]) -> BaseElement:
         return dwg.g()
     i = 0
 
-    while i < c.shape[0] - 1:
+    while i < c.shape[0]:
         if c[i] == chalk.backend.patch.Command.MOVETO.value:
             line.push(f"M {v[i, 0]} {v[i, 1]}")
             i += 1
@@ -31,6 +31,8 @@ def to_svg(patch: Patch, dwg: Drawing, ind: Tuple[int, ...]) -> BaseElement:
             i += 2
         elif c[i] == chalk.backend.patch.Command.CLOSEPOLY.value:
             line.push("Z")
+            i += 1
+        elif c[i] == chalk.backend.patch.Command.SKIP.value:
             i += 1
         elif c[i] == chalk.backend.patch.Command.CURVE4.value:
             line.push(
@@ -57,9 +59,7 @@ def write_style(d: Dict[str, Any]) -> str:
 
 
 def render_svg_patches(patches: List[Patch], dwg: Drawing) -> None:
-    for ind, patch, style_new in chalk.backend.patch.order_patches(
-        patches
-    ):
+    for ind, patch, style_new in chalk.backend.patch.order_patches(patches):
         inner = to_svg(patch, dwg, ind)
         g = dwg.g(style=write_style(style_new))
         g.add(inner)
@@ -70,9 +70,7 @@ def patches_to_file(
     patches: List[Patch], path: str, height: tx.IntLike, width: tx.IntLike
 ) -> None:
     dwg = svgwrite.Drawing(path, size=(int(width), int(height)))
-    render_svg_patches(
-        patches, dwg
-    )
+    render_svg_patches(patches, dwg)
     dwg.save()
 
 

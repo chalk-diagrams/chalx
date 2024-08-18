@@ -9,19 +9,13 @@ from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
-    from chalk.core import (
-        ApplyName,
-        ApplyStyle,
-        ApplyTransform,
-        ComposeAxis,
-        Primitive,
-    )
+    import chalk.core as core
 
 
 def add_axis(self: Diagram, size: int) -> Diagram:
-    return tx.tree_map( # type: ignore
+    return tx.tree_map(  # type: ignore
         lambda x: tx.np.repeat(x[None], size, axis=0), self
-    )  
+    )
 
 
 def size(self: Diagram) -> Tuple[int, ...]:
@@ -33,31 +27,33 @@ def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     old_shape = len(self.size())
     return tx.tree_map(  # type: ignore
         lambda x: x.reshape(shape + x.shape[old_shape:]), self
-    ) 
+    )
 
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
     return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore
 
 
-def check(a: Tuple[int, ...], b: Tuple[int, ...],
-          s1: str, s2:str) -> None:
+def check(a: Tuple[int, ...], b: Tuple[int, ...], s1: str, s2: str) -> None:
     try:
         tx.np.broadcast_shapes(a, b)
     except ValueError:
-        assert (
-            False
-        ), f"Broadcast error: {s1} Shape: {a} {s2} Shape: {b}"
+        assert False, f"Broadcast error: {s1} Shape: {a} {s2} Shape: {b}"
+
 
 def check_consistent(self: Diagram) -> None:
     shape = self.shape
+
     def check(x: tx.Array) -> None:
-        assert x.shape[:len(shape)] == shape
+        assert x.shape[: len(shape)] == shape
+
     tx.tree_map(check, self)
 
 
 V1 = TypeVar("V1", bound=Diagram)
 V2 = TypeVar("V2", bound=Diagram)
+
+
 def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
     """
     Returns a version of diagram A and B
@@ -110,19 +106,21 @@ class ToSize(DiagramVisitor[Size, Size]):
 
     A_type = Size
 
-    def visit_primitive(self, diagram: Primitive, t: Size) -> Size:
+    def visit_primitive(self, diagram: core.Primitive, t: Size) -> Size:
         return Size(diagram.transform.shape[:-2])
 
-    def visit_apply_transform(self, diagram: ApplyTransform, t: Size) -> Size:
+    def visit_apply_transform(
+        self, diagram: core.ApplyTransform, t: Size
+    ) -> Size:
         return Size(diagram.transform.shape[:-2])
 
-    def visit_apply_name(self, diagram: ApplyName, t: Size) -> Size:
+    def visit_apply_name(self, diagram: core.ApplyName, t: Size) -> Size:
         return diagram.diagram.accept(self, t)
 
-    def visit_apply_style(self, diagram: ApplyStyle, t: Size) -> Size:
-        if diagram.style is None: # type: ignore
+    def visit_apply_style(self, diagram: core.ApplyStyle, t: Size) -> Size:
+        if diagram.style is None:  # type: ignore
             return diagram.diagram.accept(self, t)
         return Size(diagram.style.size())
 
-    def visit_compose_axis(self, diagram: ComposeAxis, t: Size) -> Size:
+    def visit_compose_axis(self, diagram: core.ComposeAxis, t: Size) -> Size:
         return diagram.diagrams.accept(self, t).remove_axis(0)
