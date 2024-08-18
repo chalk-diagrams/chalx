@@ -3,6 +3,7 @@ imageio
 jaxtyping
 numpy
 IPython
+matplotlib
 jax
 chex
 typing-extensions
