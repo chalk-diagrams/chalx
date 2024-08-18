@@ -1,6 +1,5 @@
 colour
-svgwrite
-Pillow
+imageio
 jaxtyping
 numpy
 jax
