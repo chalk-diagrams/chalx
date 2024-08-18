@@ -1,4 +1,5 @@
 colour
+pycairo
 imageio
 jaxtyping
 numpy

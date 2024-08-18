@@ -21,7 +21,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -U pip wheel
         pip install -r requirements.txt -r requirements/dev.txt
-    - name: Unit test with [[ pytest ]]
+    - name: Check types with pyright
       run: |
         # stop the build if there are type errors
         pyright
