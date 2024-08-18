@@ -37,8 +37,8 @@ def patches_to_file(
 ) -> None:
     fig, ax = plt.subplots()
     render_patches(patches, ax)
-    ax.set_xlim((0, width))
-    ax.set_ylim((-height, 0))
+    ax.set_xlim((0, width)) # type: ignore
+    ax.set_ylim((-height, 0)) # type: ignore
     ax.set_aspect("equal")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_axis_off()
