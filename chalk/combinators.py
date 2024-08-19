@@ -19,6 +19,7 @@ def with_envelope(self: Diagram, other: Diagram) -> Diagram:
     """
     Act as if the envelope of `other` is the envelope of `self`.
     """
+    self, other = self.broadcast_diagrams(other)
     return self.compose(other)
 
 

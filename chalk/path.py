@@ -30,7 +30,7 @@ class Path(Transformable, tx.Batchable):
     def shape(self) -> Tuple[int, ...]:
         if not self.loc_trails:
             return ()
-        return self.loc_trails[0].trail.segments.angles.shape[:-3]
+        return self.loc_trails[0].trail.segments.transform.shape[:-3]
 
     def remove_scale(self) -> Path:
         return Path(self.loc_trails, self.text, tx.np.array(True))
@@ -74,18 +74,19 @@ class Path(Transformable, tx.Batchable):
     # Constructors
     @staticmethod
     def from_array(points: P2_t, closed: bool = False) -> Path:
-        l = points.shape[0]
+        l = points.shape[-3]
         if l == 0:
             return Path.empty()
-        offsets = points[tx.np.arange(1, l)] - points[tx.np.arange(0, l - 1)]
+    
+        offsets = points[..., tx.np.arange(1, l), :, :] - points[..., tx.np.arange(0, l - 1), : , :]
         trail = Trail.from_array(offsets, closed)
-        return Path(tuple([trail.at(points[0])]))
+        return Path(tuple([trail.at(points[..., 0, :, :])]))
 
     # Constructors
 
 
 def from_points(points: List[P2_t], closed: bool = False) -> Path:
-    return Path.from_array(tx.np.stack(points))
+    return Path.from_array(tx.np.stack(points, axis=-3))
 
 
 def from_point(point: P2_t) -> Path:

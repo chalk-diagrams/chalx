@@ -72,7 +72,7 @@ class Segment(Monoid, Batchable):
     def to_trail(self) -> Trail:
         from chalk.trail import Trail
 
-        return Trail(self)
+        return Trail(self, tx.np.full(self.angles.shape[:-1], False))
 
     def reduce(self, axis: int = 0) -> Segment:
         return Segment(
@@ -84,11 +84,21 @@ class Segment(Monoid, Batchable):
         return Segment.make(t @ self.transform, self.angles)
 
     def __add__(self, other: Segment) -> Segment:
+        def broadcast_ex(a, b, axis): # type: ignore
+            a_s, b_s = list(a.shape), list(b.shape)
+            a_s[axis] = 1
+            b_s[axis] = 1
+            new = tx.np.broadcast_shapes(a_s, b_s)
+            a_s1, b_s2 = list(new), list(new)
+            a_s1[axis] = a.shape[axis]
+            b_s2[axis] = b.shape[axis]
+            return tx.np.broadcast_to(a, a_s1), tx.np.broadcast_to(b, b_s2)
+
         if self.transform.shape[0] == 0:
             return other
         self, other = self.promote(), other.promote()
-        trans = [self.transform, other.transform]
-        angles = [self.angles, other.angles]
+        trans = broadcast_ex(self.transform, other.transform, -3)
+        angles = broadcast_ex(self.angles, other.angles, -2)
         return Segment.make(
             tx.np.concatenate(trans, axis=-3),
             tx.np.concatenate(angles, axis=-2),
@@ -117,6 +127,7 @@ class Segment(Monoid, Batchable):
 
 
 def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment_t:
+    p, q = tx.np.broadcast_arrays(p, q)
     h = abs(height)
     d = tx.length(q - p)
     # Determine the arc's angle θ and its radius r

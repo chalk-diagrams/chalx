@@ -45,7 +45,7 @@ def check_consistent(self: Diagram) -> None:
     shape = self.shape
 
     def check(x: tx.Array) -> None:
-        assert x.shape[: len(shape)] == shape
+        assert x.shape[: len(shape)] == shape, f"{x.shape} {shape}"
 
     tx.tree_map(check, self)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, List
 
 import chalk.segment as arc
@@ -63,8 +63,7 @@ class Located(Transformable):
 @dataclass(frozen=True, unsafe_hash=True)
 class Trail(Monoid, Transformable, TrailLike):
     segments: Segment
-
-    closed: tx.Mask = field(default_factory=lambda: tx.np.asarray(False))
+    closed: tx.Mask
 
     # def split(self, i: int) -> Trail:
     #     return Trail(self.segments.split(i), self.closed[i])
@@ -72,14 +71,15 @@ class Trail(Monoid, Transformable, TrailLike):
     # Monoid
     @staticmethod
     def empty() -> Trail:
-        return Trail(
-            Segment(tx.np.zeros((0, 3, 3)), tx.np.zeros((0, 2))),
-            tx.np.asarray(False),
-        )
+        seg = Segment(tx.np.zeros((0, 3, 3)), tx.np.zeros((0, 2)))
+        return Trail(seg, 
+                     tx.np.full(seg.angles.shape[:-1], False))
 
     def __add__(self, other: Trail) -> Trail:
         # assert not (self.closed or other.closed), "Cannot add closed trails"
-        return Trail(self.segments + other.segments, tx.np.asarray(False))
+        seg = self.segments + other.segments
+        return Trail(seg, 
+                     tx.np.full(seg.angles.shape[:-1], False))
 
     # Transformable
     def apply_transform(self, t: Affine) -> Trail:
@@ -96,7 +96,8 @@ class Trail(Monoid, Transformable, TrailLike):
         return Trail(self.segments.promote(), self.closed)
 
     def close(self) -> Trail:
-        return Trail(self.segments, tx.np.asarray(True))._promote()
+        return Trail(self.segments, 
+                     tx.np.asarray(True))._promote()
 
     def points(self) -> P2_t:
         q = self.segments.q

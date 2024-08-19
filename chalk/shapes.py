@@ -48,6 +48,8 @@ def triangle(width: tx.Floating) -> Diagram:
     the ``width`` argument. The origin is the traingle's centroid."""
     return regular_polygon(3, width)
 
+def line(from_: Tuple[tx.Floating, tx.Floating], to: Tuple[tx.Floating, tx.Floating]) -> Diagram:
+    return make_path([from_, to])
 
 def make_path(
     segments: List[Tuple[tx.Floating, tx.Floating]], closed: bool = False

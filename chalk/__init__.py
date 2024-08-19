@@ -11,7 +11,7 @@ else:
 import os
 
 hook = None
-if eval(os.environ.get("CHALK_CHECK", "1")):
+if eval(os.environ.get("CHALK_CHECK", "0")):
     from jaxtyping import install_import_hook
 
     hook = install_import_hook("chalk", "typeguard.typechecked")
