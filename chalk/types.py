@@ -288,6 +288,15 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
     ) -> None:
         ...
 
+    def animate_svg(  # type: ignore[empty-body]
+        self: SingleDiagram,
+        path: str,
+        height: int = 128,
+        width: Optional[int] = None,
+        draw_height: Optional[int] = None,
+    ) -> None:
+        ...
+
     def render(  # type: ignore[empty-body]
         self: SingleDiagram,
         path: str,

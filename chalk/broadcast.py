@@ -25,9 +25,11 @@ def size(self: Diagram) -> Tuple[int, ...]:
 
 def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     old_shape = len(self.size())
-    return tx.tree_map(  # type: ignore
+    out = tx.tree_map(  # type: ignore
         lambda x: x.reshape(shape + x.shape[old_shape:]), self
     )
+    check_consistent(out)
+    return out
 
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:

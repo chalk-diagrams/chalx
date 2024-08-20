@@ -99,28 +99,15 @@ def batch_cat(
         sep = 0
 
     def call_scan(diagram: Diagram) -> Diagram:
-        diagram.get_envelope()
-
-        @tx.vmap  # type: ignore
-        def offset(diagram: Diagram) -> Tuple[Scalars, Scalars]:
-            env = diagram.get_envelope()
-            right = env(v)
-            left = env(-v)
-            return right, left
-
-        right, left = offset(diagram)  # type: ignore
+        env = diagram.get_envelope()
+        right = env(v)
+        left = env(-v)
         off = tx.np.roll(right, 1) + left + sep
         off = tx.index_update(off, 0, 0)
         off = tx.np.cumsum(off, axis=0)
-
-        @tx.vmap  # type: ignore
-        def translate(x) -> Diagram:  # type: ignore
-            off, diagram = x
-            t = v * off[..., None, None]
-            dia: Diagram = diagram.translate_by(t)
-            return dia
-
-        return translate((off, diagram))  # type: ignore
+        t = v * off[..., None, None]
+        return diagram.translate_by(t)
+    
 
     call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
     return call_scan(diagram).compose_axis()

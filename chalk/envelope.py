@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Iterable, Optional, Tuple
+from typing import TYPE_CHECKING,  Iterable, Optional, Tuple
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -11,14 +11,13 @@ from chalk.transform import (
     P2,
     V2,
     Affine,
-    Batchable,
-    Batched,
     BoundingBox,
     P2_t,
     Scalars,
     Transformable,
     V2_t,
 )
+from chalk.transform import Batchable, Batched
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -26,9 +25,12 @@ if TYPE_CHECKING:
     from chalk.types import Diagram
 
 
-@tx.jit  # type: ignore
-@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")  # type: ignore
+@tx.jit # type: ignore
+@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()") # type: ignore
 def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
+    """
+    Reshapes the input vector `v` to compute the correct envelope for the transformation.
+    """
     rt = tx.remove_translation(t)
     inv_t = tx.inv(rt)
     trans_t = tx.transpose_translation(rt)
@@ -45,9 +47,11 @@ def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
 def post_transform(
     u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating
 ) -> Scalars:
-    after_linear = inner / d
+    """
+    Adjusts the envelope to take the affine transformation into account.
+    """
 
-    # Translation
+    after_linear = inner / d
     diff = tx.dot(tx.scale_vec(u, 1 / tx.dot(v, v)), v)
     return tx.np.asarray(after_linear - diff)
 
@@ -65,10 +69,9 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
 
     pre = pre_transform(transform, d)
     trans = arc_envelope(transform, angles, pre[0])
-    v = post_transform(pre[1], pre[2], pre[3], trans).max(-1)  # type: ignore
+    v= post_transform(pre[1], pre[2], pre[3], trans).max(-1) # type: ignore
     assert v.shape == return_shape, f"{v.shape} {return_shape}"
     return tx.np.asarray(v)
-
 
 @dataclass
 class Envelope(Transformable, Monoid, Batchable):
@@ -103,8 +106,6 @@ class Envelope(Transformable, Monoid, Batchable):
         return tx.np.asarray(d1[0] + d1[1])
 
     def envelope_v(self, v: V2_t) -> V2_t:
-        # if self.is_empty:
-        #     return V2(0, 0)
         v = tx.norm(v)
         d = self(v)
         return tx.scale_vec(v, d)
@@ -131,6 +132,7 @@ class Envelope(Transformable, Monoid, Batchable):
         "Draws an envelope by sampling every 10 degrees."
         v = tx.polar(tx.np.arange(0, 361, angle) * 1.0)
         return tx.scale_vec(v, self(v))
+
 
     def apply_transform(self, t: Affine) -> Envelope:
         return Envelope(self.segment.apply_transform(t[..., None, :, :]))
@@ -165,14 +167,13 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
         "Defaults to pass over"
         return diagram.diagram.accept(self, t @ diagram.transform)
 
-
 @tx.jit
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     # assert self.size() == ()
     if t is None:
         t = tx.ident
     segment = self.accept(GetLocatedSegments(), t)
+    assert segment.shape[:len(self.shape)] == self.shape, f"{segment.transform.shape} {self.shape}"
     return Envelope(segment)
-
 
 BatchEnvelope = Batched[Envelope, "*#B"]

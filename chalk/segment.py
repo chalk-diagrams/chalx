@@ -75,8 +75,10 @@ class Segment(Monoid, Batchable):
         return Trail(self, tx.np.full(self.angles.shape[:-1], False))
 
     def reduce(self, axis: int = 0) -> Segment:
+        shape = self.shape
         return Segment(
-            self.transform.reshape(-1, 3, 3), self.angles.reshape(-1, 2)
+            self.transform.reshape(*shape[:-2],-1, 3, 3), 
+            self.angles.reshape(*shape[:-2], -1, 2)
         )
 
     # Transformable

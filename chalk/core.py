@@ -123,6 +123,7 @@ class BaseDiagram(chalk.types.Diagram):
     # Layout
     layout = chalk.layout.layout
     animate = chalk.backend.cairo.animate
+    animate_svg = chalk.backend.svg.animate
 
     # Getters
     get_envelope = chalk.envelope.get_envelope
