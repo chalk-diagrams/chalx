@@ -124,7 +124,7 @@ def animate(
     path_frame = "/tmp/frame-{:d}.png"
     import imageio
 
-    with imageio.get_writer(path, fps=20, loop=0) as writer:
+    with imageio.get_writer(path, fps=10, loop=0) as writer:
         for i in range(shape[0]):
             path = path_frame.format(i)
             patches_to_file(patches, path, h, w, (i,))

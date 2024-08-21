@@ -55,6 +55,14 @@ def check_consistent(self: Diagram) -> None:
 V1 = TypeVar("V1", bound=Diagram)
 V2 = TypeVar("V2", bound=Diagram)
 
+def broadcast_to(tree, old_shape: Tuple[int, ...], new_shape: Tuple[int, ...]):
+    if old_shape == new_shape: return tree
+    def reshape(x: tx.Array) -> tx.Array:
+        shape = x.shape 
+        return tx.np.broadcast_to(x, new_shape + shape[len(old_shape):])
+
+    return tx.tree_map(reshape, tree)
+
 
 def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
     """
@@ -65,20 +73,23 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
     other_size = other.size()
     if size == other_size:
         return self, other
-    check(size, other_size, str(type(self)), str(type(other)))
-    ml = max(len(size), len(other_size))
-    for i in range(ml):
-        off = -1 - i
-        if i > len(other_size) - 1:
-            other = other.add_axis(size[off])  # type: ignore
-        elif i > len(size) - 1:
-            self = self.add_axis(other_size[off])  # type: ignore
-        elif size[off] == 1 and other_size[off] != 1:
-            self = self.repeat_axis(other_size[off], len(size) + off)  # type: ignore
-        elif size[off] != 1 and other_size[off] == 1:
-            other = other.repeat_axis(size[off], len(other_size) + off)  # type: ignore
-    check_consistent(self)
-    check_consistent(other)
+    new_shape = tx.np.broadcast_shapes(size, other_size)
+    self = broadcast_to(self, size, new_shape)
+    other = broadcast_to(other, other_size, new_shape) 
+
+    # ml = max(len(size), len(other_size))
+    # for i in range(ml):
+    #     off = -1 - i
+    #     if i > len(other_size) - 1:
+    #         other = other.add_axis(size[off])  # type: ignore
+    #     elif i > len(size) - 1:
+    #         self = self.add_axis(other_size[off])  # type: ignore
+    #     elif size[off] == 1 and other_size[off] != 1:
+    #         self = self.repeat_axis(other_size[off], len(size) + off)  # type: ignore
+    #     elif size[off] != 1 and other_size[off] == 1:
+    #         other = other.repeat_axis(size[off], len(other_size) + off)  # type: ignore
+    # check_consistent(self)
+    # check_consistent(other)
     assert (
         self.size() == other.size()
     ), f"{size} {other_size} {self.size()} {other.size()}"

@@ -48,7 +48,6 @@ if TYPE_CHECKING or not eval(os.environ.get("CHALK_JAX", "0")):
         "Fake jax vmap for numpy as a for loop."
         if JAX_MODE:
             return vmap(fn)
-
         def vmap2(x: Array) -> Array:
             if isinstance(x, tuple):
                 size = x[-1].size()  # type: ignore

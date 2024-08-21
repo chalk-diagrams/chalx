@@ -83,6 +83,14 @@ def P2(x: Floating, y: Floating) -> P2_t:
     s: P2_t = np.stack([x, y, o], axis=-1)[..., None]
     return s
 
+@jit
+# @partial(vectorize, signature="(),()->(3,1)")
+def to_P2(x: Float[Array, "*B 2"]) -> P2_t:
+    "Map a standard vector to a point"
+    _, o = np.broadcast_arrays(x[..., :1], ftos(1.0))
+    s: P2_t = np.concatenate([x, o], axis=-1)[..., None]
+    return s
+
 
 @jit
 def norm(v: V2_t) -> V2_t:

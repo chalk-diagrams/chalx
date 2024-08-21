@@ -85,7 +85,7 @@ class BaseDiagram(chalk.types.Diagram):
         return ApplyStyle(new_diagram.style, self)
 
     def __repr__(self) -> str:
-        return f"Diagram[self.shape]"
+        return f"Diagram[{self.shape}]"
 
     def __tree_pp__(self, **kwargs):  # type: ignore
         import jax._src.pretty_printer as pp

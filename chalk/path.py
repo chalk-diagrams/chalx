@@ -86,6 +86,7 @@ class Path(Transformable, tx.Batchable):
 
 
 def from_points(points: List[P2_t], closed: bool = False) -> Path:
+    points = tx.np.broadcast_arrays(*points)
     return Path.from_array(tx.np.stack(points, axis=-3))
 
 

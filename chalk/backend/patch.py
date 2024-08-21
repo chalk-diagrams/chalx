@@ -51,7 +51,8 @@ def order_patches(
 ) -> List[Tuple[Tuple[int, ...], Patch, Dict[str, Any]]]:
     import numpy as onp
 
-    patches = tx.tree_map(onp.asarray, patches)
+    if tx.JAX_MODE:
+        patches = tx.tree_map(onp.asarray, patches)
 
     d = {}
     for patch in patches:
@@ -99,6 +100,7 @@ class Patch:
         for loc_trail in path.loc_trails:
             p = loc_trail.location
             segments = loc_trail.located_segments()
+            print("SEG", transform.shape, transform.strides, loc_trail.trail.segments.transform.strides)
             vert = segment_to_curve(segments.transform, segments.angles)
             if path.scale_invariant is not None:
                 scale = height / 20
@@ -147,10 +149,11 @@ def patch_from_prim(
     style = prim.style if prim.style is not None else style
     assert isinstance(prim.prim_shape, Path)
     assert prim.order is not None
+    in_style = style.to_mpl() #tx.multi_vmap(style.to_mpl.__func__, len(size))(style),  # type: ignore
     patch = Patch.from_path(
         prim.prim_shape,
         prim.transform,
-        tx.multi_vmap(style.to_mpl.__func__, len(size))(style),  # type: ignore
+        in_style,
         prim.order,
         height,
     )

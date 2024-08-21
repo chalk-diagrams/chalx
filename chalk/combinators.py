@@ -102,14 +102,13 @@ def batch_cat(
         env = diagram.get_envelope()
         right = env(v)
         left = env(-v)
-        off = tx.np.roll(right, 1) + left + sep
-        off = tx.index_update(off, 0, 0)
-        off = tx.np.cumsum(off, axis=0)
+        off = tx.np.roll(right, 1, axis=axis) + left + sep
+        off = tx.index_update(off, (Ellipsis, 0), 0)
+        off = tx.np.cumsum(off, axis=axis)
         t = v * off[..., None, None]
         return diagram.translate_by(t)
-    
 
-    call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
+    # call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
     return call_scan(diagram).compose_axis()
 
 

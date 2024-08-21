@@ -131,9 +131,9 @@ class StyleHolder(Stylable, tx.Batchable):
         return self.base.shape[:-1]
 
     def get(self, key: str) -> tx.Scalars:
-        v = self.base[slice(*STYLE_LOCATIONS[key])]
+        v = self.base[..., slice(*STYLE_LOCATIONS[key])]
         return tx.np.where(
-            self.mask[slice(*STYLE_LOCATIONS[key])], v, DEFAULTS[key]
+            self.mask[..., slice(*STYLE_LOCATIONS[key])], v, DEFAULTS[key]
         )
 
     @property
@@ -193,8 +193,8 @@ class StyleHolder(Stylable, tx.Batchable):
 
         # Set by observation
         lw = self.line_width_
-        style["linewidth"] = lw.reshape(-1)[0]
-        style["alpha"] = self.fill_opacity_[0]
+        style["linewidth"] = lw[...,0]
+        style["alpha"] = self.fill_opacity_[...,0]
         return style
 
 
