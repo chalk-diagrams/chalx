@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING,  Iterable, Optional, Tuple
+from typing import TYPE_CHECKING, Iterable, Optional, Tuple
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -77,7 +77,7 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
 class Envelope(Transformable, Monoid, Batchable):
     segment: BatchSegment
 
-    def __call__(self, direction: V2_t) -> tx.Array:
+    def __call__(self: BatchEnvelope, direction: V2_t) -> Scalars:
         return env(*self.segment.tuple(), direction)
 
     def __add__(self: BatchEnvelope, other: BatchEnvelope) -> BatchEnvelope:
@@ -88,7 +88,7 @@ class Envelope(Transformable, Monoid, Batchable):
     )
 
     @property
-    def center(self) -> P2_t:
+    def center(self: BatchEnvelope) -> P2_t:
         d = self(Envelope.all_dir)
         return P2(
             (-d[1] + d[0]) / 2,
@@ -96,20 +96,26 @@ class Envelope(Transformable, Monoid, Batchable):
         )
 
     @property
-    def width(self) -> Scalars:
+    def width(self: BatchEnvelope) -> Scalars:
         d1 = self(Envelope.all_dir[:2])
         return tx.np.asarray(d1[0] + d1[1])
 
     @property
-    def height(self) -> Scalars:
+    def height(self: BatchEnvelope) -> Scalars:
         d1 = self(Envelope.all_dir[2:])
         return tx.np.asarray(d1[0] + d1[1])
 
-    def envelope_v(self, v: V2_t) -> V2_t:
+    def size(self: BatchEnvelope) -> Tuple[Scalars, Scalars]:
+        d = self(Envelope.all_dir)
+        width = tx.np.asarray(d[0] + d[1])
+        height = tx.np.asarray(d[2] + d[3])
+        return width, height
+
+
+    def envelope_v(self: BatchEnvelope, v: V2_t) -> V2_t:
         v = tx.norm(v)
         d = self(v)
         return tx.scale_vec(v, d)
-
     @staticmethod
     def from_bounding_box(box: BoundingBox, d: V2_t) -> Scalars:
         v = box.rotate_rad(tx.rad(d)).br[:, 0, 0]

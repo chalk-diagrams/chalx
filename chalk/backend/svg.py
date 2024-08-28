@@ -54,9 +54,9 @@ def write_style(d: Dict[str, Any]) -> Dict[str, str]:
 def render_svg_patches(patches: List[Patch], animate:bool=False, time_steps:int=0) -> str:
     if animate:
         out = ""
-        patches = [chalk.backend.patch.order_patches(patches, (step,)) 
+        new_patches = [chalk.backend.patch.order_patches(patches, (step,)) 
                 for step in range(time_steps)]
-        for v in zip(*patches):
+        for v in zip(*new_patches):
             out += "\n\n <path>\n"
             lines = []
             css = {}
@@ -99,6 +99,7 @@ def render_svg_patches(patches: List[Patch], animate:bool=False, time_steps:int=
                 <path d="{inner}" />
             </g>"""
         return out
+
 def patches_to_file(
     patches: List[Patch], path: str, height: tx.IntLike, 
     width: tx.IntLike,

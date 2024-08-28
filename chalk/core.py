@@ -218,6 +218,15 @@ class BaseDiagram(chalk.types.Diagram):
         os.unlink(f.name)
         return svg
 
+    def _repr_png_(self) -> str:
+        global Svg_Height, Svg_Draw_Height
+        f = tempfile.NamedTemporaryFile(delete=False)
+        self.render(f.name, height=Svg_Height, draw_height=Svg_Draw_Height)
+        f.close()
+        png = open(f.name).read()
+        os.unlink(f.name)
+        return png
+
     def _repr_html_(self) -> str | tuple[str, Any]:
         """Returns a rich HTML representation of an object."""
         return self._repr_svg_()

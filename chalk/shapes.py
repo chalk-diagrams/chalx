@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple, Union
 
 import chalk.trail as Trail
 import chalk.transform as tx
-from chalk.path import from_list_of_tuples, from_text  # noqa: F401
+from chalk.path import from_list_of_tuples, Path, from_text  # noqa: F401
 from chalk.trail import arc_seg, arc_seg_angle  # noqa: F401
 from chalk.transform import P2, P2_t
 from chalk.types import BatchDiagram, Diagram
@@ -52,9 +52,12 @@ def line(from_: Tuple[tx.Floating, tx.Floating], to: Tuple[tx.Floating, tx.Float
     return make_path([from_, to])
 
 def make_path(
-    segments: List[Tuple[tx.Floating, tx.Floating]], closed: bool = False
+    segments: Union[List[Tuple[tx.Floating, tx.Floating]], tx.P2_t], closed: bool = False
 ) -> Diagram:
-    p = from_list_of_tuples(segments, closed).stroke()
+    if isinstance(segments, (list, tuple)):
+        p = from_list_of_tuples(segments, closed).stroke()
+    else:
+        p = Path.from_array(segments, closed).stroke()
     return p
 
 

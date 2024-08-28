@@ -27,7 +27,6 @@ def animate(
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     return layout(self, height, width, draw_height)
 
-
 def layout(
     self: BatchDiagram,
     height: tx.IntLike = 128,
@@ -45,9 +44,11 @@ def layout(
 
     pad = tx.np.array(0.05)
 
+    envelope_width, envelope_height = envelope.size()
+
     # infer width to preserve aspect ratio
     if width is None:
-        width = tx.np.round(height * envelope.width / envelope.height).astype(
+        width = tx.np.round(height * envelope_width / envelope_height).astype(
             int
         )
     else:
@@ -55,9 +56,9 @@ def layout(
     assert width is not None
     # determine scale to fit the largest axis in the target frame size
     α = tx.np.where(
-        envelope.width - width <= envelope.height - height,
-        height / ((1 + pad) * envelope.height),
-        width / ((1 + pad) * envelope.width),
+        envelope_width - width <= envelope_height - height,
+        height / ((1 + pad) * envelope_height),
+        width / ((1 + pad) * envelope_width),
     )
     s = self.scale(α).center_xy().pad(1 + pad)
     e = s.get_envelope()

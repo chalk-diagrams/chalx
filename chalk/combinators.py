@@ -3,7 +3,7 @@ from typing import Iterable, List, Optional, Tuple
 import chalk.transform as tx
 from chalk.monoid import associative_reduce
 from chalk.path import Path
-from chalk.transform import Floating, Scalars, V2_t
+from chalk.transform import Floating, V2_t
 from chalk.types import (
     BatchDiagram,
     BroadDiagram,
@@ -11,8 +11,6 @@ from chalk.types import (
     EmptyDiagram,
     ExtraDiagram,
 )
-
-# Functions mirroring Diagrams.Combinators and Diagrams.2d.Combinators
 
 
 def with_envelope(self: Diagram, other: Diagram) -> Diagram:
@@ -25,7 +23,6 @@ def with_envelope(self: Diagram, other: Diagram) -> Diagram:
 
 def pad(self: Diagram, extra: Floating) -> Diagram:
     """Scale outward directed padding for a diagram.
-
     Be careful using this if your diagram is not centered.
     """
     envelope = self.get_envelope()
@@ -108,7 +105,6 @@ def batch_cat(
         t = v * off[..., None, None]
         return diagram.translate_by(t)
 
-    # call_scan = tx.multi_vmap(call_scan, axis)  # type: ignore
     return call_scan(diagram).compose_axis()
 
 
