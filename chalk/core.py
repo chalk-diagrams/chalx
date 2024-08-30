@@ -140,6 +140,7 @@ class BaseDiagram(chalk.types.Diagram):
     # Broadcast
     add_axis = chalk.broadcast.add_axis
     reshape = chalk.broadcast.reshape
+    swapaxes = chalk.broadcast.swapaxes
     repeat_axis = chalk.broadcast.repeat_axis
     broadcast_diagrams = chalk.broadcast.broadcast_diagrams
     size = chalk.broadcast.size
@@ -218,15 +219,6 @@ class BaseDiagram(chalk.types.Diagram):
         os.unlink(f.name)
         return svg
 
-    def _repr_png_(self) -> str:
-        global Svg_Height, Svg_Draw_Height
-        f = tempfile.NamedTemporaryFile(delete=False)
-        self.render(f.name, height=Svg_Height, draw_height=Svg_Draw_Height)
-        f.close()
-        png = open(f.name).read()
-        os.unlink(f.name)
-        return png
-
     def _repr_html_(self) -> str | tuple[str, Any]:
         """Returns a rich HTML representation of an object."""
         return self._repr_svg_()
@@ -249,21 +241,17 @@ class Primitive(BaseDiagram):
 
     @classmethod
     def from_path(cls, shape: Path) -> BatchPrimitive:
-        #assert shape.size() == (), f"Shape size: {shape.size()}"
+        # assert shape.size() == (), f"Shape size: {shape.size()}"
         return cls(shape, None, tx.make_ident(shape.size()))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
-        chalk.broadcast.check(
-            t.shape[:-2], self.shape, str(type(self)), "Transform"
-        )
+        chalk.broadcast.check(t.shape[:-2], self.shape, str(type(self)), "Transform")
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(self.prim_shape, self.style, new_diagram.transform)
 
-    def apply_style(
-        self: BatchPrimitive, other_style: BatchStyle
-    ) -> BatchPrimitive:
+    def apply_style(self: BatchPrimitive, other_style: BatchStyle) -> BatchPrimitive:
         new_diagram = ApplyStyle(other_style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(

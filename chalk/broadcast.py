@@ -31,6 +31,11 @@ def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     check_consistent(out)
     return out
 
+def swapaxes(self: Diagram, a, b) -> Diagram:
+    out = tx.tree_map(  # type: ignore
+        lambda x: x.swapaxes(a, b), self
+    )
+    return out
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
     return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore
@@ -58,7 +63,7 @@ V2 = TypeVar("V2", bound=Diagram)
 def broadcast_to(tree, old_shape: Tuple[int, ...], new_shape: Tuple[int, ...]):
     if old_shape == new_shape: return tree
     def reshape(x: tx.Array) -> tx.Array:
-        shape = x.shape 
+        shape = x.shape
         return tx.np.broadcast_to(x, new_shape + shape[len(old_shape):])
 
     return tx.tree_map(reshape, tree)
@@ -75,7 +80,7 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
         return self, other
     new_shape = tx.np.broadcast_shapes(size, other_size)
     self = broadcast_to(self, size, new_shape)
-    other = broadcast_to(other, other_size, new_shape) 
+    other = broadcast_to(other, other_size, new_shape)
 
     # ml = max(len(size), len(other_size))
     # for i in range(ml):

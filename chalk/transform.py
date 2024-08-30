@@ -246,8 +246,8 @@ def rotation_angle(r: Floating) -> Affine:
 def inv(aff: Affine) -> Affine:
     "Fast invert an affine"
     det = np.linalg.det(aff)
-    if not JAX_MODE:
-        assert np.all(np.abs(det) > 1e-10), "Object scaled to 0"
+    # if not JAX_MODE:
+    #     assert np.all(np.abs(det) > 1e-10), "Object scaled to 0"
     idet = 1.0 / det
     sa, sb, sc = aff[..., 0, 0], aff[..., 0, 1], aff[..., 0, 2]
     sd, se, sf = aff[..., 1, 0], aff[..., 1, 1], aff[..., 1, 2]
