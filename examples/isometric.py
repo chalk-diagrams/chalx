@@ -12,7 +12,7 @@ black = Color("black")
 
 
 def lookAt(eye: np.ndarray, center: np.ndarray, up: np.ndarray):
-    "Python version of the haskell lookAt function in linear.projections"
+    """Python version of the haskell lookAt function in linear.projections"""
     f = (center - eye) / np.linalg.norm(center - eye)
     s = np.cross(f, up) / np.linalg.norm(np.cross(f, up))
     u = np.cross(s, f)
@@ -37,12 +37,12 @@ V3 = D3
 
 
 def homogenous(trails: List[List[D3]]):
-    "Convert list of directions to a np.array of homogenous coordinates"
+    """Convert list of directions to a np.array of homogenous coordinates"""
     return np.array([[[*o.to_np(), 1] for o in offsets] for offsets in trails])
 
 
 def cube():
-    "3 faces of a cube drawn as offsets from the origin."
+    """3 faces of a cube drawn as offsets from the origin."""
     return homogenous(
         [
             [D3(*v) for v in offset]
@@ -59,7 +59,11 @@ def to_trail(trail: np.ndarray, locations: np.ndarray):
     return [
         (
             Path.Path(
-                (Trail.from_offsets([V2(*v[:2]) for v in trail]).close().at(V2(*l[:2])),)
+                (
+                    Trail.from_offsets([V2(*v[:2]) for v in trail])
+                    .close()
+                    .at(V2(*l[:2])),
+                )
             ),
             l[2],
         )

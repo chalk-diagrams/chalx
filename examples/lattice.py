@@ -1,6 +1,4 @@
-import sys
-
-from chalk import *
+from chalk import rectangle, text, hcat, vcat, Name, unit_x
 from colour import Color
 # pyright: basic
 

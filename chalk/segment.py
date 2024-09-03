@@ -1,8 +1,8 @@
-"""
-Segment is a collection of ellipse arcs with starting angle and the delta.
+"""Segment is a collection of ellipse arcs with starting angle and the delta.
 Every diagram in chalk is made up of these segments.
 They may be either located or at the origin depending on how they are used.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -33,8 +33,7 @@ def ensure_2d(x: tx.Array) -> tx.Array:
 
 @dataclass(frozen=True)
 class Segment(Monoid, Batchable):
-    """
-    A batch of ellipse arcs with starting angle and the delta.
+    """A batch of ellipse arcs with starting angle and the delta.
     The monoid operation is the concat along the batch dimension.
     """
 
@@ -66,7 +65,7 @@ class Segment(Monoid, Batchable):
         return Segment(transform, angles.astype(float))
 
     def promote(self) -> Segment:
-        "Ensures that there is a batch axis"
+        """Ensures that there is a batch axis"""
         return Segment(ensure_3d(self.transform), ensure_2d(self.angles))
 
     def to_trail(self) -> Trail:
@@ -77,8 +76,8 @@ class Segment(Monoid, Batchable):
     def reduce(self, axis: int = 0) -> Segment:
         shape = self.shape
         return Segment(
-            self.transform.reshape(*shape[:-2],-1, 3, 3), 
-            self.angles.reshape(*shape[:-2], -1, 2)
+            self.transform.reshape(*shape[:-2], -1, 3, 3),
+            self.angles.reshape(*shape[:-2], -1, 2),
         )
 
     # Transformable
@@ -86,7 +85,7 @@ class Segment(Monoid, Batchable):
         return Segment.make(t @ self.transform, self.angles)
 
     def __add__(self, other: Segment) -> Segment:
-        def broadcast_ex(a, b, axis): # type: ignore
+        def broadcast_ex(a, b, axis):  # type: ignore
             a_s, b_s = list(a.shape), list(b.shape)
             a_s[axis] = 1
             b_s[axis] = 1
@@ -108,7 +107,7 @@ class Segment(Monoid, Batchable):
 
     @property
     def q(self: Segment_t) -> P2_t:
-        "Target point"
+        """Target point"""
         q: P2_t = tx.to_point(tx.polar(self.angles.sum(-1)))
         q = self.transform @ q
         return q
@@ -159,9 +158,7 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment_t:
 @tx.jit
 @partial(tx.vectorize, signature="(3,3),(2),(3,1)->()")
 def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
-    """
-    Compute the envelope for a batch of segments.
-    """
+    """Compute the envelope for a batch of segments."""
     angle0_deg = angles[..., 0]
     angle1_deg = angles.sum(-1)
 
@@ -183,9 +180,7 @@ def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
 def arc_trace(
     trans: Affine, angles: Angles, p: tx.P2_tC, v: tx.V2_tC
 ) -> Tuple[tx.Array, tx.Array]:
-    """
-    Computes the trace for a batch of segments.
-    """
+    """Computes the trace for a batch of segments."""
     ray = tx.Ray(p, v)
     segment = Segment(trans, angles)
     d1, mask1, d2, mask2 = tx.ray_circle_intersection(ray.pt, ray.v, 1)

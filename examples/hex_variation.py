@@ -17,14 +17,14 @@ h1 = math.cos(math.pi / 3)
 def hexagon_tile():
     arc1 = arc(0.5, -from_radians(math.pi / 3), from_radians(math.pi / 3))
     return (
-        arc1.translate(-1, 0)
-        + vrule(2 * h)
-        + arc1.rotate_by(1 / 2).translate(1, 0)
+        arc1.translate(-1, 0) + vrule(2 * h) + arc1.rotate_by(1 / 2).translate(1, 0)
         # + polygon(6, 1)
     )
 
+
 def rotated_hexagon_tile(n):
     return hexagon_tile().rotate_rad(-n * 2 * math.pi / 3)
+
 
 def center_position(x, y):
     if x % 2 == 0:
@@ -50,4 +50,3 @@ try:
     dia.render("examples/output/hex-variation.png", height=512)
 except ModuleNotFoundError:
     print("Need to install Cairo")
-

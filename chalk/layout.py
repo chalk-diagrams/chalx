@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 def get_primitives(self: SingleDiagram) -> List[Primitive]:
-    return self.accept(ToListOrder(), tx.ident).ls
+    return self._accept(ToListOrder(), tx.ident).ls
 
 
 def animate(
@@ -27,14 +27,14 @@ def animate(
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
     return layout(self, height, width, draw_height)
 
+
 def layout(
     self: BatchDiagram,
     height: tx.IntLike = 128,
     width: Optional[tx.IntLike] = None,
     draw_height: Optional[tx.IntLike] = None,
 ) -> Tuple[List[Patch], tx.IntLike, tx.IntLike]:
-    """
-    Layout a diagram before rendering.
+    """Layout a diagram before rendering.
     This centers and pads the diagram to fit.
     Then collapses it to establish z-order.
     Then maps it to a list of patches.
@@ -48,9 +48,7 @@ def layout(
 
     # infer width to preserve aspect ratio
     if width is None:
-        width = tx.np.round(height * envelope_width / envelope_height).astype(
-            int
-        )
+        width = tx.np.round(height * envelope_width / envelope_height).astype(int)
     else:
         width = width
     assert width is not None
@@ -69,9 +67,7 @@ def layout(
     s = s.apply_style(style)
     if draw_height is None:
         draw_height = height
-    patches = [
-        patch_from_prim(prim, style, draw_height) for prim in get_primitives(s)
-    ]
+    patches = [patch_from_prim(prim, style, draw_height) for prim in get_primitives(s)]
     return patches, height, width
 
 
@@ -92,8 +88,7 @@ class OrderList(Monoid):
             assert prim.order is not None
             ls.append(
                 prim.set_order(
-                    prim.order
-                    + add_dim(sc, len(prim.order.shape) - len(sc.shape))
+                    prim.order + add_dim(sc, len(prim.order.shape) - len(sc.shape))
                 )
             )
 
@@ -119,20 +114,16 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
             tx.np.ones(size),
         )
 
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, t: Affine
-    ) -> OrderList:
+    def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> OrderList:
         t_new = t @ diagram.transform
-        return diagram.diagram.accept(self, t_new)
+        return diagram.diagram._accept(self, t_new)
 
     def visit_apply_style(self, diagram: ApplyStyle, t: Affine) -> OrderList:
-        a = diagram.diagram.accept(self, t)
+        a = diagram.diagram._accept(self, t)
         return OrderList(
             [
                 prim.apply_style(
-                    add_dim(
-                        diagram.style, len(prim.size()) - len(diagram.size())
-                    )
+                    add_dim(diagram.style, len(prim.size()) - len(diagram.size()))
                 )
                 for prim in a.ls
             ],
@@ -142,7 +133,7 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> OrderList:
         s = diagram.diagrams.size()
         stride = s[-1]
-        internal = diagram.diagrams.accept(self, t[..., None, :, :])
+        internal = diagram.diagrams._accept(self, t[..., None, :, :])
 
         last_counter = tx.np.where(
             tx.np.arange(stride) == 0,
@@ -171,3 +162,6 @@ def add_dim(m: Any, size: int) -> Any:
     for _ in range(size):
         m = m[..., None]  # type: ignore
     return m
+
+
+__all__ = []

@@ -1,11 +1,10 @@
-"""
-The raw names that are exported from chalk.
-"""
+"""The raw names that are exported from chalk."""
 
 import chalk.path as Path
 import chalk.trail as Trail
 from chalk.arrow import ArrowOpts, arrow_at, arrow_between, arrow_v
 from chalk.core import set_svg_draw_height, set_svg_height
+from chalk.subdiagram import Name, Subdiagram
 from chalk.style import Style, to_color
 from chalk.trail import seg
 from chalk.transform import (
@@ -41,4 +40,6 @@ __all__ = [
     "BoundingBox",
     "from_radians",
     "to_radians",
+    "Name",
+    "Subdiagram",
 ]

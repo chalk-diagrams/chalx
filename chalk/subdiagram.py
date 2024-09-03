@@ -39,7 +39,7 @@ class Name:
 
     def qualify(self, name: Name) -> Name:
         return name + self
-    
+
     @staticmethod
     def make(x: AtomicName) -> Name:
         return Name((x,))
@@ -79,35 +79,31 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Maybe[Subdiagram]:
         for d in diagram.diagrams:
-            bb = d.accept(self, t)
+            bb = d._accept(self, t)
             if bb.data is not None:
                 return bb
         return Maybe.empty()
 
-    def visit_compose_axis(
-        self, diagram: ComposeAxis, t: Affine
-    ) -> Maybe[Subdiagram]:
+    def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Maybe[Subdiagram]:
         size = diagram.diagrams.size()
-        return diagram.diagrams.accept(self, t[None].repeat(size[0], axis=0))
+        return diagram.diagrams._accept(self, t[None].repeat(size[0], axis=0))
 
     def visit_apply_transform(
         self, diagram: ApplyTransform, t: Affine
     ) -> Maybe[Subdiagram]:
-        return diagram.diagram.accept(self, t @ diagram.transform)
+        return diagram.diagram._accept(self, t @ diagram.transform)
 
-    def visit_apply_name(
-        self, diagram: ApplyName, t: Affine
-    ) -> Maybe[Subdiagram]:
+    def visit_apply_name(self, diagram: ApplyName, t: Affine) -> Maybe[Subdiagram]:
         if self.name == diagram.dname:
             return Maybe(Subdiagram(diagram.diagram, t))
         else:
-            return diagram.diagram.accept(self, t)
+            return diagram.diagram._accept(self, t)
 
 
 def get_subdiagram(self: Diagram, name: Any) -> Optional[Subdiagram]:
     if not isinstance(name, Name):
         name = Name(name)
-    return self.accept(GetSubdiagram(name), tx.ident).data
+    return self._accept(GetSubdiagram(name), tx.ident).data
 
 
 def with_names(
@@ -138,9 +134,7 @@ class SubMap(Monoid):
     def __add__(self, other: SubMap) -> SubMap:
         d1 = self.data
         d2 = other.data
-        return SubMap(
-            {k: d1.get(k, []) + d2.get(k, []) for k in set(d1) | set(d2)}
-        )
+        return SubMap({k: d1.get(k, []) + d2.get(k, []) for k in set(d1) | set(d2)})
 
     @classmethod
     def empty(cls) -> SubMap:
@@ -150,14 +144,12 @@ class SubMap(Monoid):
 class GetSubMap(DiagramVisitor[SubMap, Affine]):
     A_type = SubMap
 
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, t: Affine
-    ) -> SubMap:
-        return diagram.diagram.accept(self, t * diagram.transform)
+    def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> SubMap:
+        return diagram.diagram._accept(self, t * diagram.transform)
 
     def visit_apply_name(self, diagram: ApplyName, t: Affine) -> SubMap:
         d1 = SubMap({diagram.dname: [Subdiagram(diagram.diagram, t)]})
-        d2 = diagram.diagram.accept(self, t)
+        d2 = diagram.diagram._accept(self, t)
         return d1 + d2
 
 
@@ -165,7 +157,7 @@ def get_sub_map(self: Diagram, t: Affine) -> Dict[Name, List[Subdiagram]]:
     """Retrieves all named subdiagrams in the given diagram and accumulates
     them in a dictionary (map) indexed by their name.
     """
-    return self.accept(GetSubMap(), t).data
+    return self._accept(GetSubMap(), t).data
 
 
 def qualify(self: Diagram, name: Any) -> Diagram:
@@ -173,7 +165,7 @@ def qualify(self: Diagram, name: Any) -> Diagram:
     if not isinstance(name, Name):
         name = Name(name)
 
-    return self.accept(Qualify(name), None)
+    return self._accept(Qualify(name), None)
 
 
 def named(self: Diagram, name: Any) -> Diagram:
@@ -199,17 +191,15 @@ class Qualify(DiagramVisitor[Diagram, None]):
 
         return Compose(
             diagram.envelope,
-            tuple([d.accept(self, None) for d in diagram.diagrams]),
+            tuple([d._accept(self, None) for d in diagram.diagrams]),
         )
 
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, args: None
-    ) -> Diagram:
+    def visit_apply_transform(self, diagram: ApplyTransform, args: None) -> Diagram:
         from chalk.core import ApplyTransform
 
         return ApplyTransform(
             diagram.transform,
-            diagram.diagram.accept(self, None),
+            diagram.diagram._accept(self, None),
         )
 
     def visit_apply_style(self, diagram: ApplyStyle, args: None) -> Diagram:
@@ -217,12 +207,13 @@ class Qualify(DiagramVisitor[Diagram, None]):
 
         return ApplyStyle(
             diagram.style,
-            diagram.diagram.accept(self, None),
+            diagram.diagram._accept(self, None),
         )
 
     def visit_apply_name(self, diagram: ApplyName, args: None) -> Diagram:
         from chalk.core import ApplyName
 
-        return ApplyName(
-            self.name + diagram.dname, diagram.diagram.accept(self, None)
-        )
+        return ApplyName(self.name + diagram.dname, diagram.diagram._accept(self, None))
+
+
+__all__ = []

@@ -115,9 +115,7 @@ def test_square() -> None:
     assert env(unit_x) == 1
     assert env(2 * unit_x) == 0.5
     assert env(unit_y) == 1
-    assert env((unit_x + unit_y).normalized()) == pytest.approx(
-        math.sqrt(1 + 1)
-    )
+    assert env((unit_x + unit_y).normalized()) == pytest.approx(math.sqrt(1 + 1))
 
 
 def test_circle() -> None:
@@ -142,9 +140,7 @@ def test_path_trace() -> None:
     d = make_path([(1, 0), (1, 1)])
     trace = d.get_trace()
     assert trace.trace_v(origin, (unit_x + unit_y)) == V2(1.0, 1.0)
-    assert trace.trace_v(origin, (unit_x + unit_y).normalized()) == V2(
-        1.0, 1.0
-    )
+    assert trace.trace_v(origin, (unit_x + unit_y).normalized()) == V2(1.0, 1.0)
 
 
 def test_transform() -> None:

@@ -9,8 +9,8 @@ import chalk.align
 import chalk.arrow
 import chalk.backend.cairo
 import chalk.backend.matplotlib
-import chalk.backend.svg
 import chalk.backend.tikz
+import chalk.backend.svg
 import chalk.broadcast
 import chalk.combinators
 import chalk.envelope
@@ -36,13 +36,13 @@ Svg_Draw_Height = None
 
 
 def set_svg_height(height: int) -> None:
-    "Globally set the svg preview height for notebooks."
+    """Globally set the svg preview height for notebooks."""
     global Svg_Height
     Svg_Height = height
 
 
 def set_svg_draw_height(height: int) -> None:
-    "Globally set the svg preview height for notebooks."
+    """Globally set the svg preview height for notebooks."""
     global Svg_Draw_Height
     Svg_Draw_Height = height
 
@@ -61,7 +61,7 @@ class BaseDiagram(chalk.types.Diagram):
     def __rmatmul__(self: BatchDiagram, t: Affine) -> BroadDiagram:  # type: ignore
         return self.apply_transform(t)  # type: ignore
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         raise NotImplementedError
 
     @classmethod
@@ -75,7 +75,7 @@ class BaseDiagram(chalk.types.Diagram):
         assert isinstance(new, ApplyTransform)
         return ApplyTransform(new.transform, other)
 
-    def compose_axis(self: BatchedDia) -> ReducedDia:  # type: ignore
+    def _compose_axis(self: BatchedDia) -> ReducedDia:  # type: ignore
         return ComposeAxis(self)
 
     # Stylable
@@ -92,7 +92,7 @@ class BaseDiagram(chalk.types.Diagram):
 
         return pp.text(f"Diagram[{self.shape}]")
 
-    def compose(
+    def _compose(
         self,
         envelope: Optional[BatchDiagram] = None,
         other: Optional[BatchDiagram] = None,
@@ -121,7 +121,7 @@ class BaseDiagram(chalk.types.Diagram):
             return Compose(envelope, (self, other))
 
     # Layout
-    layout = chalk.layout.layout
+    _layout = chalk.layout.layout
     animate = chalk.backend.cairo.animate
     animate_svg = chalk.backend.svg.animate
 
@@ -193,7 +193,6 @@ class BaseDiagram(chalk.types.Diagram):
         return chalk.combinators.beside(self, d, tx.unit_x)
 
     __truediv__ = chalk.combinators.above
-    __floordiv__ = chalk.combinators.above2
 
     # Rendering
     render = chalk.backend.cairo.render
@@ -218,6 +217,15 @@ class BaseDiagram(chalk.types.Diagram):
         svg = open(f.name).read()
         os.unlink(f.name)
         return svg
+
+    def _repr_png_(self):
+        global Svg_Height, Svg_Draw_Height
+        f = tempfile.NamedTemporaryFile(delete=False)
+        self.render(f.name, height=Svg_Height, draw_height=Svg_Draw_Height)
+        f.close()
+        png = open(f.name, "rb").read()
+        os.unlink(f.name)
+        return png
 
     def _repr_html_(self) -> str | tuple[str, Any]:
         """Returns a rich HTML representation of an object."""
@@ -265,7 +273,7 @@ class Primitive(BaseDiagram):
             self.order,
         )
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_primitive(self, args)
 
 
@@ -274,7 +282,7 @@ BatchPrimitive = Batched[Primitive, "#*B"]
 
 @dataclass(unsafe_hash=True, frozen=True)
 class Empty(BaseDiagram):
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_empty(self, args)
 
     def apply_transform(self, t: Affine) -> Empty:
@@ -289,7 +297,7 @@ class Compose(BaseDiagram):
     envelope: Optional[Diagram]
     diagrams: tuple[Diagram, ...]
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_compose(self, args)
 
 
@@ -297,7 +305,7 @@ class Compose(BaseDiagram):
 class ComposeAxis(BaseDiagram):
     diagrams: Diagram
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_compose_axis(self, args)
 
 
@@ -306,7 +314,7 @@ class ApplyTransform(BaseDiagram):
     transform: Affine
     diagram: Diagram
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_transform(self, args)
 
     def apply_transform(self, t: Affine) -> ApplyTransform:
@@ -320,7 +328,7 @@ class ApplyStyle(BaseDiagram):
     style: StyleHolder
     diagram: Diagram
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_style(self, args)
 
     def apply_style(self, style: BatchStyle) -> ApplyStyle:
@@ -337,5 +345,5 @@ class ApplyName(BaseDiagram):
     dname: chalk.subdiagram.Name
     diagram: Diagram
 
-    def accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
+    def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_name(self, args)

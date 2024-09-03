@@ -164,7 +164,7 @@ part0.show_origin()
 
 
 def rot_cycle(d: Diagram, times: int) -> Diagram:
-    "Rotate diagram around a circle."
+    """Rotate diagram around a circle."""
     return concat(d.rotate_by(i / times) for i in range(times))
 
 
@@ -372,7 +372,7 @@ corner
 
 # Internally there is a little golden decoration. To make this we use the `juxtapose` function
 # which moves a diagram to be next to another along an angle.
-eps=1e-2
+eps = 1e-2
 decal = rectangle(2, 2).with_envelope(rectangle(eps, eps)).fill_color(gold)
 c = circle(1).fill_color(black)
 decal = concat(
@@ -401,7 +401,7 @@ decal = concat(
     [
         decal,
         decal.juxtapose(marc, tx.rotation_angle(90 + disp) @ unit_x),
-        decal.juxtapose(marc.rotate((-(90+disp))), tx.rotation_angle(-disp) @ unit_x),
+        decal.juxtapose(marc.rotate((-(90 + disp))), tx.rotation_angle(-disp) @ unit_x),
     ]
 ).line_width(0.2)
 decal
@@ -445,7 +445,10 @@ part3
 
 set_svg_height(200)
 hand = (
-    make_path([(2, -0.5), (1, -0), (0.4, 20), (0, 21), (0, -1.5), (0.5, -1), (2, -0.5)], closed=True)
+    make_path(
+        [(2, -0.5), (1, -0), (0.4, 20), (0, 21), (0, -1.5), (0.5, -1), (2, -0.5)],
+        closed=True,
+    )
     .fill_color(black)
     .line_color(grey)
 )
@@ -465,7 +468,7 @@ hand2 = make_path(
         (0, 0),
         (1, 0),
     ],
-    closed=True
+    closed=True,
 ).fill_color(black)
 hand2 = (hand2 + hand2.reflect_x()).translate(0, -3).line_width(0.1).line_color(grey)
 hand2.show_origin()

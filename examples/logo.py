@@ -9,24 +9,25 @@ black = Color("#000000")
 white = Color("white")
 grey = Color("#cccccc")
 
+
 def coord(m):
-    return from_polar(math.sqrt(m)/1.2, 2.4 * m)
+    return from_polar(math.sqrt(m) / 1.2, 2.4 * m)
+
 
 def from_polar(r, theta):
     return (r * math.cos(theta), r * math.sin(theta))
 
+
 def mkCoords(n):
-    return [coord(i) for i in range(1, n+1)]
+    return [coord(i) for i in range(1, n + 1)]
+
 
 # Hippie color palette.
-colors = [Color(h) for h in ["#18b0dc",
-                            "#056753",
-                            "#b564ac",
-                            "#e0b566",
-                            "#e52828"]
-]
+colors = [Color(h) for h in ["#18b0dc", "#056753", "#b564ac", "#e0b566", "#e52828"]]
 
-circles = list([circle(0.6).line_width(0).fill_color(colors[n]) for n in range(len(colors))])
+circles = list(
+    [circle(0.6).line_width(0).fill_color(colors[n]) for n in range(len(colors))]
+)
 
 
 def floretf(r):
@@ -35,15 +36,24 @@ def floretf(r):
 
 
 def florets(m):
-    return [floretf(math.sqrt(i)) for i in range(1,m+1)]
-    
+    return [floretf(math.sqrt(i)) for i in range(1, m + 1)]
+
+
 def sunflower(n) -> Diagram:
-    return concat(flor.translate(cord[0], cord[1]) 
-                  for cord, flor in zip(mkCoords(n), florets(n)))
-        
+    return concat(
+        flor.translate(cord[0], cord[1]) for cord, flor in zip(mkCoords(n), florets(n))
+    )
+
+
 floret: Diagram = sunflower(1900).center_xy().scale_uniform_to_x(1).center_xy()
 background = rectangle(1.6, 1).fill_color(black).line_width(0).translate(-0.15, 0)
-logo = text("Chalk", 0.35).fill_color(grey).line_width(0.1).line_color(black).translate(-0.4, -0.1)
+logo = (
+    text("Chalk", 0.35)
+    .fill_color(grey)
+    .line_width(0.1)
+    .line_color(black)
+    .translate(-0.4, -0.1)
+)
 mask = rectangle(1.6, 0.6).translate(-0.15, 0)
 
 # assemble

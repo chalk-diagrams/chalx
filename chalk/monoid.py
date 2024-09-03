@@ -16,10 +16,8 @@ from typing_extensions import Self
 o = TypeVar("o")
 
 
-def associative_reduce(
-    fn: Callable[[o, o], o], iter: Iterable[o], initial: o
-) -> o:
-    "Reduce for associative operations."
+def associative_reduce(fn: Callable[[o, o], o], iter: Iterable[o], initial: o) -> o:
+    """Reduce for associative operations."""
     ls = list(iter)
     if len(ls) == 0:
         return initial
@@ -86,3 +84,6 @@ class MList(Generic[A], Monoid):
 
     def __iter__(self) -> Iterator[A]:
         return self.data.__iter__()
+
+
+__all__ = []

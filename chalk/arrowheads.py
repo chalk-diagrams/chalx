@@ -11,9 +11,7 @@ def tri() -> Diagram:
     from chalk.core import Empty
 
     return (
-        from_list_of_tuples(
-            [(1.0, 0), (0.0, -1.0), (-1.0, 0), (1.0, 0)], closed=True
-        )
+        from_list_of_tuples([(1.0, 0), (0.0, -1.0), (-1.0, 0), (1.0, 0)], closed=True)
         # .remove_scale()
         .stroke()
         .rotate_by(-0.25)
@@ -37,11 +35,7 @@ def dart(cut: float = 0.2) -> Diagram:
             tx.P2(0, -cut),
         ]
     )
-    pts = (
-        tx.rotation_angle(-90)
-        @ tx.translation(tx.V2(1.5 * cut, 1 + 3 * cut))
-        @ pts
-    )
+    pts = tx.rotation_angle(-90) @ tx.translation(tx.V2(1.5 * cut, 1 + 3 * cut)) @ pts
 
     return (
         Path.from_array(

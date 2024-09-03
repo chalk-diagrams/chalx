@@ -40,9 +40,7 @@ def connect(
 
         ps = sub1.get_location()
         pe = sub2.get_location()
-        return dia + arrow_between(
-            ps, pe, style if style is not None else ArrowOpts()
-        )
+        return dia + arrow_between(ps, pe, style if style is not None else ArrowOpts())
 
     return self.with_names([name1, name2], f)
 
@@ -71,9 +69,7 @@ def connect_outside(
         assert m1.all(), "Cannot connect"
         assert m2.all(), "Cannot connect"
 
-        return dia + arrow_between(
-            ps, pe, style if style is not None else ArrowOpts()
-        )
+        return dia + arrow_between(ps, pe, style if style is not None else ArrowOpts())
 
     return self.with_names([name1, name2], f)
 
@@ -98,9 +94,7 @@ def connect_perim(
         pe, m2 = tr2.max_trace_p(loc2, v2)
         assert m1.all(), f"Cannot connect, trace failed {name1} {name2} {m1}"
         assert m2.all(), f"Cannot connect, trace failed {name1} {name2} {m2}"
-        return dia + arrow_between(
-            ps, pe, style if style is not None else ArrowOpts()
-        )
+        return dia + arrow_between(ps, pe, style if style is not None else ArrowOpts())
 
     return self.with_names([name1, name2], f)
 
@@ -121,9 +115,7 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
         segment = arc_seg(tx.V2(l_adj, 0), style.arc_height + 1e-3)
         shaft = segment.stroke()
         seg = segment.segments
-        tan = -tx.perpendicular(
-            seg.q - tx.scale(tx.V2(1, -1)) @ seg.center
-        )  # type: ignore
+        tan = -tx.perpendicular(seg.q - tx.scale(tx.V2(1, -1)) @ seg.center)  # type: ignore
         φ = tx.angle(tan)
         arrow = arrow.rotate(φ)
         if style.arc_height < 0:
@@ -147,7 +139,5 @@ def arrow_at(base: P2_t, vec: V2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
     return arr
 
 
-def arrow_between(
-    start: P2_t, end: P2_t, style: ArrowOpts = ArrowOpts()
-) -> Diagram:
+def arrow_between(start: P2_t, end: P2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
     return arrow_at(start, end - start, style)

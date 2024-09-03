@@ -21,9 +21,7 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, unsafe_hash=True)
 class Located(Transformable):
-    """
-    A trail with a location for the origin.
-    """
+    """A trail with a location for the origin."""
 
     trail: Trail
     location: P2_t
@@ -72,14 +70,12 @@ class Trail(Monoid, Transformable, TrailLike):
     @staticmethod
     def empty() -> Trail:
         seg = Segment(tx.np.zeros((0, 3, 3)), tx.np.zeros((0, 2)))
-        return Trail(seg, 
-                     tx.np.full(seg.angles.shape[:-1], False))
+        return Trail(seg, tx.np.full(seg.angles.shape[:-1], False))
 
     def __add__(self, other: Trail) -> Trail:
         # assert not (self.closed or other.closed), "Cannot add closed trails"
         seg = self.segments + other.segments
-        return Trail(seg, 
-                     tx.np.full(seg.angles.shape[:-1], False))
+        return Trail(seg, tx.np.full(seg.angles.shape[:-1], False))
 
     # Transformable
     def apply_transform(self, t: Affine) -> Trail:
@@ -96,8 +92,7 @@ class Trail(Monoid, Transformable, TrailLike):
         return Trail(self.segments.promote(), self.closed)
 
     def close(self) -> Trail:
-        return Trail(self.segments, 
-                     tx.np.asarray(True))._promote()
+        return Trail(self.segments, tx.np.asarray(True))._promote()
 
     def points(self) -> P2_t:
         q = self.segments.q
@@ -115,8 +110,7 @@ class Trail(Monoid, Transformable, TrailLike):
 
     def centered(self) -> Located:
         return self.at(
-            -tx.np.sum(self.points(), axis=-3)
-            / self.segments.transform.shape[0]
+            -tx.np.sum(self.points(), axis=-3) / self.segments.transform.shape[0]
         )
 
     # Misc. Constructors
@@ -149,9 +143,7 @@ def square() -> Trail:
     return (t + t.rotate_by(0.5)).close()
 
 
-def rounded_rectangle(
-    width: Floating, height: Floating, radius: Floating
-) -> Trail:
+def rounded_rectangle(width: Floating, height: Floating, radius: Floating) -> Trail:
     r = radius
     edge1 = math.sqrt(2 * r * r) / 2
     edge3 = math.sqrt(r * r - edge1 * edge1)
@@ -181,17 +173,17 @@ def circle(clockwise: bool = True) -> Trail:
 
 def regular_polygon(sides: int, side_length: Floating) -> Trail:
     edge = hrule(1)
-    return Trail.concat(
-        edge.rotate_by(i / sides) for i in range(sides)
-    ).close()
+    return Trail.concat(edge.rotate_by(i / sides) for i in range(sides)).close()
 
 
 def seg(offset: V2_t) -> Trail:
+    """Draw a straight `Trail` from the origin to `offset` vector."""
     return arc_seg(offset, 1e-3)
 
 
-def arc_seg(q: V2_t, height: tx.Floating) -> Trail:
-    return arc_between_trail(q, tx.ftos(height))
+def arc_seg(offset: V2_t, height: tx.Floating) -> Trail:
+    """Draw curved  `trail` from the origin to `offset` curved to `height`."""
+    return arc_between_trail(offset, tx.ftos(height))
 
 
 def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
@@ -203,3 +195,6 @@ def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
 
 def arc_between_trail(q: P2_t, height: tx.Scalars) -> Trail:
     return arc.arc_between(tx.P2(0, 0), q, height).to_trail()
+
+
+__all__ = ["seg", "arc_seg"]

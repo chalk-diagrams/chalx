@@ -26,9 +26,7 @@ def render_patches(patches: List[Patch], ax: matplotlib.axes.Axes) -> None:
             )
         )
 
-    collection = matplotlib.collections.PatchCollection(
-        ps, match_original=True
-    )
+    collection = matplotlib.collections.PatchCollection(ps, match_original=True)
     ax.add_collection(collection)
 
 
@@ -37,8 +35,8 @@ def patches_to_file(
 ) -> None:
     fig, ax = plt.subplots()
     render_patches(patches, ax)
-    ax.set_xlim((0, width)) # type: ignore
-    ax.set_ylim((-height, 0)) # type: ignore
+    ax.set_xlim((0, width))  # type: ignore
+    ax.set_ylim((-height, 0))  # type: ignore
     ax.set_aspect("equal")
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     ax.set_axis_off()
@@ -52,5 +50,5 @@ def render(
     width: Optional[int] = None,
     draw_height: Optional[int] = None,
 ) -> None:
-    prims, h, w = self.layout(height, width, draw_height)
+    prims, h, w = self._layout(height, width, draw_height)
     patches_to_file(prims, path, h, w)  # type: ignore

@@ -1,5 +1,4 @@
-"""
-Defines the core geortric and shapes for the
+"""Defines the core geortric and shapes for the
 chalk library. In previous versions this was a
 separate library called `planar`.
 """
@@ -30,7 +29,7 @@ from chalk.array_types import (
     tree_map,
     vectorize,
     vmap,
-    onp
+    onp,
 )
 from jaxtyping import Float
 from typing_extensions import Self
@@ -53,20 +52,20 @@ P2_tC = Float[Array, "*#C 3 1"]
 unit_x: V2_t = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
 unit_y: V2_t = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
 origin: P2_t = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
-ident: Affine = np.asarray(
-    [[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]
-).reshape((3, 3))
+ident: Affine = np.asarray([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]).reshape(
+    (3, 3)
+)
 
 
 def make_ident(shape: Tuple[int, ...]) -> Affine:
-    "Create an identity affine with the given shape."
+    """Create an identity affine with the given shape."""
     return np.broadcast_to(ident, shape + (3, 3))
 
 
 @jit
 # @partial(vectorize, signature="(),()->(3,1)")
 def V2(x: Floating, y: Floating) -> V2_t:
-    "Map (x,y) of any shape to a (batched) vector."
+    """Map (x,y) of any shape to a (batched) vector."""
     if isinstance(x, float) and isinstance(y, float):
         return np.array([x, y, 0]).reshape(3, 1)
 
@@ -78,15 +77,16 @@ def V2(x: Floating, y: Floating) -> V2_t:
 @jit
 # @partial(vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
-    "Map (x,y) of any shape to a (batched) point."
+    """Map (x,y) of any shape to a (batched) point."""
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
     s: P2_t = np.stack([x, y, o], axis=-1)[..., None]
     return s
 
+
 @jit
 # @partial(vectorize, signature="(),()->(3,1)")
 def to_P2(x: Float[Array, "*B 2"]) -> P2_t:
-    "Map a standard vector to a point"
+    """Map a standard vector to a point"""
     _, o = np.broadcast_arrays(x[..., :1], ftos(1.0))
     s: P2_t = np.concatenate([x, o], axis=-1)[..., None]
     return s
@@ -100,13 +100,13 @@ def norm(v: V2_t) -> V2_t:
 
 @jit
 def length(v: V2_t) -> Scalars:
-    "Length of a vector"
+    """Length of a vector"""
     return np.asarray(np.sqrt(length2(v)))
 
 
 @partial(vectorize, signature="(3,1),()->(3,1)")
 def scale_vec(v: V2_t, d: Floating) -> V2_t:
-    "Scale a vector by a scalar"
+    """Scale a vector by a scalar"""
     d = np.asarray(d)
     v = d[..., None, None] * v
     return v
@@ -115,28 +115,28 @@ def scale_vec(v: V2_t, d: Floating) -> V2_t:
 @jit
 @partial(vectorize, signature="(3,1)->()")
 def length2(v: V2_t) -> Scalars:
-    "Length^2 of a vector"
+    """Length^2 of a vector"""
     return np.asarray((v * v)[..., :2, 0].sum(-1))
 
 
 @jit
 @partial(vectorize, signature="(3,1)->()")
 def angle(v: V2_t) -> Scalars:
-    "Angle of a vector in degrees"
+    """Angle of a vector in degrees"""
     return np.asarray(from_rad * rad(v))
 
 
 @jit
 @partial(vectorize, signature="(3,1)->()")
 def rad(v: P2_t) -> Scalars:
-    "Angle of a vector in radians"
+    """Angle of a vector in radians"""
     return np.asarray(np.arctan2(v[..., 1, 0], v[..., 0, 0]))
 
 
 @jit
 @partial(vectorize, signature="(3,1)->(3,1)")
 def perpendicular(v: V2_t) -> V2_t:
-    "Perpendicular of a vector"
+    """Perpendicular of a vector"""
     return np.stack([-v[..., 1, :], v[..., 0, :], v[..., 2, :]], axis=-2)
 
 
@@ -150,7 +150,7 @@ def make_affine(
     e: Floating,
     f: Floating,
 ) -> Affine:
-    "Create affine array from values"
+    """Create affine array from values"""
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
     vals = np.broadcast_arrays(*vals)  # type: ignore
     x = np.stack(vals, axis=-1)
@@ -161,20 +161,20 @@ def make_affine(
 @jit
 @partial(vectorize, signature="(3,1),(3,1)->()")
 def dot(v1: V2_t, v2: V2_t) -> Scalars:
-    "Dot of vectors"
+    """Dot of vectors"""
     return np.asarray((v1 * v2).sum(-1).sum(-1))
 
 
 @jit
 @partial(vectorize, signature="(3,1),(3,1)->()")
 def cross(v1: V2_t, v2: V2_t) -> Scalars:
-    "Cross of vectors"
+    """Cross of vectors"""
     s: Scalars = np.cross(v1, v2)
     return s
 
 
 def to_point(v: V2_t) -> P2_t:
-    "Convert a vector to a point (allows transpose)"
+    """Convert a vector to a point (allows transpose)"""
     index = (Ellipsis, 2, 0)
     return index_update(v, index, 1)  # type: ignore
 
@@ -182,7 +182,7 @@ def to_point(v: V2_t) -> P2_t:
 @jit
 @partial(vectorize, signature="(3,1)->(3,1)")
 def to_vec(p: P2_t) -> V2_t:
-    "Convert a point to a vector (disallows transpose)"
+    """Convert a point to a vector (disallows transpose)"""
     index = (Ellipsis, 2, 0)
     return index_update(p, index, 0)  # type: ignore
 
@@ -190,7 +190,7 @@ def to_vec(p: P2_t) -> V2_t:
 @jit
 @partial(vectorize, signature="()->(3,1)")
 def polar(angle: Floating) -> V2_t:
-    "Angle in degress to a vector"
+    """Angle in degress to a vector"""
     rad = to_radians(angle)
     x, y = np.cos(rad), np.sin(rad)
     return V2(x, y)
@@ -199,7 +199,7 @@ def polar(angle: Floating) -> V2_t:
 @jit
 @partial(vectorize, signature="(3,1)->(3,3)")
 def scale(vec: V2_t) -> Affine:
-    "Create a affine scale matrix"
+    """Create a affine scale matrix"""
     base = make_ident(vec.shape[:-2])
     index = (Ellipsis, np.arange(0, 2), np.arange(0, 2))
     return index_update(base, index, vec[..., :2, 0])  # type: ignore
@@ -208,7 +208,7 @@ def scale(vec: V2_t) -> Affine:
 @jit
 @partial(vectorize, signature="(3,1)->(3,3)")
 def translation(vec: V2_t) -> Affine:
-    "Create an affine translation matrix"
+    """Create an affine translation matrix"""
     index = (Ellipsis, slice(0, 2), 2)
     base = make_ident(vec.shape[:-2])
     return index_update(base, index, vec[..., :2, 0])  # type: ignore
@@ -217,7 +217,7 @@ def translation(vec: V2_t) -> Affine:
 @jit
 @partial(vectorize, signature="(3,3)->(3,1)")
 def get_translation(aff: Affine) -> V2_t:
-    "Get the translation of an affine matrix"
+    """Get the translation of an affine matrix"""
     index = (Ellipsis, slice(0, 2), 0)
     base = np.zeros((aff.shape[:-2]) + (3, 1))
     return index_update(base, index, aff[..., :2, 2])  # type: ignore
@@ -225,7 +225,7 @@ def get_translation(aff: Affine) -> V2_t:
 
 @jit
 def rotation(r: Floating) -> Affine:
-    "Create an affine rotation matrix in radians"
+    """Create an affine rotation matrix in radians"""
     rad = ftos(r)
     shape = rad.shape
     rad = -rad
@@ -237,14 +237,14 @@ def rotation(r: Floating) -> Affine:
 
 
 def rotation_angle(r: Floating) -> Affine:
-    "Create an affine rotation matrix in degrees"
+    """Create an affine rotation matrix in degrees"""
     return rotation(to_radians(r))
 
 
 @partial(vectorize, signature="(3,3)->(3,3)")
 @jit
 def inv(aff: Affine) -> Affine:
-    "Fast invert an affine"
+    """Fast invert an affine"""
     det = np.linalg.det(aff)
     # if not JAX_MODE:
     #     assert np.all(np.abs(det) > 1e-10), "Object scaled to 0"
@@ -289,7 +289,7 @@ def to_radians(θ: Floating) -> Scalars:
 @jit
 @partial(vectorize, signature="(3,3)->(3,3)")
 def remove_translation(aff: Affine) -> Affine:
-    "Remove translation from affine"
+    """Remove translation from affine"""
     index = (Ellipsis, slice(0, 1), 2)
     return index_update(aff, index, 0)  # type: ignore
 
@@ -297,7 +297,7 @@ def remove_translation(aff: Affine) -> Affine:
 @jit
 @partial(vectorize, signature="(3,3)->(3,3)")
 def remove_scale(aff: Affine) -> Affine:
-    "Remove scaling from affine"
+    """Remove scaling from affine"""
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     det = np.linalg.det(aff[index])
     return index_update(aff, index, aff[index] / np.sqrt(det[..., None, None]))  # type: ignore
@@ -312,8 +312,7 @@ def transpose_translation(aff: Affine) -> Affine:
 
 
 class Transformable:
-    """
-    Syntactic sugar to apply transformations to objects
+    """Syntactic sugar to apply transformations to objects
     as methods. Creates matrices and applies them.
     """
 
@@ -339,15 +338,15 @@ class Transformable:
         return self._app(scale(V2(1, α)))
 
     def rotate(self, θ: Floating) -> Self:
-        "Rotate by θ degrees counterclockwise"
+        """Rotate by θ degrees counterclockwise"""
         return self._app(rotation(to_radians(θ)))
 
     def rotate_rad(self, θ: Floating) -> Self:
-        "Rotate by θ radians counterclockwise"
+        """Rotate by θ radians counterclockwise"""
         return self._app(rotation((θ)))
 
     def rotate_by(self, turns: Floating) -> Self:
-        "Rotate by fractions of a circle (turn)."
+        """Rotate by fractions of a circle (turn)."""
         θ = 2 * math.pi * turns
         return self._app(rotation((θ)))
 
@@ -404,7 +403,7 @@ class BoundingBox(Transformable):
         return s
 
     def to_rect(self) -> "Diagram":  # type: ignore
-        "Convert bounding box to a rectangle"
+        """Convert bounding box to a rectangle"""
         from chalk import rectangle
 
         return (
@@ -459,8 +458,7 @@ def ray_circle_intersection(
 
 @partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")
 def arc_to_bezier(theta1: Array, theta2: Array, n: int = 5) -> Array:
-    """
-    Returns the bezier curves for the unit circle arc from angles *theta1* to
+    """Returns the bezier curves for the unit circle arc from angles *theta1* to
     *theta2* (in degrees).
 
     *theta2* is unwrapped to produce the shortest arc within 360 degrees.
@@ -558,5 +556,5 @@ __all__ = [
     "prefix_broadcast",
     "BoolLike",
     "JAX_MODE",
-    "onp"
+    "onp",
 ]

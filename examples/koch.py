@@ -8,6 +8,7 @@ from chalk.transform import *
 
 base_unit = Trail.hrule(1)
 
+
 def koch(n):
     if n == 0:
         return base_unit.scale_x(5)
@@ -18,6 +19,7 @@ def koch(n):
             + koch(n - 1).scale(1 / 3).rotate_by(-1 / 6)
             + koch(n - 1).scale(1 / 3)
         )
+
 
 d = vcat(koch(i).stroke().line_width(0.01) for i in range(1, 5))
 

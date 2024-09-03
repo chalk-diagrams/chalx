@@ -14,17 +14,11 @@ from chalk.types import (
 
 
 def with_envelope(self: Diagram, other: Diagram) -> Diagram:
-    """
-    Act as if the envelope of `other` is the envelope of `self`.
-    """
     self, other = self.broadcast_diagrams(other)
-    return self.compose(other)
+    return self._compose(other)
 
 
 def pad(self: Diagram, extra: Floating) -> Diagram:
-    """Scale outward directed padding for a diagram.
-    Be careful using this if your diagram is not centered.
-    """
     envelope = self.get_envelope()
     bounding_box = envelope.to_bounding_box()
     rect = bounding_box.scale(extra).to_rect()
@@ -37,7 +31,7 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
 
 
 def atop(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
-    return self.compose(None, other)
+    return self._compose(None, other)
 
 
 # beneath
@@ -50,15 +44,11 @@ def above(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
 # appends
 
 
-def beside(
-    self: BatchDiagram, other: BatchDiagram, direction: V2_t
-) -> BroadDiagram:
+def beside(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
     return atop(self, juxtapose(self, other, direction))
 
 
-def place_at(
-    diagrams: Iterable[Diagram], points: List[Tuple[float, float]]
-) -> Diagram:
+def place_at(diagrams: Iterable[Diagram], points: List[Tuple[float, float]]) -> Diagram:
     return concat(d.translate(x, y) for d, (x, y) in zip(diagrams, points))
 
 
@@ -66,27 +56,17 @@ def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
     return concat(d.translate_by(p) for d, p in zip(diagrams, path.points()))
 
 
-def batch_hcat(
-    self: ExtraDiagram, sep: Optional[Floating] = None
-) -> BatchDiagram:
-    "Hcat a batched diagram along the outermost axis."
+def batch_hcat(self: ExtraDiagram, sep: Optional[Floating] = None) -> BatchDiagram:
     return batch_cat(self, tx.unit_x, sep)
 
 
-def batch_vcat(
-    self: ExtraDiagram, sep: Optional[Floating] = None
-) -> BatchDiagram:
-    "Vcat a batched diagram along the outermost axis."
+def batch_vcat(self: ExtraDiagram, sep: Optional[Floating] = None) -> BatchDiagram:
     return batch_cat(self, tx.unit_y, sep)
 
 
 def batch_cat(
     diagram: ExtraDiagram, v: V2_t, sep: Optional[Floating] = None
 ) -> BatchDiagram:
-    """
-    Cat a batched diagram along the outermost axis.
-    i.e. if it is size (a,b) it will now be (b)
-    """
     axes = diagram.size()
     axis = len(axes) - 1
     assert diagram.size() != ()
@@ -105,12 +85,10 @@ def batch_cat(
         t = v * off[..., None, None]
         return diagram.translate_by(t)
 
-    return call_scan(diagram).compose_axis()
+    return call_scan(diagram)._compose_axis()
 
 
-def cat(
-    diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None
-) -> Diagram:
+def cat(diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None) -> Diagram:
     from chalk.shapes import hstrut
 
     diagrams = iter(diagram)
@@ -132,13 +110,11 @@ def cat(
 def batch_concat(self: ExtraDiagram) -> BatchDiagram:
     size = self.size()
     assert size != ()
-    return self.compose_axis()
+    return self._compose_axis()
 
 
 def concat(diagrams: Iterable[BatchDiagram]) -> BroadDiagram:
-    """
-    Concat diagrams atop of each other with atop.
-    """
+    """Concat diagrams atop of each other with atop."""
     from chalk.core import BaseDiagram
 
     assert not isinstance(
@@ -149,7 +125,7 @@ def concat(diagrams: Iterable[BatchDiagram]) -> BroadDiagram:
 
 
 def empty() -> EmptyDiagram:
-    "Create an empty diagram"
+    """Create an empty diagram"""
     from chalk.core import BaseDiagram
 
     return BaseDiagram.empty()  # type: ignore
@@ -163,55 +139,18 @@ def empty() -> EmptyDiagram:
 def hcat(
     diagrams: Iterable[BatchDiagram], sep: Optional[Floating] = None
 ) -> BroadDiagram:
-    """
-    Stack diagrams next to each other with `besides`.
-
-    Args:
-        diagrams (Iterable[Diagram]): Diagrams to stack.
-        sep (Optional[float]): Padding between diagrams.
-
-    Returns:
-        Diagram: New diagram
-
-    """
+    assert not isinstance(diagrams, Diagram), "Use diagram.hcat() for batched diagrams"
     return cat(diagrams, tx.unit_x, sep)
 
 
 def vcat(
     diagrams: Iterable[BatchDiagram], sep: Optional[Floating] = None
 ) -> BroadDiagram:
-    """
-    Stack diagrams above each other with `above`.
-
-    Args:
-        diagrams (Iterable[Diagram]): Diagrams to stack.
-        sep (Optional[float]): Padding between diagrams.
-
-    Returns:
-        Diagrams
-
-    """
+    assert not isinstance(diagrams, Diagram), "Use diagram.vcat() for batched diagrams"
     return cat(diagrams, tx.unit_y, sep)
 
 
 # Extra
-
-
-def above2(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
-    """Given two diagrams ``a`` and ``b``, ``a.above2(b)``
-    places ``a`` on top of ``b``. This moves ``a`` down to
-    touch ``b``.
-
-    💡 ``a.above2(b)`` is equivalent to ``a // b``.
-
-    Args:
-        self (Diagram): Diagram object.
-        other (Diagram): Another diagram object.
-
-    Returns:
-        Diagram: A diagram object.
-    """
-    return beside(other, self, -tx.unit_y)
 
 
 def juxtapose_snug(
@@ -234,20 +173,7 @@ def beside_snug(
     return atop(self, juxtapose_snug(self, other, direction))
 
 
-def juxtapose(
-    self: BatchDiagram, other: BatchDiagram, direction: V2_t
-) -> BroadDiagram:
-    """Given two diagrams ``a`` and ``b``, ``a.juxtapose(b, v)``
-    places ``b`` to touch ``a`` along angle ve .
-
-    Args:
-        self (Diagram): Diagram object.
-        other (Diagram): Another diagram object.
-        direction (V2_T): (Normalized) vector angle to juxtapose
-
-    Returns:
-        Repositioned ``b`` diagram
-    """
+def juxtapose(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
     envelope1 = self.get_envelope()
     envelope2 = other.get_envelope()
     d = envelope1.envelope_v(direction) - envelope2.envelope_v(-direction)
@@ -266,4 +192,7 @@ def at_center(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
     """
     envelope1 = self.get_envelope()
     t = tx.translation(envelope1.center)
-    return self.compose(None, other.apply_transform(t))
+    return self._compose(None, other.apply_transform(t))
+
+
+__all__ = ["hcat", "vcat", "concat", "atop", "empty", "cat", "place_at", "above", "beside"]

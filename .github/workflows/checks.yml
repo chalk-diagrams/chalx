@@ -30,4 +30,4 @@ jobs:
         make images
     - name: Make sure docs run
       run: |
-        make 
+        make

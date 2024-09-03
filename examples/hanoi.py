@@ -24,6 +24,8 @@ colors = colors + colors
 black = Color("black")
 
 disks = {}
+
+
 def draw_disk(n: Disk) -> Diagram:
     if n not in disks:
         disks[n] = (
@@ -33,24 +35,37 @@ def draw_disk(n: Disk) -> Diagram:
             .line_width(0.05)
         )
     return disks[n]
+
+
 draw_disk(0)
 
 stacks = {}
+
+
 def draw_stack(s: Stack) -> Diagram:
     k = tuple(s)
     if k not in stacks:
         disks = vcat(map(draw_disk, s))
         post = rectangle(0.8, 6).fill_color(black)
-        stacks[k] = (post.align_b() + disks.align_b())
+        stacks[k] = post.align_b() + disks.align_b()
     return stacks[k]
+
+
 draw_stack([0, 1])
 
 
 def draw_hanoi(state: Hanoi) -> Diagram:
     hsep = 7
-    return concat([draw_stack(stack).translate_by(unit_x * hsep * i)
-                   for i, stack in enumerate(state)])
+    return concat(
+        [
+            draw_stack(stack).translate_by(unit_x * hsep * i)
+            for i, stack in enumerate(state)
+        ]
+    )
+
+
 draw_hanoi([[0], [1, 2], []])
+
 
 def solve_hanoi(num_disks: int) -> List[Move]:
     def solve_hanoi_1(num_disks, *, source, spare, target):
@@ -60,7 +75,9 @@ def solve_hanoi(num_disks: int) -> List[Move]:
             return (
                 solve_hanoi_1(num_disks - 1, source=source, spare=target, target=spare)
                 + [(source, target)]
-                + solve_hanoi_1(num_disks - 1, source=spare, spare=source, target=target)
+                + solve_hanoi_1(
+                    num_disks - 1, source=spare, spare=source, target=target
+                )
             )
 
     return solve_hanoi_1(num_disks, source=0, spare=1, target=2)
@@ -93,7 +110,9 @@ def state_sequence(num_disks: int) -> List[Hanoi]:
 
 
 def draw_state_sequence(seq: List[Hanoi]) -> Diagram:
-    return concat(draw_hanoi(state).translate(0, 7.5 * i) for i, state in enumerate(seq))
+    return concat(
+        draw_hanoi(state).translate(0, 7.5 * i) for i, state in enumerate(seq)
+    )
 
 
 diagram = draw_state_sequence(state_sequence(7))
@@ -102,7 +121,7 @@ path = "examples/output/hanoi.svg"
 diagram.render_svg(path, height=700)
 # import render
 # render.render(diagram.scale(8).align_tl(), "render.png", 600, 600)
-try: 
+try:
     path = "examples/output/hanoi.png"
     diagram.render(path, height=700)
     PILImage.open(path)

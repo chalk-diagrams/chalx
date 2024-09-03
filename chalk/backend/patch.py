@@ -33,9 +33,7 @@ def segment_to_curve(transform: tx.Affine, angles: tx.Angles) -> tx.V2_tC:
 
 
 @partial(tx.np.vectorize, signature="(3,1),(a,c,3,1),(3,3)->(b,3,1),(b)")
-def close(
-    p: tx.P2_t, vert: tx.V2_t, trans: tx.Affine
-) -> Tuple[tx.V2_tC, tx.IntLikeC]:
+def close(p: tx.P2_t, vert: tx.V2_t, trans: tx.Affine) -> Tuple[tx.V2_tC, tx.IntLikeC]:
     # vert = vert.reshape(*vert.shape[:-4], vert.shape[-4] * vert.shape[-3],
     #                 vert.shape[-2], vert.shape[-1])
     vert = vert.reshape(-1, 3, 1)
@@ -59,10 +57,7 @@ def order_patches(
         for ind, i in tx.onp.ndenumerate(patch.order[time]):  # type: ignore
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, time + ind)
-    return [
-        (d[k][1], d[k][0], d[k][0].get_style(d[k][1]))
-        for k in sorted(d.keys())
-    ]
+    return [(d[k][1], d[k][0], d[k][0].get_style(d[k][1])) for k in sorted(d.keys())]
 
 
 @dataclass
@@ -100,13 +95,10 @@ class Patch:
         for loc_trail in path.loc_trails:
             p = loc_trail.location
             segments = loc_trail.located_segments()
-            print("SEG", transform.shape, transform.strides, loc_trail.trail.segments.transform.strides)
             vert = segment_to_curve(segments.transform, segments.angles)
             if path.scale_invariant is not None:
                 scale = height / 20
-                transform = tx.remove_scale(transform) @ tx.scale(
-                    tx.V2(scale, scale)
-                )
+                transform = tx.remove_scale(transform) @ tx.scale(tx.V2(scale, scale))
 
             vert, command = close(p, vert, transform)
             closed = loc_trail.trail.closed.all()
@@ -123,9 +115,7 @@ class Patch:
         vert = vert[..., :2, 0]
         # Text rendering
         if path.text is not None:
-            text_path = TextPath(
-                (0, 0), path.text.to_str(), size=1, usetex=True
-            )
+            text_path = TextPath((0, 0), path.text.to_str(), size=1, usetex=True)
             command = np.concatenate([command, text_path.codes], -1)
             v = text_path.vertices
             # Center
@@ -142,14 +132,14 @@ class Patch:
 
 
 @tx.jit  # type: ignore
-def patch_from_prim(
-    prim: Primitive, style: StyleHolder, height: tx.IntLike
-) -> Patch:
+def patch_from_prim(prim: Primitive, style: StyleHolder, height: tx.IntLike) -> Patch:
     size = prim.size()
     style = prim.style if prim.style is not None else style
     assert isinstance(prim.prim_shape, Path)
     assert prim.order is not None
-    in_style = style.to_mpl() #tx.multi_vmap(style.to_mpl.__func__, len(size))(style),  # type: ignore
+    in_style = (
+        style.to_mpl()
+    )  # tx.multi_vmap(style.to_mpl.__func__, len(size))(style),  # type: ignore
     patch = Patch.from_path(
         prim.prim_shape,
         prim.transform,

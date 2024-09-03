@@ -8,6 +8,7 @@ from chalk.monoid import Monoid
 from chalk.segment import Segment, arc_trace
 from chalk.transform import Affine, P2_t, Transformable, V2_t
 from chalk.visitor import DiagramVisitor
+from chalk.array_types import Batched
 
 if TYPE_CHECKING:
     from chalk.core import ApplyTransform, Primitive
@@ -17,9 +18,7 @@ TraceDistances = Tuple[tx.Scalars, tx.Mask]
 
 
 @tx.jit
-def trace(
-    transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC
-):
+def trace(transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC):
     point, direction = tx.np.broadcast_arrays(point, d)
 
     # Push the __call__ batch dimensions to the left.
@@ -43,8 +42,7 @@ def trace(
 
 @dataclass
 class Trace(Monoid, Transformable):
-    """
-    A trace is used to compute the distance
+    """A trace is used to compute the distance
     to a segment along a given ray.
 
     In practice, this object just stores the
@@ -81,22 +79,22 @@ class Trace(Monoid, Transformable):
         return (p + u, m)
 
 
-class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
-    "Collapses a diagram into a batch of its segments."
+class _GetLocatedSegments(DiagramVisitor[Segment, Affine]):
     A_type = Segment
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
-        return segment.apply_transform(
-            (t @ diagram.transform)[..., None, :, :]
-        )
+        return segment.apply_transform((t @ diagram.transform)[..., None, :, :])
 
-    def visit_apply_transform(
-        self, diagram: ApplyTransform, t: Affine
-    ) -> Segment:
-        "Defaults to pass over"
-        return diagram.diagram.accept(self, t @ diagram.transform)
+    def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> Segment:
+        # Defaults to pass over
+        return diagram.diagram._accept(self, t @ diagram.transform)
 
 
 def get_trace(self: Diagram) -> Trace:
-    return Trace(self.accept(GetLocatedSegments(), tx.ident))
+    return Trace(self._accept(_GetLocatedSegments(), tx.ident))
+
+
+BatchTrace = Batched[Trace, "*#B"]
+
+__all__ = ["BatchTrace", "Trace"]

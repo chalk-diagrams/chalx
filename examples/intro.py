@@ -35,12 +35,14 @@ d.render_svg(path, height=64)
 
 path = "examples/output/intro-04.png"
 
+
 def sierpinski(n: int, size: int) -> Diagram:
     if n <= 1:
         return triangle(size)
     else:
         smaller = sierpinski(n - 1, size // 2)
         return smaller.above((smaller | smaller).center_xy())
+
 
 d = sierpinski(5, 4).fill_color(papaya)
 d.render(path, height=256)

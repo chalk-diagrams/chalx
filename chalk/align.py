@@ -12,7 +12,6 @@ def align_to(self: Diagram, v: V2_t) -> Diagram:
 
 
 def snug(self: Diagram, v: V2_t) -> Diagram:
-    "Align based on the trace."
     trace = self.get_trace()
     d, _ = trace.trace_v(tx.origin, v)
     assert d is not None
@@ -68,15 +67,6 @@ def center_xy(self: Diagram) -> Diagram:
 
 
 def scale_uniform_to_x(self: Diagram, x: tx.Floating) -> Diagram:
-    """Apply uniform scaling along the x-axis.
-
-    Args:
-        self (Diagram): Diagram object.
-        x (float): Amount of scaling along the x-axis.
-
-    Returns:
-        Diagram: A diagram object.
-    """
     envelope = self.get_envelope()
     # if envelope.is_empty:
     #     return self
@@ -85,17 +75,11 @@ def scale_uniform_to_x(self: Diagram, x: tx.Floating) -> Diagram:
 
 
 def scale_uniform_to_y(self: Diagram, y: tx.Floating) -> Diagram:
-    """Apply uniform scaling along the y-axis.
-
-    Args:
-        self (Diagram): Diagram object.
-        y (float): Amount of scaling along the y-axis.
-
-    Returns:
-        Diagram: A diagram object.
-    """
     envelope = self.get_envelope()
     # if envelope.is_empty:
     #     return self
     α = y / envelope.height
     return self.scale(α)
+
+
+__all__ = []

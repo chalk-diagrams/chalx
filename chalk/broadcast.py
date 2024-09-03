@@ -19,8 +19,8 @@ def add_axis(self: Diagram, size: int) -> Diagram:
 
 
 def size(self: Diagram) -> Tuple[int, ...]:
-    "Get the size of a batch diagram."
-    return self.accept(ToSize(), Size.empty()).d
+    """Get the size of a batch diagram."""
+    return self._accept(ToSize(), Size.empty()).d
 
 
 def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
@@ -31,11 +31,13 @@ def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     check_consistent(out)
     return out
 
+
 def swapaxes(self: Diagram, a, b) -> Diagram:
     out = tx.tree_map(  # type: ignore
         lambda x: x.swapaxes(a, b), self
     )
     return out
+
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
     return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore
@@ -60,18 +62,20 @@ def check_consistent(self: Diagram) -> None:
 V1 = TypeVar("V1", bound=Diagram)
 V2 = TypeVar("V2", bound=Diagram)
 
+
 def broadcast_to(tree, old_shape: Tuple[int, ...], new_shape: Tuple[int, ...]):
-    if old_shape == new_shape: return tree
+    if old_shape == new_shape:
+        return tree
+
     def reshape(x: tx.Array) -> tx.Array:
         shape = x.shape
-        return tx.np.broadcast_to(x, new_shape + shape[len(old_shape):])
+        return tx.np.broadcast_to(x, new_shape + shape[len(old_shape) :])
 
     return tx.tree_map(reshape, tree)
 
 
 def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
-    """
-    Returns a version of diagram A and B
+    """Returns a version of diagram A and B
     that have the same shape.
     """
     size = self.size()
@@ -117,8 +121,7 @@ class Size(Monoid):
 
 
 class ToSize(DiagramVisitor[Size, Size]):
-    """
-    Get the size of the diagram. Walks up
+    """Get the size of the diagram. Walks up
     the tree until it his a batched element.
     """
 
@@ -127,13 +130,11 @@ class ToSize(DiagramVisitor[Size, Size]):
     def visit_primitive(self, diagram: core.Primitive, t: Size) -> Size:
         return Size(diagram.transform.shape[:-2])
 
-    def visit_apply_transform(
-        self, diagram: core.ApplyTransform, t: Size
-    ) -> Size:
+    def visit_apply_transform(self, diagram: core.ApplyTransform, t: Size) -> Size:
         return Size(diagram.transform.shape[:-2])
 
     def visit_apply_name(self, diagram: core.ApplyName, t: Size) -> Size:
-        return diagram.diagram.accept(self, t)
+        return diagram.diagram._accept(self, t)
 
     def visit_apply_style(self, diagram: core.ApplyStyle, t: Size) -> Size:
         if diagram.style is None:  # type: ignore
@@ -141,4 +142,4 @@ class ToSize(DiagramVisitor[Size, Size]):
         return Size(diagram.style.size())
 
     def visit_compose_axis(self, diagram: core.ComposeAxis, t: Size) -> Size:
-        return diagram.diagrams.accept(self, t).remove_axis(0)
+        return diagram.diagrams._accept(self, t).remove_axis(0)

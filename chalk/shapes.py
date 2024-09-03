@@ -39,20 +39,27 @@ def vrule(length: tx.Floating) -> Diagram:
 
 def regular_polygon(sides: int, side_length: tx.Floating) -> Diagram:
     """Draws a regular polygon with given number of sides and given side
-    length. The polygon is oriented with one edge parallel to the x-axis."""
+    length. The polygon is oriented with one edge parallel to the x-axis.
+    """
     return Trail.regular_polygon(sides, side_length).centered().stroke()
 
 
 def triangle(width: tx.Floating) -> Diagram:
     """Draws an equilateral triangle with the side length specified by
-    the ``width`` argument. The origin is the traingle's centroid."""
+    the ``width`` argument. The origin is the traingle's centroid.
+    """
     return regular_polygon(3, width)
 
-def line(from_: Tuple[tx.Floating, tx.Floating], to: Tuple[tx.Floating, tx.Floating]) -> Diagram:
+
+def line(
+    from_: Tuple[tx.Floating, tx.Floating], to: Tuple[tx.Floating, tx.Floating]
+) -> Diagram:
     return make_path([from_, to])
 
+
 def make_path(
-    segments: Union[List[Tuple[tx.Floating, tx.Floating]], tx.P2_t], closed: bool = False
+    segments: Union[List[Tuple[tx.Floating, tx.Floating]], tx.P2_t],
+    closed: bool = False,
 ) -> Diagram:
     if isinstance(segments, (list, tuple)):
         p = from_list_of_tuples(segments, closed).stroke()
@@ -64,16 +71,18 @@ def make_path(
 def rectangle(
     width: tx.Floating, height: tx.Floating, radius: Optional[float] = None
 ) -> BatchDiagram:
-    """
-    Draws a rectangle.
+    """Draws a rectangle.
 
     Args:
+    ----
         width (float): Width
         height (float): Height
         radius (Optional[float]): Radius for rounded corners.
 
     Returns:
+    -------
         Diagrams
+
     """
     if radius is None:
         return (
@@ -93,29 +102,27 @@ def rectangle(
 
 def square(side: tx.Floating) -> BatchDiagram:
     """Draws a square with the specified side length. The origin is the
-    center of the square."""
+    center of the square.
+    """
     return rectangle(side, side)
 
 
 def circle(radius: tx.Floating) -> BatchDiagram:
-    "Draws a circle with the specified ``radius``."
-    return (
-        Trail.circle().stroke().translate(radius, 0).scale(radius).center_xy()
-    )
+    """Draws a circle with the specified ``radius``."""
+    return Trail.circle().stroke().translate(radius, 0).scale(radius).center_xy()
 
 
-def arc(
-    radius: tx.Floating, angle0: tx.Floating, angle1: tx.Floating
-) -> Diagram:
-    """
-    Draws an arc.
+def arc(radius: tx.Floating, angle0: tx.Floating, angle1: tx.Floating) -> Diagram:
+    """Draws an arc.
 
     Args:
+    ----
       radius (float): Circle radius.
       angle0 (float): Starting cutoff in degrees.
       angle1 (float): Finishing cutoff in degrees.
 
     Returns:
+    -------
       Diagram
 
     """

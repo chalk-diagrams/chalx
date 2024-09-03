@@ -18,7 +18,6 @@ if eval(os.environ.get("CHALK_CHECK", "0")):
 
 
 import chex
-import jax
 
 import chalk.backend.patch
 import chalk.core
@@ -29,12 +28,10 @@ import chalk.shapes
 import chalk.style
 import chalk.trace
 import chalk.trail
-from chalk.align import *  # noqa: F403
 from chalk.arrowheads import *
 from chalk.combinators import *  # noqa: F403
 from chalk.export import *
 from chalk.shapes import *  # noqa: F403
-from chalk.subdiagram import *
 
 if eval(os.environ.get("CHALK_CHECK", "0")):
     assert hook is not None
@@ -63,6 +60,7 @@ jax_type = [
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
 
+import jax
 
 jax.tree_util.register_pytree_node(
     chalk.core.ApplyName,

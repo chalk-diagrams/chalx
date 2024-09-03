@@ -1,6 +1,4 @@
-"""
-A set of helper functions that help users debug diagram properties.
-"""
+"""A set of helper functions that help users debug diagram properties."""
 
 import chalk.transform as tx
 from chalk.combinators import concat
@@ -12,8 +10,6 @@ from chalk.types import Diagram
 
 
 def show_origin(self: Diagram) -> Diagram:
-    "Add a red dot at the origin of a diagram for debugging."
-
     envelope = self.get_envelope()
     origin_size = tx.np.maximum(
         0.1, tx.np.minimum(envelope.height, envelope.width) / 50
@@ -22,20 +18,7 @@ def show_origin(self: Diagram) -> Diagram:
     return self + origin
 
 
-def show_envelope(
-    self: Diagram, phantom: bool = False, angle: int = 45
-) -> Diagram:
-    """Add red envelope to diagram for debugging.
-
-    Args:
-        self (Diagram) : Diagram
-        phantom (bool): Don't include debugging in the envelope
-        angle (int): Angle increment to show debugging lines.
-
-    Returns:
-        Diagram
-    """
-
+def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diagram:
     self.show_origin()
     envelope = self.get_envelope()
     outer: Diagram = (
@@ -47,9 +30,7 @@ def show_envelope(
     segments = envelope.to_segments(angle)
 
     outer = outer + (
-        concat(
-            [seg(segments[i][None]).stroke() for i in range(segments.shape[0])]
-        )
+        concat([seg(segments[i][None]).stroke() for i in range(segments.shape[0])])
         .line_color("blue")
         .dashing([0.01, 0.01], 0)
     )
@@ -61,8 +42,6 @@ def show_envelope(
 
 
 def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
-    "Add blue normal line to show placement of combination."
-
     envelope1 = self.get_envelope()
     envelope2 = other.get_envelope()
     v1 = envelope1.envelope_v(direction)
@@ -98,11 +77,12 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
 
 
 def show_labels(self: Diagram, font_size: tx.Floating = 1) -> Diagram:
-    """Shows the labels of all named subdiagrams of a diagram at their
-    corresponding origin."""
     for name, subs in self.get_sub_map(tx.ident).items():
         for sub in subs:
             n = str(name)
             p = sub.get_location()
             self = self + text(n, font_size).fill_color("red").translate_by(p)
     return self
+
+
+__all__ = []

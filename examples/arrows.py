@@ -9,13 +9,17 @@ orange = Color("orange")
 
 
 octagon = regular_polygon(9, 1.5).rotate_by(1 / 16).line_color(grey).line_width(0.5)
-dias = octagon.named("first").show_origin() | hstrut(3) | octagon.named("second").show_origin()
+dias = (
+    octagon.named("first").show_origin()
+    | hstrut(3)
+    | octagon.named("second").show_origin()
+)
 ex1 = octagon
 
 ex1 = dias.connect(
-     "first",
+    "first",
     "second",
-    ArrowOpts(trail=Trail.from_offsets([unit_x, 0.25 * unit_y, unit_x, 0.25 * unit_y]))
+    ArrowOpts(trail=Trail.from_offsets([unit_x, 0.25 * unit_y, unit_x, 0.25 * unit_y])),
 )
 ex1
 
@@ -43,7 +47,6 @@ ex1 = ex1.connect(
     ),
 )
 
-import chalk.transform as tx
 ex12 = ex1.connect_perim(
     "first",
     "second",

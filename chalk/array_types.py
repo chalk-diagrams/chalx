@@ -1,15 +1,13 @@
-"""
-This file contains code to ensure compatibility between 
-JAX and NumPy. This includes type compatibility and 
+"""This file contains code to ensure compatibility between
+JAX and NumPy. This includes type compatibility and
 some additional function that are not in NumPy.
 
 These types are exported through Transform.
 
-TODO: Currently the numpy code still requires the use of 
+TODO: Currently the numpy code still requires the use of
 jax for the PyTree functionality. We will move to OpTree once it
 support dataclasses.
 """
-
 
 import os
 from functools import partial
@@ -45,9 +43,10 @@ if TYPE_CHECKING or not eval(os.environ.get("CHALK_JAX", "0")):
         return x  # type: ignore
 
     def vmap(fn: Callable[[Array], Array]) -> Callable[[Array], Array]:
-        "Fake jax vmap for numpy as a for loop."
+        """Fake jax vmap for numpy as a for loop."""
         if JAX_MODE:
             return vmap(fn)
+
         def vmap2(x: Array) -> Array:
             if isinstance(x, tuple):
                 size = x[-1].size()  # type: ignore
@@ -102,17 +101,15 @@ ScalarsC = Float[Array, "*#C"]
 @jit
 @partial(vectorize, signature="()->()")
 def ftos(f: Floating) -> Scalars:
-    "Map a float to an array format."
+    """Map a float to an array format."""
     return np.asarray(f, dtype=np.double)
 
 
 tree_map = jax.tree.map
 
 
-def multi_vmap(
-    fn: Callable[[Array], Array], t: int
-) -> Callable[[Array], Array]:
-    "Apply vmap t times"
+def multi_vmap(fn: Callable[[Array], Array], t: int) -> Callable[[Array], Array]:
+    """Apply vmap t times"""
     for _ in range(t):
         fn = vmap(fn)
     return fn
@@ -134,14 +131,15 @@ class Batchable:
         shape = self.shape
         if isinstance(ind, tuple) and Ellipsis in ind:  # type: ignore
             # We only want ... to apply to the prefix args
-            return jax.tree_map(lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self)  # type: ignore
+            return jax.tree_map(
+                lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self
+            )  # type: ignore
         else:
             return jax.tree_map(lambda x: x[ind], self)  # type: ignore
 
 
 def index_update(arr: Array, index, values) -> Array:  # type:ignore
-    """
-    Update the array `arr` at the given `index` with `values`
+    """Update the array `arr` at the given `index` with `values`
     and return the updated array.
     Supports both NumPy and JAX arrays.
     """
@@ -156,7 +154,5 @@ def index_update(arr: Array, index, values) -> Array:  # type:ignore
         return arr
 
 
-def prefix_broadcast(
-    x: Array, target: Tuple[int, ...], suffix_length: int
-) -> Array:
+def prefix_broadcast(x: Array, target: Tuple[int, ...], suffix_length: int) -> Array:
     return np.broadcast_to(x, target + x.shape[-suffix_length:])

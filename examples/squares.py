@@ -10,6 +10,7 @@ from chalk import square, concat
 
 random.seed(0)
 
+
 def make_square():
     colors = [
         Color("#ff9700"),  # papaya
@@ -25,10 +26,15 @@ def make_square():
     color = colors[i]
 
     return square(0.75).line_color(color).rotate_rad(-θ)
+
+
 make_square()
+
 
 def make_group(num_squares=4):
     return concat(make_square() for _ in range(num_squares))
+
+
 make_group()
 
 disps = range(4)
@@ -45,5 +51,3 @@ try:
     PILImage.open(path)
 except ModuleNotFoundError:
     print("Need to install Cairo")
-
-

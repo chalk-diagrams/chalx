@@ -95,15 +95,16 @@ def render(
     """Render the diagram to a PNG file.
 
     Args:
+    ----
         self (Diagram): Given ``Diagram`` instance.
         path (str): Path of the .png file.
         height (int, optional): Height of the rendered image.
                                 Defaults to 128.
         width (Optional[int], optional): Width of the rendered image.
                                          Defaults to None.
-    """
 
-    patches, h, w = self.layout(height, width, draw_height)
+    """
+    patches, h, w = self._layout(height, width, draw_height)
     patches_to_file(patches, path, h, w)  # type: ignore
 
 
@@ -118,7 +119,7 @@ def animate(
 
     assert len(shape) == 1, f"Must be one time dimension {shape}"
 
-    patches, h, w = self.layout(height, width, draw_height)
+    patches, h, w = self._layout(height, width, draw_height)
     h = tx.np.max(h)
     w = tx.np.max(w)
     path_frame = "/tmp/frame-{:d}.png"
@@ -130,12 +131,12 @@ def animate(
             patches_to_file(patches, path, h, w, (i,))
             from PIL import Image
 
-            png = Image.open(path).convert('RGBA')
-            background = Image.new('RGBA', png.size, (255,255,255))
+            png = Image.open(path).convert("RGBA")
+            background = Image.new("RGBA", png.size, (255, 255, 255))
 
             alpha_composite = Image.alpha_composite(background, png)
-            alpha_composite.save(path, 'PNG')
-            
+            alpha_composite.save(path, "PNG")
+
             image = imageio.imread(path)
-            
-            writer.append_data(image) # type: ignore
+
+            writer.append_data(image)  # type: ignore

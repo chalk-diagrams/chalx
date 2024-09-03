@@ -54,9 +54,7 @@ class Path(Transformable, tx.Batchable):
 
     def apply_transform(self: BatchPath, t: tx.Affine) -> BatchPath:
         return Path(
-            tuple(
-                [loc_trail.apply_transform(t) for loc_trail in self.loc_trails]
-            )
+            tuple([loc_trail.apply_transform(t) for loc_trail in self.loc_trails])
         )
 
     def points(self) -> Iterable[P2_t]:
@@ -65,8 +63,7 @@ class Path(Transformable, tx.Batchable):
                 yield pt
 
     def stroke(self: BatchPath) -> BatchDiagram:
-        "Returns a primitive diagram from a path"
-
+        """Returns a primitive diagram from a path"""
         from chalk.core import Primitive
 
         return Primitive.from_path(self)
@@ -77,8 +74,11 @@ class Path(Transformable, tx.Batchable):
         l = points.shape[-3]
         if l == 0:
             return Path.empty()
-    
-        offsets = points[..., tx.np.arange(1, l), :, :] - points[..., tx.np.arange(0, l - 1), : , :]
+
+        offsets = (
+            points[..., tx.np.arange(1, l), :, :]
+            - points[..., tx.np.arange(0, l - 1), :, :]
+        )
         trail = Trail.from_array(offsets, closed)
         return Path(tuple([trail.at(points[..., 0, :, :])]))
 
@@ -86,8 +86,8 @@ class Path(Transformable, tx.Batchable):
 
 
 def from_points(points: List[P2_t], closed: bool = False) -> Path:
-    points = tx.np.broadcast_arrays(*points)
-    return Path.from_array(tx.np.stack(points, axis=-3))
+    ls_points = tx.np.broadcast_arrays(*points)
+    return Path.from_array(tx.np.stack(ls_points, axis=-3))
 
 
 def from_point(point: P2_t) -> Path:
@@ -95,7 +95,9 @@ def from_point(point: P2_t) -> Path:
 
 
 def from_text(s: str) -> Path:
-    return Path((), Text(tx.np.frombuffer(bytes(s.format(123456), 'utf-8'), dtype=tx.np.uint8)))
+    return Path(
+        (), Text(tx.np.frombuffer(bytes(s.format(123456), "utf-8"), dtype=tx.np.uint8))
+    )
 
 
 def from_pairs(segs: List[Tuple[P2_t, P2_t]], closed: bool = False) -> Path:

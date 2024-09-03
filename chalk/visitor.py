@@ -24,8 +24,7 @@ B = TypeVar("B")
 
 
 class DiagramVisitor(Generic[A, B]):
-    """
-    Class for traversing the diagram tree.
+    """Class for traversing the diagram tree.
     Can be thought of as a tree fold.
     Type B is passed up the tree.
     Type A is accumulated down the tree.
@@ -44,16 +43,14 @@ class DiagramVisitor(Generic[A, B]):
 
     def visit_compose(self, diagram: Compose, arg: B) -> A:
         # Compose defaults to monoid over children
-        return self.A_type.concat(
-            [d.accept(self, arg) for d in diagram.diagrams]
-        )
+        return self.A_type.concat([d._accept(self, arg) for d in diagram.diagrams])
 
     def visit_compose_axis(self, diagram: ComposeAxis, t: B) -> A:
         from functools import partial
 
         size = diagram.diagrams.size()
         axis = len(diagram.diagrams.size()) - 1
-        fn = diagram.diagrams.accept.__func__  # type: ignore
+        fn = diagram.diagrams._accept.__func__  # type: ignore
         fn = partial(fn, visitor=self, args=t)
         ed: A
         if not tx.JAX_MODE:
@@ -70,12 +67,15 @@ class DiagramVisitor(Generic[A, B]):
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:
         # Defaults to passing over transform
-        return diagram.diagram.accept(self, arg)
+        return diagram.diagram._accept(self, arg)
 
     def visit_apply_style(self, diagram: ApplyStyle, arg: B) -> A:
         # Defaults to passing over style
-        return diagram.diagram.accept(self, arg)
+        return diagram.diagram._accept(self, arg)
 
     def visit_apply_name(self, diagram: ApplyName, arg: B) -> A:
         # Defaults to passing over name
-        return diagram.diagram.accept(self, arg)
+        return diagram.diagram._accept(self, arg)
+
+
+__all__ = []

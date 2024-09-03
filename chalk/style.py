@@ -15,6 +15,19 @@ ColorLike = Union[str, Color, ColorVec]
 
 
 def to_color(c: ColorLike) -> ColorVec:
+    """Convert various color representations to a ColorVec.
+
+    Args:
+    ----
+        c: Color representation, can be:
+           - str: A color name or hex code
+           - `Color`: A colour.Color object
+           - ColorVec: Already in the correct format
+
+    Returns:
+    -------
+        ColorVec: A numpy array representing RGB values
+    """
     if isinstance(c, str):
         return tx.np.asarray(Color(c).rgb)
     elif isinstance(c, Color):
@@ -62,7 +75,7 @@ class Stylable:
         return self.apply_style(Style(fill_opacity_=opacity))
 
     def dashing(self, dashing_strokes: List[float], offset: float) -> Self:
-        "TODO: implement this function."
+        """TODO: implement this function."""
         return self.apply_style(Style())
 
     def apply_style(self: Self, style: StyleHolder) -> Self:
@@ -80,14 +93,31 @@ class WidthType(Enum):
 
 @tx.jit  # type: ignore
 def Style(
-    line_width_: Optional[PropLike] = None,
-    line_color_: Optional[ColorLike] = None,
-    line_opacity_: Optional[PropLike] = None,
-    fill_color_: Optional[ColorLike] = None,
-    fill_opacity_: Optional[PropLike] = None,
-    dashing_: Optional[PropLike] = None,
-    output_size: Optional[PropLike] = None,
+    line_width: Optional[PropLike] = None,
+    line_color: Optional[ColorLike] = None,
+    line_opacity: Optional[PropLike] = None,
+    fill_color: Optional[ColorLike] = None,
+    fill_opacity: Optional[PropLike] = None,
 ) -> StyleHolder:
+    """Create a StyleHolder with specified style properties.
+
+    Args:
+    -----
+        line_width: Width of the line. Can be a float or a `Property`.
+            Shape: Scalar or broadcastable to the shape of the diagram.
+        line_color: Color of the line. Can be a string, `Color` object, or `ColorVec`.
+            Shape: RGB tuple or broadcastable to (3,) for each point.
+        line_opacity: Opacity of the line. Can be a float or a `Property`.
+            Shape: Scalar or broadcastable to the shape of the diagram.
+        fill_color: Color of the fill. Can be a string, `Color` object, or `ColorVec`.
+            Shape: RGB tuple or broadcastable to (3,) for each point.
+        fill_opacity: Opacity of the fill. Can be a float or a `Property`.
+            Shape: Scalar or broadcastable to the shape of the diagram.
+
+    Returns:
+    --------
+        A `StyleHolder` object with the specified style properties.
+    """
     b = (
         tx.np.zeros(STYLE_SIZE),
         tx.np.zeros(STYLE_SIZE, dtype=bool),
@@ -109,14 +139,14 @@ def Style(
             mask = tx.index_update(mask, index, True)  # type: ignore
         return base, mask
 
-    if line_width_ is not None:
-        b = update(b, "line_width", tx.np.asarray(line_width_)[..., None])
-    b = update(b, "line_color", line_color_)
-    if line_opacity_ is not None:
-        b = update(b, "line_opacity", tx.np.asarray(line_opacity_)[..., None])
-    b = update(b, "fill_color", fill_color_)
-    if fill_opacity_ is not None:
-        b = update(b, "fill_opacity", tx.np.asarray(fill_opacity_)[..., None])
+    if line_width is not None:
+        b = update(b, "line_width", tx.np.asarray(line_width)[..., None])
+    b = update(b, "line_color", line_color)
+    if line_opacity is not None:
+        b = update(b, "line_opacity", tx.np.asarray(line_opacity)[..., None])
+    b = update(b, "fill_color", fill_color)
+    if fill_opacity is not None:
+        b = update(b, "fill_opacity", tx.np.asarray(fill_opacity)[..., None])
     b = update(b, "output_size", output_size)
     return StyleHolder(*b)
 
@@ -193,9 +223,11 @@ class StyleHolder(Stylable, tx.Batchable):
 
         # Set by observation
         lw = self.line_width_
-        style["linewidth"] = lw[...,0]
-        style["alpha"] = self.fill_opacity_[...,0]
+        style["linewidth"] = lw[..., 0]
+        style["alpha"] = self.fill_opacity_[..., 0]
         return style
 
 
 BatchStyle = tx.Batched[StyleHolder, "#*B"]
+
+__all__ = ["Style", "to_color"]

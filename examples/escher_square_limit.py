@@ -95,6 +95,7 @@ def normalize(coords):
 def make_tile(name):
     return concat(make_path(normalize(coords)) for coords in markings[name])
 
+
 def quartet(tl, tr, bl, br):
     diagram = (tl | tr) / (bl | br)
     return diagram.center_xy().scale(0.5)
@@ -106,6 +107,7 @@ def cycle(diagram):
     bl = diagram.rotate(θ)
     br = diagram.rotate(θ).rotate(θ)
     return quartet(tl, tr, bl, br)
+
 
 fish = {name: make_tile(name) for name in names}
 fish_t = quartet(fish["p"], fish["q"], fish["r"], fish["s"])
