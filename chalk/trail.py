@@ -187,6 +187,7 @@ def arc_seg(offset: V2_t, height: tx.Floating) -> Trail:
 
 
 def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
+    """Draw semi-circle from angle to angle+dangle centered at the origin."""
     arc_p = tx.to_point(tx.polar(angle))
     return Segment.make(
         tx.translation(-arc_p), tx.np.asarray([angle, dangle])
@@ -197,4 +198,4 @@ def arc_between_trail(q: P2_t, height: tx.Scalars) -> Trail:
     return arc.arc_between(tx.P2(0, 0), q, height).to_trail()
 
 
-__all__ = ["seg", "arc_seg"]
+__all__ = ["seg", "arc_seg", "arc_seg_angle"]

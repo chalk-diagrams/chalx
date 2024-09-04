@@ -25,7 +25,7 @@ from chalk.broadcast import broadcast_diagrams
 from chalk.path import Path
 from chalk.style import BatchStyle, StyleHolder
 from chalk.transform import Affine, Batched
-from chalk.types import BatchDiagram, BroadDiagram, Diagram
+from chalk.types import BatchDiagram, BroadDiagram, Diagram, EmptyDiagram
 from chalk.visitor import DiagramVisitor
 
 Trail = Any
@@ -65,21 +65,21 @@ class BaseDiagram(chalk.types.Diagram):
         raise NotImplementedError
 
     @classmethod
-    def empty(cls) -> EmptyDia:  # type: ignore
+    def empty(cls) -> EmptyDiagram:  # type: ignore
         return Empty()
 
     # Tranformable
-    def apply_transform(self: B1, t: Affine) -> B:  # type: ignore
+    def apply_transform(self: BatchDiagram, t: Affine) -> BroadDiagram:
         new_diagram = ApplyTransform(t, Empty())
         new, other = broadcast_diagrams(new_diagram, self)
         assert isinstance(new, ApplyTransform)
         return ApplyTransform(new.transform, other)
 
-    def _compose_axis(self: BatchedDia) -> ReducedDia:  # type: ignore
+    def _compose_axis(self: BatchDiagram) -> Diagram:
         return ComposeAxis(self)
 
     # Stylable
-    def apply_style(self: B1, style: StyleHolder) -> B:  # type: ignore
+    def apply_style(self: BatchDiagram, style: StyleHolder) -> BroadDiagram:
         new_diagram = ApplyStyle(style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return ApplyStyle(new_diagram.style, self)
@@ -87,7 +87,7 @@ class BaseDiagram(chalk.types.Diagram):
     def __repr__(self) -> str:
         return f"Diagram[{self.shape}]"
 
-    def __tree_pp__(self, **kwargs):  # type: ignore
+    def __tree_pp__(self, **kwargs: Any):  # type: ignore
         import jax._src.pretty_printer as pp
 
         return pp.text(f"Diagram[{self.shape}]")
@@ -200,7 +200,7 @@ class BaseDiagram(chalk.types.Diagram):
     render_svg = chalk.backend.svg.render
     render_mpl = chalk.backend.matplotlib.render
 
-    def render_pdf(self, *args, **kwargs) -> None:  # type: ignore
+    def render_pdf(self, *args: Any, **kwargs: Any) -> None:  # type: ignore
         print("Currently PDF rendering is disabled")
 
     # Flatten
@@ -218,7 +218,7 @@ class BaseDiagram(chalk.types.Diagram):
         os.unlink(f.name)
         return svg
 
-    def _repr_png_(self):
+    def _repr_png_(self) -> Any:
         global Svg_Height, Svg_Draw_Height
         f = tempfile.NamedTemporaryFile(delete=False)
         self.render(f.name, height=Svg_Height, draw_height=Svg_Draw_Height)
@@ -347,3 +347,6 @@ class ApplyName(BaseDiagram):
 
     def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_name(self, args)
+
+
+__all__ = []

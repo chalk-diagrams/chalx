@@ -113,8 +113,11 @@ def from_pairs(segs: List[Tuple[P2_t, P2_t]], closed: bool = False) -> Path:
 def from_list_of_tuples(
     coords: List[Tuple[tx.Floating, tx.Floating]], closed: bool = False
 ) -> Path:
+    """Create a `Path` from a list of coordinate tuples."""
     points = list([tx.P2(x, y) for x, y in coords])
     return from_points(points, closed)
 
 
 BatchPath = Batched[Path, "*#B"]
+
+__all__ = ["from_list_of_tuples"]

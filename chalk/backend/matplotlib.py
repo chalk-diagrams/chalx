@@ -52,3 +52,6 @@ def render(
 ) -> None:
     prims, h, w = self._layout(height, width, draw_height)
     patches_to_file(prims, path, h, w)  # type: ignore
+
+
+__all__ = []

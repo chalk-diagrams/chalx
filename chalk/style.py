@@ -27,6 +27,7 @@ def to_color(c: ColorLike) -> ColorVec:
     Returns:
     -------
         ColorVec: A numpy array representing RGB values
+
     """
     if isinstance(c, str):
         return tx.np.asarray(Color(c).rgb)
@@ -63,16 +64,16 @@ STYLE_SIZE = 12
 
 class Stylable:
     def line_width(self, width: float) -> Self:
-        return self.apply_style(Style(line_width_=width))
+        return self.apply_style(Style(line_width=width))
 
     def line_color(self, color: ColorLike) -> Self:
-        return self.apply_style(Style(line_color_=to_color(color)))
+        return self.apply_style(Style(line_color=to_color(color)))
 
     def fill_color(self, color: ColorLike) -> Self:
-        return self.apply_style(Style(fill_color_=to_color(color)))
+        return self.apply_style(Style(fill_color=to_color(color)))
 
     def fill_opacity(self, opacity: float) -> Self:
-        return self.apply_style(Style(fill_opacity_=opacity))
+        return self.apply_style(Style(fill_opacity=opacity))
 
     def dashing(self, dashing_strokes: List[float], offset: float) -> Self:
         """TODO: implement this function."""
@@ -91,7 +92,7 @@ class WidthType(Enum):
     NORMALIZED = auto()
 
 
-@tx.jit  # type: ignore
+@tx.jit
 def Style(
     line_width: Optional[PropLike] = None,
     line_color: Optional[ColorLike] = None,
@@ -102,7 +103,7 @@ def Style(
     """Create a StyleHolder with specified style properties.
 
     Args:
-    -----
+    ----
         line_width: Width of the line. Can be a float or a `Property`.
             Shape: Scalar or broadcastable to the shape of the diagram.
         line_color: Color of the line. Can be a string, `Color` object, or `ColorVec`.
@@ -115,15 +116,18 @@ def Style(
             Shape: Scalar or broadcastable to the shape of the diagram.
 
     Returns:
-    --------
+    -------
         A `StyleHolder` object with the specified style properties.
+
     """
     b = (
         tx.np.zeros(STYLE_SIZE),
         tx.np.zeros(STYLE_SIZE, dtype=bool),
     )
 
-    def update(b, key: str, value):  # type: ignore
+    def update(
+        b: Tuple[tx.Array, tx.Array], key: str, value: Any
+    ) -> Tuple[tx.Array, tx.Array]:  # type: ignore
         base, mask = b
         index = (Ellipsis, slice(*STYLE_LOCATIONS[key]))
         if value is not None:
@@ -147,7 +151,6 @@ def Style(
     b = update(b, "fill_color", fill_color)
     if fill_opacity is not None:
         b = update(b, "fill_opacity", tx.np.asarray(fill_opacity)[..., None])
-    b = update(b, "output_size", output_size)
     return StyleHolder(*b)
 
 

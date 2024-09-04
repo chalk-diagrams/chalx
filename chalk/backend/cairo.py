@@ -102,6 +102,8 @@ def render(
                                 Defaults to 128.
         width (Optional[int], optional): Width of the rendered image.
                                          Defaults to None.
+        draw_height (Optional[int], optional): Height override for line thickness
+                                         Defaults to None.
 
     """
     patches, h, w = self._layout(height, width, draw_height)
@@ -140,3 +142,6 @@ def animate(
             image = imageio.imread(path)
 
             writer.append_data(image)  # type: ignore
+
+
+__all__ = []

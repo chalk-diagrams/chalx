@@ -33,15 +33,20 @@ if TYPE_CHECKING:
 
 
 class TrailLike(Protocol):
-    def to_trail(self) -> Trail: ...
+    def to_trail(self) -> Trail:
+        """Convert to a `Trail`."""
+        ...
 
     def to_path(self, location: P2_t = tx.P2(0.0, 0.0)) -> Path:
+        """Convert to a `Path`."""
         return self.at(location).to_path()
 
     def at(self, location: P2_t) -> Located:
+        """Place the origin of the trail at location."""
         return self.to_trail().at(location)
 
     def stroke(self) -> Diagram:
+        """Create a `Diagram` from a trail-like object."""
         return self.at(tx.P2(0, 0)).stroke()
 
 
@@ -253,11 +258,15 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
 
     def juxtapose_snug(
         self: BatchDiagram, other: BatchDiagram, direction: V2_t
-    ) -> BroadDiagram: ...
+    ) -> BroadDiagram:
+        """Place `other` diagram snugly against `self` along the given direction."""
+        ...
 
     def beside_snug(
         self: BatchDiagram, other: BatchDiagram, direction: V2_t
-    ) -> BroadDiagram: ...
+    ) -> BroadDiagram:
+        """Place this diagram snugly beside another in the given direction."""
+        ...
 
     def juxtapose(
         self: BatchDiagram, other: BatchDiagram, direction: V2_t
@@ -308,6 +317,7 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         Returns:
         -------
             A new `Diagram` with the connection added.
+
         """
         ...
 
@@ -328,6 +338,7 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         Returns:
         -------
             A new `Diagram` with the outside connection added.
+
         """
         ...
 
@@ -352,6 +363,7 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         Returns:
         -------
             A new `Diagram` with the perimeter connection added.
+
         """
         ...
 

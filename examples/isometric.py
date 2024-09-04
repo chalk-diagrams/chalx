@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from chalk import *
 from colour import Color
+from typing import List
 import numpy as np
 
 # pyright: basic

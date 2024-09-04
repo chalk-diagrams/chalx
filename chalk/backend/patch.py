@@ -149,3 +149,6 @@ def patch_from_prim(prim: Primitive, style: StyleHolder, height: tx.IntLike) -> 
     )
     assert size == patch.command.shape[:-1]
     return patch
+
+
+__all__ = []

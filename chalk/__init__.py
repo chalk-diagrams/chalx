@@ -1,5 +1,7 @@
+"""Chalk Package"""
+
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import chalk.subdiagram
 
@@ -10,14 +12,17 @@ else:
 
 import os
 
-hook = None
 if eval(os.environ.get("CHALK_CHECK", "0")):
     from jaxtyping import install_import_hook
 
     hook = install_import_hook("chalk", "typeguard.typechecked")
+else:
+    hook = None
 
 
+# These will eventually be replaced by optree
 import chex
+import jax
 
 import chalk.backend.patch
 import chalk.core
@@ -28,10 +33,11 @@ import chalk.shapes
 import chalk.style
 import chalk.trace
 import chalk.trail
-from chalk.arrowheads import *
+from chalk.arrowheads import *  # noqa: F403
 from chalk.combinators import *  # noqa: F403
-from chalk.export import *
+from chalk.export import *  # noqa: F403
 from chalk.shapes import *  # noqa: F403
+from chalk.trail import *  # noqa: F403
 
 if eval(os.environ.get("CHALK_CHECK", "0")):
     assert hook is not None
@@ -60,21 +66,12 @@ jax_type = [
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
 
-import jax
 
 jax.tree_util.register_pytree_node(
     chalk.core.ApplyName,
     lambda tree: ((tree.diagram,), (tree.dname,)),
     lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),  # type: ignore
 )
-
-
-def help(f: Any):  # type: ignore
-    import pydoc
-
-    from IPython.display import HTML
-
-    return HTML(pydoc.HTMLDoc().docroutine(f))  # type: ignore
 
 
 if not TYPE_CHECKING:

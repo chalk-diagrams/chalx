@@ -36,7 +36,10 @@ def center_position(x, y):
 def hex_variation(num_tiles):
     rows = list(range(num_tiles))
     cols = list(range(num_tiles))
-    get_angle = lambda: random.randint(0, 2)
+
+    def get_angle():
+        return random.randint(0, 2)
+
     diagrams = [rotated_hexagon_tile(get_angle()) for _ in product(rows, cols)]
     grid = [center_position(x, y) for x, y in product(rows, cols)]
     return place_at(diagrams, grid)

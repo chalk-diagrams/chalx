@@ -1,12 +1,13 @@
 """The raw names that are exported from chalk."""
 
-import chalk.path as Path
-import chalk.trail as Trail
+# TODO -> Fix these exports
+import chalk.path as Path  # noqa: N812
+import chalk.trail as Trail  # noqa: N812
+
 from chalk.arrow import ArrowOpts, arrow_at, arrow_between, arrow_v
 from chalk.core import set_svg_draw_height, set_svg_height
 from chalk.subdiagram import Name, Subdiagram
 from chalk.style import Style, to_color
-from chalk.trail import seg
 from chalk.transform import (
     P2,
     V2,
@@ -18,15 +19,16 @@ from chalk.transform import (
     unit_y,
 )
 from chalk.types import Diagram
+import chalk.transform as tx
 
 __all__ = [
+    "tx",
     "Affine",
     "P2",
     "V2",
     "Trail",
     "unit_x",
     "unit_y",
-    "seg",
     "Path",
     "Diagram",
     "Style",

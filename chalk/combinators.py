@@ -31,6 +31,7 @@ def pad(self: Diagram, extra: Floating) -> Diagram:
 
 
 def atop(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
+    """Place one diagram atop another."""
     return self._compose(None, other)
 
 
@@ -38,6 +39,7 @@ def atop(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
 
 
 def above(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
+    """Place one diagram above another."""
     return beside(self, other, tx.unit_y)
 
 
@@ -45,14 +47,17 @@ def above(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
 
 
 def beside(self: BatchDiagram, other: BatchDiagram, direction: V2_t) -> BroadDiagram:
+    """Place one diagram beside another in the given direction."""
     return atop(self, juxtapose(self, other, direction))
 
 
 def place_at(diagrams: Iterable[Diagram], points: List[Tuple[float, float]]) -> Diagram:
+    """Place diagrams at specified points."""
     return concat(d.translate(x, y) for d, (x, y) in zip(diagrams, points))
 
 
 def place_on_path(diagrams: Iterable[Diagram], path: Path) -> Diagram:
+    """Place diagrams along a `Path`."""
     return concat(d.translate_by(p) for d, p in zip(diagrams, path.points()))
 
 
@@ -89,6 +94,7 @@ def batch_cat(
 
 
 def cat(diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None) -> Diagram:
+    """Concatenate diagrams in the given direction."""
     from chalk.shapes import hstrut
 
     diagrams = iter(diagram)
@@ -139,6 +145,7 @@ def empty() -> EmptyDiagram:
 def hcat(
     diagrams: Iterable[BatchDiagram], sep: Optional[Floating] = None
 ) -> BroadDiagram:
+    """Horizontally concatenate diagrams."""
     assert not isinstance(diagrams, Diagram), "Use diagram.hcat() for batched diagrams"
     return cat(diagrams, tx.unit_x, sep)
 
@@ -146,6 +153,7 @@ def hcat(
 def vcat(
     diagrams: Iterable[BatchDiagram], sep: Optional[Floating] = None
 ) -> BroadDiagram:
+    """Vertically concatenate diagrams."""
     assert not isinstance(diagrams, Diagram), "Use diagram.vcat() for batched diagrams"
     return cat(diagrams, tx.unit_y, sep)
 
@@ -195,4 +203,15 @@ def at_center(self: BatchDiagram, other: BatchDiagram) -> BroadDiagram:
     return self._compose(None, other.apply_transform(t))
 
 
-__all__ = ["hcat", "vcat", "concat", "atop", "empty", "cat", "place_at", "above", "beside"]
+__all__ = [
+    "hcat",
+    "vcat",
+    "concat",
+    "atop",
+    "empty",
+    "cat",
+    "place_at",
+    "place_on_path",
+    "above",
+    "beside",
+]

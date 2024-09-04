@@ -19,13 +19,13 @@ if TYPE_CHECKING:
     from chalk.trail import Trail
 
 
-def ensure_3d(x: tx.Array) -> tx.Array:
+def _ensure_3d(x: tx.Array) -> tx.Array:
     if len(x.shape) < 3:
         return x.reshape(-1, *x.shape)
     return x
 
 
-def ensure_2d(x: tx.Array) -> tx.Array:
+def _ensure_2d(x: tx.Array) -> tx.Array:
     if len(x.shape) < 2:
         return x.reshape(-1, *x.shape)
     return x
@@ -66,7 +66,7 @@ class Segment(Monoid, Batchable):
 
     def promote(self) -> Segment:
         """Ensures that there is a batch axis"""
-        return Segment(ensure_3d(self.transform), ensure_2d(self.angles))
+        return Segment(_ensure_3d(self.transform), _ensure_2d(self.angles))
 
     def to_trail(self) -> Trail:
         from chalk.trail import Trail
@@ -85,7 +85,9 @@ class Segment(Monoid, Batchable):
         return Segment.make(t @ self.transform, self.angles)
 
     def __add__(self, other: Segment) -> Segment:
-        def broadcast_ex(a, b, axis):  # type: ignore
+        def broadcast_ex(
+            a: tx.Array, b: tx.Array, axis: int
+        ) -> Tuple[tx.Array, tx.Array]:
             a_s, b_s = list(a.shape), list(b.shape)
             a_s[axis] = 1
             b_s[axis] = 1
@@ -196,3 +198,5 @@ def arc_trace(
 
 BatchSegment = Batched[Segment, "*#B"]
 Segment_t = BatchSegment
+
+__all__ = []

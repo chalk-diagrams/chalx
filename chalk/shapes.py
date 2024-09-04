@@ -1,6 +1,7 @@
 from typing import List, Optional, Tuple, Union
 
-import chalk.trail as Trail
+# Todo: fix this export
+import chalk.trail as Trail  # noqa: N812
 import chalk.transform as tx
 from chalk.path import from_list_of_tuples, Path, from_text  # noqa: F401
 from chalk.trail import arc_seg, arc_seg_angle  # noqa: F401
@@ -11,14 +12,17 @@ from chalk.types import BatchDiagram, Diagram
 
 
 def text(s: str, size: tx.Floating) -> Diagram:
+    """Create a text diagram with given string and size."""
     return from_text(s).stroke().scale(size).scale_y(-1)
 
 
 def hrule(length: tx.Floating) -> BatchDiagram:
+    """Create a horizontal rule of specified length."""
     return Trail.hrule(length).stroke().center_xy()
 
 
 def vrule(length: tx.Floating) -> Diagram:
+    """Create a vertical rule of specified length."""
     return Trail.vrule(length).stroke().center_xy()
 
 
@@ -54,6 +58,7 @@ def triangle(width: tx.Floating) -> Diagram:
 def line(
     from_: Tuple[tx.Floating, tx.Floating], to: Tuple[tx.Floating, tx.Floating]
 ) -> Diagram:
+    """Create a line from one point to another."""
     return make_path([from_, to])
 
 
@@ -61,6 +66,7 @@ def make_path(
     segments: Union[List[Tuple[tx.Floating, tx.Floating]], tx.P2_t],
     closed: bool = False,
 ) -> Diagram:
+    """Construct a path from a list of segments or points."""
     if isinstance(segments, (list, tuple)):
         p = from_list_of_tuples(segments, closed).stroke()
     else:
@@ -162,12 +168,34 @@ def Spacer(width: tx.Floating, height: tx.Floating) -> Diagram:
 
 
 def hstrut(width: tx.Floating) -> Diagram:
+    """Create a horizontal strut with given width."""
     return Spacer(tx.ftos(width), tx.ftos(0))
 
 
 def strut(width: tx.Floating, height: tx.Floating) -> Diagram:
+    """Create a strut with given width and height."""
     return Spacer(tx.ftos(width), tx.ftos(height))
 
 
 def vstrut(height: tx.Floating) -> Diagram:
+    """Create a vertical strut with given height."""
     return Spacer(tx.ftos(0), tx.ftos(height))
+
+
+__all__ = [
+    "text",
+    "hrule",
+    "vrule",
+    "regular_polygon",
+    "triangle",
+    "line",
+    "make_path",
+    "rectangle",
+    "square",
+    "circle",
+    "arc",
+    "arc_between",
+    "hstrut",
+    "strut",
+    "vstrut",
+]

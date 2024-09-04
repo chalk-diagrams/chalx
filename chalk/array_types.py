@@ -1,4 +1,4 @@
-"""This file contains code to ensure compatibility between
+"""Code to ensure compatibility between
 JAX and NumPy. This includes type compatibility and
 some additional function that are not in NumPy.
 
@@ -94,6 +94,7 @@ BoolLike = Union[bool, onp.bool]
 Ints = Int[Array, "*#B"]
 Floating = Union[Scalars, IntLike, float, int, onp.int64, onp.float64]
 Mask = Bool[Array, "*#B"]
+MaskC = Bool[Array, "*#C"]
 IntLikeC = Union[Int[Array, "*#C"], int, onp.int64]
 ScalarsC = Float[Array, "*#C"]
 
@@ -138,7 +139,7 @@ class Batchable:
             return jax.tree_map(lambda x: x[ind], self)  # type: ignore
 
 
-def index_update(arr: Array, index, values) -> Array:  # type:ignore
+def index_update(arr: Array, index: Any, values: Any) -> Array:  # type:ignore
     """Update the array `arr` at the given `index` with `values`
     and return the updated array.
     Supports both NumPy and JAX arrays.
@@ -156,3 +157,6 @@ def index_update(arr: Array, index, values) -> Array:  # type:ignore
 
 def prefix_broadcast(x: Array, target: Tuple[int, ...], suffix_length: int) -> Array:
     return np.broadcast_to(x, target + x.shape[-suffix_length:])
+
+
+__all__ = []

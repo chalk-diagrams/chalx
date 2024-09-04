@@ -8,6 +8,7 @@ black = Color("black")
 
 
 def tri() -> Diagram:
+    """Triangle arrowhead"""
     from chalk.core import Empty
 
     return (
@@ -24,6 +25,7 @@ def tri() -> Diagram:
 
 
 def dart(cut: float = 0.2) -> Diagram:
+    """Dart arrowhead"""
     from chalk.core import Empty
 
     pts = tx.np.stack(
@@ -53,18 +55,4 @@ def dart(cut: float = 0.2) -> Diagram:
     )
 
 
-# @dataclass(unsafe_hash=True, frozen=True)
-# class ArrowHead(Shape):
-#     """Arrow Head."""
-
-#     arrow_shape: Diagram
-
-#     def get_bounding_box(self) -> BoundingBox:
-#         # Arrow head don't have a bounding box since we can't accurately know
-#         # the size until rendering
-#         eps = 1e-4
-#         self.bb = BoundingBox(tx.origin, tx.origin + P2(eps, eps))
-#         return self.bb
-
-#     def accept(self, visitor: ShapeVisitor[C], **kwargs: Any) -> C:
-#         return visitor.visit_arrowhead(self, **kwargs)
+__all__ = ["dart", "tri"]

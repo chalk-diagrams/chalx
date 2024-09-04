@@ -1,5 +1,5 @@
 # %% tags=["hide_inp"]
-from chalk import above, vcat, atop, circle, concat, hcat, beside, triangle, square, unit_x
+from chalk import *
 from chalk.transform import polar
 
 

@@ -130,14 +130,20 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
 
 
 def arrow_v(vec: V2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
+    """Create an arrow `Diagram` along a vector"""
     arr = arrow(tx.length(vec), style)
     return arr.rotate(-tx.angle(vec))
 
 
 def arrow_at(base: P2_t, vec: V2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
+    """Create an arrow `Diagram` at a base point along a vector"""
     arr = arrow_v(vec, style).translate_by(base)
     return arr
 
 
 def arrow_between(start: P2_t, end: P2_t, style: ArrowOpts = ArrowOpts()) -> Diagram:
+    """Create an arrow `Diagram` between two points"""
     return arrow_at(start, end - start, style)
+
+
+__all__ = ["ArrowOpts", "arrow_v", "arrow_at", "arrow_between"]

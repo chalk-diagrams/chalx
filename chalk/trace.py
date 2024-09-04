@@ -14,11 +14,11 @@ if TYPE_CHECKING:
     from chalk.core import ApplyTransform, Primitive
     from chalk.types import Diagram
 
-TraceDistances = Tuple[tx.Scalars, tx.Mask]
-
 
 @tx.jit
-def trace(transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC):
+def _trace(
+    transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC
+) -> Tuple[tx.Array, tx.Array]:
     point, direction = tx.np.broadcast_arrays(point, d)
 
     # Push the __call__ batch dimensions to the left.
@@ -51,13 +51,42 @@ class Trace(Monoid, Transformable):
 
     segment: Segment
 
-    def __call__(self, point: P2_t, direction: V2_t) -> TraceDistances:
-        return trace(*self.segment.tuple(), point, direction)
+    def __call__(self, point: P2_t, direction: V2_t) -> Tuple[tx.Scalars, tx.Mask]:
+        """Compute the trace for given point and direction.
+
+        Args:
+        ----
+            point: The starting point for the trace.
+            direction: The direction vector for the trace.
+
+        Returns:
+        -------
+            A tuple containing:
+            - Distances to intersections
+            - Mask indicating valid intersections
+
+        """
+        return _trace(*self.segment.tuple(), point, direction)
 
     def apply_transform(self, t: Affine) -> Trace:
+        """Apply an affine transformation to this Trace."""
         return Trace(self.segment.apply_transform(t))
 
-    def trace_v(self, p: P2_t, v: V2_t) -> TraceDistances:
+    def trace_v(self, p: P2_t, v: V2_t) -> Tuple[tx.V2_tC, tx.MaskC]:
+        """Compute the vectors to intersection from `p` along `v`
+
+        Args:
+        ----
+            p: The starting point for the trace.
+            v: The direction vector for the trace.
+
+        Returns:
+        -------
+            A tuple containing:
+            - The vector to intersection
+            - Mask indicating valid intersections
+
+        """
         v = tx.norm(v)
         dists, m = self(p, v)
 
@@ -67,14 +96,17 @@ class Trace(Monoid, Transformable):
         s = d[:, 0]
         return (s[..., None] * v, m[:, 0])
 
-    def trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
+    def trace_p(self, p: P2_t, v: V2_t) -> Tuple[tx.P2_tC, tx.MaskC]:
+        """Compute the intersection point from `p` along `v`"""
         u, m = self.trace_v(p, v)
         return (p + u, m)
 
-    def max_trace_v(self, p: P2_t, v: V2_t) -> TraceDistances:
+    def max_trace_v(self, p: P2_t, v: V2_t) -> Tuple[tx.V2_tC, tx.MaskC]:
+        """Compute the maximum trace vector from `p` in direction `-v`"""
         return self.trace_v(p, -v)
 
-    def max_trace_p(self, p: P2_t, v: V2_t) -> TraceDistances:
+    def max_trace_p(self, p: P2_t, v: V2_t) -> Tuple[tx.P2_tC, tx.MaskC]:
+        """Compute the maximum trace point from `p` in direction `-v`"""
         u, m = self.max_trace_v(p, v)
         return (p + u, m)
 

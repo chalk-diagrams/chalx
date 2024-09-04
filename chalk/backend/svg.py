@@ -164,3 +164,6 @@ def animate(
     h = tx.np.max(h)
     w = tx.np.max(w)
     patches_to_file(patches, path, h, w, animate=True, time_steps=shape[0])
+
+
+__all__ = []

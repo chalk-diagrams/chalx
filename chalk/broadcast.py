@@ -32,7 +32,7 @@ def reshape(self: Diagram, shape: Tuple[int, ...]) -> Diagram:
     return out
 
 
-def swapaxes(self: Diagram, a, b) -> Diagram:
+def swapaxes(self: Diagram, a: int, b: int) -> Diagram:
     out = tx.tree_map(  # type: ignore
         lambda x: x.swapaxes(a, b), self
     )
@@ -63,7 +63,9 @@ V1 = TypeVar("V1", bound=Diagram)
 V2 = TypeVar("V2", bound=Diagram)
 
 
-def broadcast_to(tree, old_shape: Tuple[int, ...], new_shape: Tuple[int, ...]):
+def broadcast_to(
+    tree: Diagram, old_shape: Tuple[int, ...], new_shape: Tuple[int, ...]
+) -> Diagram:  # type: ignore
     if old_shape == new_shape:
         return tree
 
@@ -143,3 +145,6 @@ class ToSize(DiagramVisitor[Size, Size]):
 
     def visit_compose_axis(self, diagram: core.ComposeAxis, t: Size) -> Size:
         return diagram.diagrams._accept(self, t).remove_axis(0)
+
+
+__all__ = []

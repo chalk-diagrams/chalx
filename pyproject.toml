@@ -7,6 +7,7 @@ build-backend = "setuptools.build_meta"
 venv = ".venv12"
 venvPath = "."
 include = ["chalk", "walkthrough", "examples"]
+ignore = ["**/tests/*"]
 reportUnknownMemberType = "none"
 reportUnknownParameterType = "none"
 reportUnknownArgumentType = "none"
@@ -21,6 +22,7 @@ reportPrivateUsage = "none"
 [tool.ruff]
 
 include = ["**/chalk/*"]
+exclude = ["**/output/*", "*.ipynb"]
 
 ignore = [
     "ANN101",
@@ -98,3 +100,5 @@ unfixable = []
 
 [tool.ruff.extend-per-file-ignores]
 "tests/**/*.py" = ["D"]
+"examples/**/*.py" = ["D", "F", "ANN"]
+"walkthrough/**/*.py" = ["D", "ANN", "F"]

@@ -140,6 +140,7 @@ class Envelope(Transformable, Monoid, Batchable):
         return v
 
     def to_bounding_box(self: Envelope) -> BoundingBox:
+        """Convert envelope to bounding box."""
         d = self(Envelope.all_dir)
         return tx.BoundingBox(V2(-d[1], -d[3]), V2(d[0], d[2]))
 
@@ -157,6 +158,7 @@ class Envelope(Transformable, Monoid, Batchable):
         return tx.scale_vec(v, self(v))
 
     def apply_transform(self, t: Affine) -> Envelope:
+        """Apply affine transformation to the envelope."""
         return Envelope(self.segment.apply_transform(t[..., None, :, :]))
 
 

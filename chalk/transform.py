@@ -6,7 +6,7 @@ separate library called `planar`.
 import math
 from dataclasses import dataclass
 from functools import partial
-from typing import Tuple
+from typing import Tuple, Any
 
 from chalk.array_types import (
     JAX_MODE,
@@ -19,6 +19,7 @@ from chalk.array_types import (
     IntLikeC,
     Ints,
     Mask,
+    MaskC,
     Scalars,
     ftos,
     index_update,
@@ -329,43 +330,52 @@ class Transformable:
         return self.apply_transform(t)
 
     def scale(self, α: Floating) -> Self:
+        """Scale uniformly by `α`"""
         return self._app(scale(V2(α, α)))
 
     def scale_x(self, α: Floating) -> Self:
+        """Scale horizontally by `α`"""
         return self._app(scale(V2(α, 1)))
 
     def scale_y(self, α: Floating) -> Self:
+        """Scale vertically by `α`"""
         return self._app(scale(V2(1, α)))
 
-    def rotate(self, θ: Floating) -> Self:
-        """Rotate by θ degrees counterclockwise"""
-        return self._app(rotation(to_radians(θ)))
+    def rotate(self, deg: Floating) -> Self:
+        """Rotate by `deg` degrees counterclockwise"""
+        return self._app(rotation(to_radians(deg)))
 
     def rotate_rad(self, θ: Floating) -> Self:
-        """Rotate by θ radians counterclockwise"""
+        """Rotate by `θ` radians counterclockwise"""
         return self._app(rotation((θ)))
 
     def rotate_by(self, turns: Floating) -> Self:
-        """Rotate by fractions of a circle (turn)."""
+        """Rotate by fractions of a circle (turn)"""
         θ = 2 * math.pi * turns
         return self._app(rotation((θ)))
 
     def reflect_x(self) -> Self:
+        """Reflect across the x-axis"""
         return self._app(scale(V2(-1, +1)))
 
     def reflect_y(self) -> Self:
+        """Reflect across the y-axis"""
         return self._app(scale(V2(+1, -1)))
 
     def shear_y(self, λ: Floating) -> Self:
+        """Apply vertical shear by `λ`"""
         return self._app(make_affine(1.0, 0.0, 0.0, λ, 1.0, 0.0))
 
     def shear_x(self, λ: Floating) -> Self:
+        """Apply horizontal shear by `λ`"""
         return self._app(make_affine(1.0, λ, 0.0, 0.0, 1.0, 0.0))
 
     def translate(self, dx: Floating, dy: Floating) -> Self:
+        """Translate by `(dx, dy)`"""
         return self._app(translation(V2(dx, dy)))
 
-    def translate_by(self, vector) -> Self:  # type: ignore
+    def translate_by(self, vector: V2_t) -> Self:  # type: ignore
+        """Translate by `vector`"""
         return self._app(translation(vector))
 
 
@@ -402,7 +412,7 @@ class BoundingBox(Transformable):
         s: Scalars = (self.br - self.tl)[..., 1, 0]
         return s
 
-    def to_rect(self) -> "Diagram":  # type: ignore
+    def to_rect(self) -> Any:  # type: ignore
         """Convert bounding box to a rectangle"""
         from chalk import rectangle
 
@@ -546,6 +556,7 @@ __all__ = [
     "IntLike",
     "IntLikeC",
     "Mask",
+    "MaskC",
     "np",
     "jit",
     "vmap",
