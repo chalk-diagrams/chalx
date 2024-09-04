@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple, Union
 
 # Todo: fix this export
-import chalk.trail as Trail  # noqa: N812
+from chalk.trail import Trail  # noqa: N812
 import chalk.transform as tx
 from chalk.path import from_list_of_tuples, Path, from_text  # noqa: F401
 from chalk.trail import arc_seg, arc_seg_angle  # noqa: F401

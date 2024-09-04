@@ -34,10 +34,14 @@ import chalk.style
 import chalk.trace
 import chalk.trail
 from chalk.arrowheads import *  # noqa: F403
+from chalk.arrow import *  # noqa: F403
 from chalk.combinators import *  # noqa: F403
 from chalk.export import *  # noqa: F403
 from chalk.shapes import *  # noqa: F403
 from chalk.trail import *  # noqa: F403
+from chalk.subdiagram import *  # noqa: F403
+from chalk.style import *  # noqa: F403
+from chalk.types import *  # noqa: F403
 
 if eval(os.environ.get("CHALK_CHECK", "0")):
     assert hook is not None
@@ -53,7 +57,6 @@ jax_type = [
     chalk.core.ApplyStyle,
     chalk.core.ComposeAxis,
     chalk.style.StyleHolder,
-    chalk.trail.Trail,
     chalk.path.Path,
     chalk.trail.Located,
     chalk.trail.Trail,

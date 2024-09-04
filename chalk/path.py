@@ -84,40 +84,41 @@ class Path(Transformable, tx.Batchable):
 
     # Constructors
 
+    @staticmethod
+    def from_points(points: List[P2_t], closed: bool = False) -> Path:
+        ls_points = tx.np.broadcast_arrays(*points)
+        return Path.from_array(tx.np.stack(ls_points, axis=-3))
 
-def from_points(points: List[P2_t], closed: bool = False) -> Path:
-    ls_points = tx.np.broadcast_arrays(*points)
-    return Path.from_array(tx.np.stack(ls_points, axis=-3))
+    @staticmethod
+    def from_point(point: P2_t) -> Path:
+        return Path.from_points([point])
 
+    @staticmethod
+    def from_text(s: str) -> Path:
+        return Path(
+            (),
+            Text(tx.np.frombuffer(bytes(s.format(123456), "utf-8"), dtype=tx.np.uint8)),
+        )
 
-def from_point(point: P2_t) -> Path:
-    return from_points([point])
+    @staticmethod
+    def from_pairs(segs: List[Tuple[P2_t, P2_t]], closed: bool = False) -> Path:
+        if not segs:
+            return Path.empty()
+        ls = [segs[0][0]]
+        for seg in segs:
+            assert seg[0] == ls[-1]
+            ls.append(seg[1])
+        return Path.from_points(ls, closed)
 
-
-def from_text(s: str) -> Path:
-    return Path(
-        (), Text(tx.np.frombuffer(bytes(s.format(123456), "utf-8"), dtype=tx.np.uint8))
-    )
-
-
-def from_pairs(segs: List[Tuple[P2_t, P2_t]], closed: bool = False) -> Path:
-    if not segs:
-        return Path.empty()
-    ls = [segs[0][0]]
-    for seg in segs:
-        assert seg[0] == ls[-1]
-        ls.append(seg[1])
-    return from_points(ls, closed)
-
-
-def from_list_of_tuples(
-    coords: List[Tuple[tx.Floating, tx.Floating]], closed: bool = False
-) -> Path:
-    """Create a `Path` from a list of coordinate tuples."""
-    points = list([tx.P2(x, y) for x, y in coords])
-    return from_points(points, closed)
+    @staticmethod
+    def from_list_of_tuples(
+        coords: List[Tuple[tx.Floating, tx.Floating]], closed: bool = False
+    ) -> Path:
+        """Create a `Path` from a list of coordinate tuples."""
+        points = list([tx.P2(x, y) for x, y in coords])
+        return Path.from_points(points, closed)
 
 
 BatchPath = Batched[Path, "*#B"]
 
-__all__ = ["from_list_of_tuples"]
+__all__ = ["Path"]
