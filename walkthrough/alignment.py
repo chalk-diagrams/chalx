@@ -1,4 +1,5 @@
-""" """
+"""
+"""
 # ---
 # jupyter:
 #   jupytext:
@@ -29,8 +30,6 @@ Note that the Chalk API is immutable and always returns a new ``Diagram`` object
 ### Diagram.show_origin
 """
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.show_origin)
 
 # %% [markdown]
 """
@@ -46,8 +45,7 @@ triangle(1).show_origin()
 ### Diagram.show_envelope
 """
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.show_envelope)
+
 
 # %% Cell 2
 rectangle(1, 1).show_envelope()
@@ -73,8 +71,7 @@ arc(1, 0, 90)
 ### Diagram.align_*
 """
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.align_t)
+
 
 # %% [markdown]
 """
@@ -90,16 +87,14 @@ triangle(1).align_t().show_origin()
 triangle(1).align_t().show_beside(rectangle(1, 1).align_b(), unit_x)
 
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.align_r)
+
 
 # %% [markdown]
 """
 ### Diagram.center_xy
 """
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.center_xy)
+
 
 # %% [markdown]
 """
@@ -115,8 +110,7 @@ triangle(1).center_xy().show_envelope().show_origin()
 ### Diagram.pad_*
 """
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.pad)
+
 
 
 # %% [markdown]
@@ -133,8 +127,7 @@ triangle(1).pad(1.5).show_envelope().show_origin()
 ### Diagram.with_envelope
 """
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.with_envelope)
+
 
 
 # %% [markdown]

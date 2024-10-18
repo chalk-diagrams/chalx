@@ -27,8 +27,7 @@ set_svg_height(100)
 #
 # ### Diagram.named
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.named)
+
 
 # %%
 (square(1).show_origin() + dart()).render_svg("tri.svg", 56)
@@ -40,8 +39,7 @@ diagram
 # %% [markdown]
 # ### Diagram.get_subdiagram
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.get_subdiagram)
+
 
 # %% [markdown]
 # A `Subdiagram` is a `Diagram` paired with its enclosing context (a `Transformation` for the moment; but `Style` should also be added at some point).
@@ -63,8 +61,7 @@ diagram + circle(0.2).translate_by(sub.get_location())
 # %% [markdown]
 # ### Diagram.with_names
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.with_names)
+
 
 # %%
 root = circle(1).named("root")
@@ -91,8 +88,7 @@ nodes
 # %% [markdown]
 # ### Diagram.qualify
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.qualify)
+
 
 # %%
 red = Color("red")
@@ -135,8 +131,7 @@ dia
 # %% [markdown]
 # ### Diagram.show_labels
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.show_labels)
+
 
 # %%
 dia.show_labels(font_size=0.2)
@@ -144,8 +139,7 @@ dia.show_labels(font_size=0.2)
 # %% [markdown]
 # ### Diagram.connect
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.connect)
+
 
 # %%
 diagram = circle(0.5).named("x") | hstrut(1) | square(1).named("y")
@@ -154,8 +148,7 @@ diagram.connect("y", "x")
 # %% [markdown]
 # ### Diagram.connect_outside
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.connect_outside)
+
 
 # %%
 diagram = circle(0.5).named("x") | hstrut(1) | square(1).named("y")

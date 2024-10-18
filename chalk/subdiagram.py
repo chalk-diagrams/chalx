@@ -216,4 +216,4 @@ class Qualify(DiagramVisitor[Diagram, None]):
         return ApplyName(self.name + diagram.dname, diagram.diagram._accept(self, None))
 
 
-__all__ = []
+__all__ = ["Subdiagram", "Name"]

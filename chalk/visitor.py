@@ -56,6 +56,7 @@ class DiagramVisitor(Generic[A, B]):
         if not tx.JAX_MODE:
             ds = []
             for k in range(size[-1]):
+                # tx.tree_map(lambda x: print("shape", x.shape, k), diagram.diagrams)
                 d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
                 ds.append(fn(d))
             ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)

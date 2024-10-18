@@ -18,14 +18,12 @@ def to_color(c: ColorLike) -> ColorVec:
     """Convert various color representations to a ColorVec.
 
     Args:
-    ----
         c: Color representation, can be:
            - str: A color name or hex code
            - `Color`: A colour.Color object
            - ColorVec: Already in the correct format
 
     Returns:
-    -------
         ColorVec: A numpy array representing RGB values
 
     """
@@ -103,7 +101,6 @@ def Style(
     """Create a StyleHolder with specified style properties.
 
     Args:
-    ----
         line_width: Width of the line. Can be a float or a `Property`.
             Shape: Scalar or broadcastable to the shape of the diagram.
         line_color: Color of the line. Can be a string, `Color` object, or `ColorVec`.
@@ -116,7 +113,6 @@ def Style(
             Shape: Scalar or broadcastable to the shape of the diagram.
 
     Returns:
-    -------
         A `StyleHolder` object with the specified style properties.
 
     """

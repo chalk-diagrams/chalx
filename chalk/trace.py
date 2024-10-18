@@ -60,7 +60,6 @@ class Trace(Monoid, Transformable):
             direction: The direction vector for the trace.
 
         Returns:
-        -------
             A tuple containing:
             - Distances to intersections
             - Mask indicating valid intersections
@@ -81,7 +80,6 @@ class Trace(Monoid, Transformable):
             v: The direction vector for the trace.
 
         Returns:
-        -------
             A tuple containing:
             - The vector to intersection
             - Mask indicating valid intersections
@@ -90,11 +88,11 @@ class Trace(Monoid, Transformable):
         v = tx.norm(v)
         dists, m = self(p, v)
 
-        d = tx.np.sort(dists + (1 - m) * 1e10, axis=1)
-        ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=1)
-        m = tx.np.take_along_axis(m, ad, axis=1)
-        s = d[:, 0]
-        return (s[..., None] * v, m[:, 0])
+        d = tx.np.sort(dists + (1 - m) * 1e10, axis=-1)
+        ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=-1)
+        m = tx.np.take_along_axis(m, ad, axis=-1)
+        s = d[..., 0]
+        return (tx.scale_vec(v, s), m[..., 0])
 
     def trace_p(self, p: P2_t, v: V2_t) -> Tuple[tx.P2_tC, tx.MaskC]:
         """Compute the intersection point from `p` along `v`"""

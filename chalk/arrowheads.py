@@ -1,7 +1,7 @@
 from colour import Color
 
 import chalk.transform as tx
-from chalk.path import Path, from_list_of_tuples
+from chalk.path import Path
 from chalk.types import Diagram
 
 black = Color("black")
@@ -12,7 +12,9 @@ def tri() -> Diagram:
     from chalk.core import Empty
 
     return (
-        from_list_of_tuples([(1.0, 0), (0.0, -1.0), (-1.0, 0), (1.0, 0)], closed=True)
+        Path.from_list_of_tuples(
+            [(1.0, 0), (0.0, -1.0), (-1.0, 0), (1.0, 0)], closed=True
+        )
         # .remove_scale()
         .stroke()
         .rotate_by(-0.25)

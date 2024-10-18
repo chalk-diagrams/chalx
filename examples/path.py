@@ -36,7 +36,7 @@ d += [circle(1).show_origin()]
 
 d += [
     (
-        Trail.circle().scale(V2(2, 2)).centered().to_path()
+        Trail.circle().scale_x(2).scale_y(2).centered().to_path()
         + Trail.circle(False).centered().to_path()
     ).stroke()
 ]
@@ -53,9 +53,7 @@ d += [arc_seg(unit_x + unit_y, -1).stroke().show_origin()]
 
 d += [arc_seg(2 * unit_x, 1).scale_y(0.5).rotate(45).stroke().show_origin()]
 
-
-d += [rectangle(1, 5, 0.5), rectangle(5, 1, 0.25), rectangle(1, 1, 1)]
-
+# d += [rectangle(1, 5, 0.5), rectangle(5, 1, 0.25), rectangle(1, 1, 1)]
 
 d += [Trail.square().stroke().center_xy().show_origin()]
 

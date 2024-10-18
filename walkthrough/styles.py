@@ -16,8 +16,7 @@ orange = Color("orange")
 # %% [markdown]
 # ### Diagram.fill_color
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.fill_color)
+
 
 # %% [markdown]
 #
@@ -28,8 +27,7 @@ triangle(1).fill_color(blue)
 # %% [markdown]
 # ### Diagram.fill_opacity
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.fill_opacity)
+
 
 # %% [markdown]
 #
@@ -41,8 +39,7 @@ triangle(1).fill_color(blue).fill_opacity(0.2)
 # %% [markdown]
 # ### Diagram.line_color
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.line_color)
+
 
 # %% [markdown]
 #
@@ -53,8 +50,7 @@ triangle(1).line_color(blue)
 # %% [markdown]
 # ### Diagram.line_width
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.line_width)
+
 
 # %% [markdown]
 #
@@ -66,8 +62,7 @@ triangle(1).line_width(0.05)
 # %% [markdown]
 # ### Diagram.dashing
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.dashing)
+
 
 # %% [markdown]
 #

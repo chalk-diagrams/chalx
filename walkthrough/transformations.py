@@ -10,8 +10,7 @@ from chalk import *
 # %% [markdown]
 # ### scale
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.scale)
+
 
 # %% [markdown]
 #
@@ -29,8 +28,7 @@ triangle(1) | triangle(1).scale(2)
 # %% [markdown]
 # ### translate
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.translate)
+
 
 # %% [markdown]
 #
@@ -47,8 +45,7 @@ triangle(1) + triangle(1).translate(1, 1)
 # %% [markdown]
 # ### shear_x
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.shear_x)
+
 
 # %% [markdown]
 #
@@ -65,8 +62,7 @@ square(1) | square(1).shear_x(0.25)
 # %% [markdown]
 # ### rotate
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.rotate)
+
 
 # %% [markdown]
 #
@@ -77,8 +73,7 @@ triangle(1) | triangle(1).rotate(90)
 # %% [markdown]
 # ### rotate_by
 
-# %% tags=["hide_inp"]
-help(BaseDiagram.rotate_by)
+
 
 # %% [markdown]
 #

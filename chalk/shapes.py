@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple, Union
 # Todo: fix this export
 from chalk.trail import Trail  # noqa: N812
 import chalk.transform as tx
-from chalk.path import from_list_of_tuples, Path, from_text  # noqa: F401
+from chalk.path import Path  # noqa: F401
 from chalk.trail import arc_seg, arc_seg_angle  # noqa: F401
 from chalk.transform import P2, P2_t
 from chalk.types import BatchDiagram, Diagram
@@ -11,17 +11,17 @@ from chalk.types import BatchDiagram, Diagram
 # Functions mirroring Diagrams.2d.Shapes
 
 
-def text(s: str, size: tx.Floating) -> Diagram:
+def text(s: str, size: tx.Floating = 1) -> Diagram:
     """Create a text diagram with given string and size."""
-    return from_text(s).stroke().scale(size).scale_y(-1)
+    return Path.from_text(s).stroke().scale(size).scale_y(-1)
 
 
-def hrule(length: tx.Floating) -> BatchDiagram:
+def hrule(length: tx.Floating = 1) -> BatchDiagram:
     """Create a horizontal rule of specified length."""
     return Trail.hrule(length).stroke().center_xy()
 
 
-def vrule(length: tx.Floating) -> Diagram:
+def vrule(length: tx.Floating = 1) -> Diagram:
     """Create a vertical rule of specified length."""
     return Trail.vrule(length).stroke().center_xy()
 
@@ -41,14 +41,14 @@ def vrule(length: tx.Floating) -> Diagram:
 #     return Trail.polygon(sides, radius, to_radians(rotation)).stroke()
 
 
-def regular_polygon(sides: int, side_length: tx.Floating) -> Diagram:
+def regular_polygon(sides: int, side_length: tx.Floating = 1) -> Diagram:
     """Draws a regular polygon with given number of sides and given side
     length. The polygon is oriented with one edge parallel to the x-axis.
     """
     return Trail.regular_polygon(sides, side_length).centered().stroke()
 
 
-def triangle(width: tx.Floating) -> Diagram:
+def triangle(width: tx.Floating = 1) -> Diagram:
     """Draws an equilateral triangle with the side length specified by
     the ``width`` argument. The origin is the traingle's centroid.
     """
@@ -68,7 +68,7 @@ def make_path(
 ) -> Diagram:
     """Construct a path from a list of segments or points."""
     if isinstance(segments, (list, tuple)):
-        p = from_list_of_tuples(segments, closed).stroke()
+        p = Path.from_list_of_tuples(segments, closed).stroke()
     else:
         p = Path.from_array(segments, closed).stroke()
     return p
@@ -80,13 +80,11 @@ def rectangle(
     """Draws a rectangle.
 
     Args:
-    ----
         width (float): Width
         height (float): Height
         radius (Optional[float]): Radius for rounded corners.
 
     Returns:
-    -------
         Diagrams
 
     """
@@ -106,14 +104,14 @@ def rectangle(
         )
 
 
-def square(side: tx.Floating) -> BatchDiagram:
+def square(side: tx.Floating = 1) -> BatchDiagram:
     """Draws a square with the specified side length. The origin is the
     center of the square.
     """
     return rectangle(side, side)
 
 
-def circle(radius: tx.Floating) -> BatchDiagram:
+def circle(radius: tx.Floating = 1) -> BatchDiagram:
     """Draws a circle with the specified ``radius``."""
     return Trail.circle().stroke().translate(radius, 0).scale(radius).center_xy()
 
@@ -122,13 +120,11 @@ def arc(radius: tx.Floating, angle0: tx.Floating, angle1: tx.Floating) -> Diagra
     """Draws an arc.
 
     Args:
-    ----
       radius (float): Circle radius.
       angle0 (float): Starting cutoff in degrees.
       angle1 (float): Finishing cutoff in degrees.
 
     Returns:
-    -------
       Diagram
 
     """

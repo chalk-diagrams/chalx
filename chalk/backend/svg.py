@@ -63,7 +63,7 @@ def render_svg_patches(
             for step in range(time_steps)
         ]
         for v in zip(*new_patches):
-            out += "\n\n <path>\n"
+            out += "<path>"
             lines = []
             css = {}
 
@@ -80,26 +80,22 @@ def render_svg_patches(
             else:
                 values = ";".join(lines)
                 out += f"""
-                <animate attributeName="d" values="{values}" dur="2s" repeatCount="indefinite"/>
-                """
+                <animate attributeName="d" values="{values}" dur="2s" repeatCount="indefinite"/>"""
             for k, v in css.items():
                 s = set(v)
                 if len(s) == 1:
                     out += f"""<set attributeName="{k}" to="{list(s)[0]}"/>"""
 
                 else:
-                    out += f"""
-                <animate attributeName="{k}" values="{';'.join(v)}" dur="2s" repeatCount="indefinite"/>
-        """
-            out += "</path>\n\n"
+                    out += f"""<animate attributeName="{k}" values="{';'.join(v)}" dur="2s" repeatCount="indefinite"/>"""
+            out += "</path>"
         return out
     else:
         out = ""
         for ind, patch, style_new in chalk.backend.patch.order_patches(patches):
             inner = to_svg(patch, ind)
             style_t = ";".join([f"{k}:{v}" for k, v in write_style(style_new).items()])
-            out += f"""
-            <g style="{style_t}">
+            out += f"""<g style="{style_t}">
                 <path d="{inner}" />
             </g>"""
         return out
@@ -115,8 +111,7 @@ def patches_to_file(
 ) -> None:
     with open(path, "w") as f:
         f.write(f"""<?xml version="1.0" encoding="utf-8" ?>
-<svg baseProfile="full" height="{int(height)}" version="1.1" width="{int(width)}" xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink">
-    """)
+<svg baseProfile="full" height="{int(height)}" version="1.1" width="{int(width)}" xmlns="http://www.w3.org/2000/svg" xmlns:ev="http://www.w3.org/2001/xml-events" xmlns:xlink="http://www.w3.org/1999/xlink">""")
 
         out = render_svg_patches(patches, animate, time_steps)
         f.write(out)
@@ -133,7 +128,6 @@ def render(
     """Render the diagram to an SVG file.
 
     Args:
-    ----
         self (Diagram): Given ``Diagram`` instance.
         path (str): Path of the .svg file.
         height (int, optional): Height of the rendered image.
@@ -144,9 +138,10 @@ def render(
                                                line width.
 
     """
-    assert self.size() == (), "Must be a size () diagram"
+    assert self.shape == (), f"Must be a size () diagram, shape is {self.shape}"
     patches, h, w = self._layout(height, width, draw_height)
     patches_to_file(patches, path, h, w)  # type: ignore
+    return self
 
 
 def animate(
@@ -164,6 +159,7 @@ def animate(
     h = tx.np.max(h)
     w = tx.np.max(w)
     patches_to_file(patches, path, h, w, animate=True, time_steps=shape[0])
+    return self
 
 
 __all__ = []

@@ -90,9 +90,11 @@ Batched
 
 Scalars = Float[Array, "*#B"]
 IntLike = Union[Int[Array, "*#B"], int, onp.int64]
-BoolLike = Union[bool, onp.bool]
+BoolLike = Union[bool]
 Ints = Int[Array, "*#B"]
 Floating = Union[Scalars, IntLike, float, int, onp.int64, onp.float64]
+"""A float or float array"""
+
 Mask = Bool[Array, "*#B"]
 MaskC = Bool[Array, "*#C"]
 IntLikeC = Union[Int[Array, "*#C"], int, onp.int64]

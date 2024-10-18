@@ -27,6 +27,16 @@ from chalk.style import BatchStyle, StyleHolder
 from chalk.transform import Affine, Batched
 from chalk.types import BatchDiagram, BroadDiagram, Diagram, EmptyDiagram
 from chalk.visitor import DiagramVisitor
+from chalk.transform import (
+    P2,
+    V2,
+    Affine,
+    BoundingBox,
+    from_radians,
+    to_radians,
+    unit_x,
+    unit_y,
+)
 
 Trail = Any
 A = TypeVar("A", bound=chalk.monoid.Monoid)
@@ -349,4 +359,16 @@ class ApplyName(BaseDiagram):
         return visitor.visit_apply_name(self, args)
 
 
-__all__ = []
+__all__ = [
+    "tx",
+    "Affine",
+    "P2",
+    "V2",
+    "unit_x",
+    "unit_y",
+    "BoundingBox",
+    "from_radians",
+    "to_radians",
+    "set_svg_draw_height",
+    "set_svg_height",
+]

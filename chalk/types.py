@@ -60,12 +60,9 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         `Diagram`.
 
         Args:
-        ----
-            self: A batched `Diagram` to be transformed.
             t: A batched `Affine` transformation to apply.
 
         Returns:
-        -------
             A broadcasted `Diagram` with the transformation applied.
 
         """
@@ -151,14 +148,12 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """Apply a function to named `Subdiagram`s of this diagram.
 
         Args:
-        ----
             names: List of names to match against subdiagrams.
             f: Function to apply to matched subdiagrams and the current diagram.
                Takes a list of matched `Subdiagram`s and the current `Diagram` as input.
                Should return a new `Diagram`.
 
         Returns:
-        -------
             A new `Diagram` with the function applied to matched subdiagrams.
 
         """
@@ -212,11 +207,9 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         It works on a single batched input.
 
         Args:
-        ----
             sep: Optional separation distance between diagrams.
 
         Returns:
-        -------
             A new `Diagram` with the input diagrams concatenated horizontally.
 
         """
@@ -230,11 +223,9 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         It works on a single batched input.
 
         Args:
-        ----
             sep: Optional separation distance between diagrams.
 
         Returns:
-        -------
             A new `Diagram` with the input diagrams concatenated vertically.
 
         """
@@ -250,7 +241,6 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         It works on a single batched input.
 
         Returns
-        -------
             A new `Diagram` with the input diagrams concatenated.
 
         """
@@ -274,13 +264,11 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """Place `other` diagram to touch `self` along the given direction.
 
         Args:
-        ----
             self: A batched `Diagram` object.
             other: Another batched `Diagram` object to juxtapose.
             direction: Normalized vector indicating the direction of juxtaposition.
 
         Returns:
-        -------
             A new broadcasted `Diagram` with `other` juxtaposed to `self`.
 
         """
@@ -309,13 +297,11 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """Connect two named subdiagrams with an arrow.
 
         Args:
-        ----
             name1: Name of the first subdiagram.
             name2: Name of the second subdiagram.
             style: Optional arrow style options.
 
         Returns:
-        -------
             A new `Diagram` with the connection added.
 
         """
@@ -330,13 +316,12 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """Connect two named subdiagrams with an arrow outside their envelopes.
 
         Args:
-        ----
             name1: Name of the first subdiagram.
             name2: Name of the second subdiagram.
             style: Optional arrow style options.
 
         Returns:
-        -------
+
             A new `Diagram` with the outside connection added.
 
         """
@@ -353,7 +338,6 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """Connect two named subdiagrams with an arrow between specified perimeter points.
 
         Args:
-        ----
             name1: Name of the first subdiagram.
             name2: Name of the second subdiagram.
             v1: Vector specifying the connection point on the first subdiagram's perimeter.
@@ -361,7 +345,6 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
             style: Optional arrow style options.
 
         Returns:
-        -------
             A new `Diagram` with the perimeter connection added.
 
         """

@@ -82,11 +82,9 @@ class Envelope(Transformable, Monoid, Batchable):
         the batch dimensions of the envelope and C represents the batch dimensions of the direction.
 
         Args:
-        ----
             direction: The direction vector to measure the distance.
 
         Returns:
-        -------
             An array of distances with shape "*C *B".
 
         """

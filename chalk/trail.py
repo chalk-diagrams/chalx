@@ -63,12 +63,10 @@ class Trail(Monoid, Transformable, TrailLike):
     segments: Segment
     closed: tx.Mask
 
-    # def split(self, i: int) -> Trail:
-    #     return Trail(self.segments.split(i), self.closed[i])
-
     # Monoid
     @staticmethod
     def empty() -> Trail:
+        """Empty trail for monoid"""
         seg = Segment(tx.np.zeros((0, 3, 3)), tx.np.zeros((0, 2)))
         return Trail(seg, tx.np.full(seg.angles.shape[:-1], False))
 
@@ -79,6 +77,7 @@ class Trail(Monoid, Transformable, TrailLike):
 
     # Transformable
     def apply_transform(self, t: Affine) -> Trail:
+        """Apply affine transformation to the trail."""
         t = tx.remove_translation(t)
         if len(t.shape) >= 3:
             t = t[:, None, :, :]
@@ -86,19 +85,23 @@ class Trail(Monoid, Transformable, TrailLike):
 
     # Trail-like
     def to_trail(self) -> Trail:
+        """Convert to a Trail."""
         return self
 
     def _promote(self) -> Trail:
         return Trail(self.segments.promote(), self.closed)
 
     def close(self) -> Trail:
-        return Trail(self.segments, tx.np.asarray(True))._promote()
+        """Close the trail."""
+        return Trail(self.segments, tx.np.ones(self.segments.shape[:-1]))._promote()
 
     def points(self) -> P2_t:
+        """Get points along the trail."""
         q = self.segments.q
         return tx.to_point(tx.np.cumsum(q, axis=-3) - q)
 
     def at(self, p: P2_t) -> Located:
+        """Place the trail at a specific point."""
         return Located(self._promote(), tx.to_point(p))
 
     # def reverse(self) -> Trail:
@@ -109,6 +112,7 @@ class Trail(Monoid, Transformable, TrailLike):
     #     )
 
     def centered(self) -> Located:
+        """Center the trail around the origin."""
         return self.at(
             -tx.np.sum(self.points(), axis=-3) / self.segments.transform.shape[0]
         )
@@ -117,6 +121,7 @@ class Trail(Monoid, Transformable, TrailLike):
     # Todo: Move out of this class?
     @staticmethod
     def from_array(offsets: V2_t, closed: bool = False) -> Trail:
+        """Create a `Trail` from an array of offsets."""
         trail = seg(offsets)
         if closed:
             trail = trail.close()
@@ -126,23 +131,28 @@ class Trail(Monoid, Transformable, TrailLike):
 
     @staticmethod
     def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
+        """Create a `Trail` from a list of offsets."""
         return Trail.from_array(tx.np.stack(offsets), closed)
 
     @staticmethod
     def hrule(length: Floating) -> Trail:
+        """Create a horizontal rule `Trail` of given length."""
         return seg(length * tx.unit_x)
 
     @staticmethod
     def vrule(length: Floating) -> Trail:
+        """Create a vertical rule `Trail` of given length."""
         return seg(length * tx.unit_y)
 
     @staticmethod
     def square() -> Trail:
+        """Create a square `Trail`."""
         t = seg(tx.unit_x) + seg(tx.unit_y)
         return (t + t.rotate_by(0.5)).close()
 
     @staticmethod
     def rounded_rectangle(width: Floating, height: Floating, radius: Floating) -> Trail:
+        """Create a rounded rectangle `Trail` with given dimensions and corner radius."""
         r = radius
         edge1 = math.sqrt(2 * r * r) / 2
         edge3 = math.sqrt(r * r - edge1 * edge1)
@@ -154,7 +164,8 @@ class Trail(Monoid, Transformable, TrailLike):
         return trail.close()
 
     @staticmethod
-    def circle(clockwise: bool = True) -> Trail:
+    def circle(size: float = 1, clockwise: bool = True) -> Trail:
+        """Create a circular `Trail` in the specified direction."""
         sides = 4
         dangle = -90
         rotate_by = 1
@@ -170,6 +181,7 @@ class Trail(Monoid, Transformable, TrailLike):
 
     @staticmethod
     def regular_polygon(sides: int, side_length: Floating) -> Trail:
+        """Create a regular polygon `Trail` with given number of sides and side length."""
         edge = Trail.hrule(1)
         return Trail.concat(edge.rotate_by(i / sides) for i in range(sides)).close()
 

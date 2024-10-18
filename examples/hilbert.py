@@ -16,7 +16,7 @@ def hilbert(n):
         return hilbert(m).rotate_by(0.25)
 
     if n == 0:
-        return Trail.Trail.empty()
+        return Trail.empty()
     h, h2 = hilbert(n - 1), hilbert2(n - 1)
     return (
         h2.reflect_y()

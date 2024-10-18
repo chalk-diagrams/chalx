@@ -37,12 +37,22 @@ from typing_extensions import Self
 
 # Core shaped types used throughout
 # *#B means arbitrary or no batch dimension
+#
+
 Affine = Float[Array, "*#B 3 3"]
+"""An affine transformation with a batch"""
+
 Angles = Float[Array, "*#B 2"]
+"""An arc specified by start and angle diff."""
+
 V2_t = Float[Array, "*#B 3 1"]
 
 P2_t = Float[Array, "*#B 3 1"]
+
 ColorVec = Float[Array, "#*B 3"]
+"""A batch of RGB colors"""
+
+
 Property = Float[Array, "#*B"]
 
 V2_tC = Float[Array, "*#C 3 1"]

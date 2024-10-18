@@ -12,8 +12,8 @@ def box(t):
     return rectangle(1.5, 1).line_width(0.05).fill_color(papaya) + text(t, 1).scale(0.7)
 
 
-def label(text):
-    return text(text, 1).scale(0.5).pad(0.4)
+def label(tex):
+    return text(tex, 1).scale(0.5).pad(0.4)
 
 
 def arrow(text, d=True):

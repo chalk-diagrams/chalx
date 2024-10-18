@@ -34,11 +34,12 @@ import chalk.style
 import chalk.trace
 import chalk.trail
 from chalk.arrowheads import *  # noqa: F403
+from chalk.core import *  # noqa: F403
 from chalk.arrow import *  # noqa: F403
 from chalk.combinators import *  # noqa: F403
-from chalk.export import *  # noqa: F403
 from chalk.shapes import *  # noqa: F403
 from chalk.trail import *  # noqa: F403
+from chalk.path import *  # noqa: F403
 from chalk.subdiagram import *  # noqa: F403
 from chalk.style import *  # noqa: F403
 from chalk.types import *  # noqa: F403

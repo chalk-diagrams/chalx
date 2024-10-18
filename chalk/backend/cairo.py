@@ -95,7 +95,6 @@ def render(
     """Render the diagram to a PNG file.
 
     Args:
-    ----
         self (Diagram): Given ``Diagram`` instance.
         path (str): Path of the .png file.
         height (int, optional): Height of the rendered image.
@@ -108,6 +107,7 @@ def render(
     """
     patches, h, w = self._layout(height, width, draw_height)
     patches_to_file(patches, path, h, w)  # type: ignore
+    return self
 
 
 def animate(
@@ -116,6 +116,7 @@ def animate(
     height: int = 128,
     width: Optional[int] = None,
     draw_height: Optional[int] = None,
+    **kwargs,
 ) -> None:
     shape = self.shape
 
@@ -127,7 +128,7 @@ def animate(
     path_frame = "/tmp/frame-{:d}.png"
     import imageio
 
-    with imageio.get_writer(path, fps=10, loop=0) as writer:
+    with imageio.get_writer(path, loop=0, **kwargs) as writer:
         for i in range(shape[0]):
             path = path_frame.format(i)
             patches_to_file(patches, path, h, w, (i,))
@@ -142,6 +143,7 @@ def animate(
             image = imageio.imread(path)
 
             writer.append_data(image)  # type: ignore
+    return self
 
 
 __all__ = []

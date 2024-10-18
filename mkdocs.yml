@@ -22,47 +22,48 @@ dev_addr: localhost:8000
 ### Configuration
 docs_dir: docs
 
-# watch a list of directories for changes
-# and automatically regenerate the docs
-watch:
-  - docs
-  - walkthrough
-  - examples
-
 ### Theme
 theme:
-  name: material
-  include_sidebar: true
+  name: simple-blog
+  include_sidebar: false
   custom_dir: docs/overrides
 
-extra:
-  include:
-    - docs
-    - walkthrough
-    - examples
-
 nav:
-  - Home: README.md
+  - Home: index.md
   - Walkthrough:
-      - Shapes: walkthrough/shapes.ipynb
-      - Alignment: walkthrough/alignment.ipynb
-      - Combinators: walkthrough/combinators.ipynb
-      - Transformations: walkthrough/transformations.ipynb
-      - Style: walkthrough/style.ipynb
-      - Rendering: walkthrough/rendering.ipynb
-      - Trails: walkthrough/trails.ipynb
-      - Connections: walkthrough/names.ipynb
-      - Broadcasting: walkthrough/broadcast.ipynb
+      - Shapes: notebooks/walkthrough/shapes/notebook.md
+      - Alignment: notebooks/walkthrough/alignment/notebook.md
+      - Combinators: notebooks/walkthrough/combinators/notebook.md
+      - Transformations: notebooks/walkthrough/transformations/notebook.md
+      - Style: notebooks/walkthrough/style/notebook.md
+      - Rendering: notebooks/walkthrough/rendering/notebook.md
+      - Trails: notebooks/walkthrough/trails/notebook.md
+      - Connections: notebooks/walkthrough/names/notebook.md
+      - Broadcasting: notebooks/walkthrough/broadcast/notebook.md
   - API:
-      - Diagram: api/diagram.md
+      - Diagram:
+          - Alignment: api/diagram/alignment.md
+          - Transformations: api/diagram/transformations.md
+          - Style: api/diagram/style.md
+          - Rendering: api/diagram/rendering.md
+          - Subdiagram: api/diagram/subdiagram.md
+          - Broadcasting: api/diagram/broadcast.md
+          - Combinators: api/diagram/combinators.md
+          - Arrow: api/diagram/arrow.md
+          - Model: api/diagram/model.md
+      - Shape: api/shapes.md
+      - Combinators: api/combinators.md
+      - Trail: api/trail.md
+      - Path: api/path.md
+
   - Gallery:
-      - BigBen: examples/output/bigben.ipynb
-      - Hanoi: examples/output/hanoi.ipynb
-      - Koch: examples/output/koch.ipynb
-      - LeNet: examples/output/lenet.ipynb
-      - Squares: examples/output/squares.ipynb
-      - Tensor: examples/output/tensor.ipynb
-      - Tree: examples/output/tree.ipynb
+      - BigBen: notebooks/examples/bigben/bigben.md
+      - Hanoi: notebooks/examples/hanoi/hanoi.md
+      - Koch: notebooks/examples/koch/koch.md
+      - LeNet: notebooks/examples/lenet/lenet.md
+      - Squares: notebooks/examples/squares/squares.md
+      - Tensor: notebooks/examples/tensor/tensor.md
+      - Tree: notebooks/examples/tree/tree.md
   - About:
       - about/index.md
       - License: about/license.md
@@ -73,20 +74,23 @@ markdown_extensions:
       alternate_style: true
   - pymdownx.arithmatex:
       generic: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
   - pymdownx.details
   - pymdownx.magiclink
   - admonition
-  - codehilite
   - extra
 plugins:
   - search
-  - mkdocstrings
-  - include-markdown
-  - mkdocs-jupyter:
-      execute: true
-      include:
-        - "walkthrough/*"
-        - "examples/*"
-      include_source: true
-      ignore_h1_titles: true
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            parameter_headings: spacy
+            heading_level: 4
+            show_root_heading: true
+            show_root_full_path: false
+            show_annotations: true
+            show_signature_annotations: true
 ## @@ End NAVIGATION

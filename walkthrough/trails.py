@@ -21,8 +21,7 @@ trail = Trail.from_offsets([V2(1, 0), V2(1, 1), V2(0, 1)])
 # %% [markdown]
 # In order to render, `Trail`s have to be turned into ``Diagram``s, which can be achieved using the `stroke` method.
 
-# %% tags=["hide_inp"]
-help(Trail.Trail.stroke)
+
 
 # %%
 trail.stroke()

@@ -59,7 +59,7 @@ def cube():
 def to_trail(trail: np.ndarray, locations: np.ndarray):
     return [
         (
-            Path.Path(
+            Path(
                 (
                     Trail.from_offsets([V2(*v[:2]) for v in trail])
                     .close()
