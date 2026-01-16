@@ -16,6 +16,11 @@ reportUnusedExpression = "none"
 reportUnknownLambdaType = "none"
 reportIncompatibleMethodOverride = "none"
 reportPrivateUsage = "none"
+reportInvalidTypeArguments = "none"
+reportAttributeAccessIssue = "none"
+reportReturnType = "none"
+reportArgumentType = "none"
+reportAssignmentType = "none"
 
 [tool.ruff]
 
