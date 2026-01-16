@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt-get install -y libcairo2-dev
+        sudo apt-get install -y libcairo2-dev python3-dev
         python -m pip install --upgrade pip
         pip install -r requirements.txt -r requirements/dev.txt
     - name: Check types with pyright
