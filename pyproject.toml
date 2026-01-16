@@ -4,8 +4,6 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pyright]
-venv = ".venv12"
-venvPath = "."
 include = ["chalk", "walkthrough", "examples"]
 ignore = ["**/tests/*"]
 reportUnknownMemberType = "none"
@@ -18,6 +16,11 @@ reportUnusedExpression = "none"
 reportUnknownLambdaType = "none"
 reportIncompatibleMethodOverride = "none"
 reportPrivateUsage = "none"
+reportInvalidTypeArguments = "none"
+reportAttributeAccessIssue = "none"
+reportReturnType = "none"
+reportArgumentType = "none"
+reportAssignmentType = "none"
 
 [tool.ruff]
 

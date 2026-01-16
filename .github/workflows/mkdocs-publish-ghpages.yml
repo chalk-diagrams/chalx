@@ -13,7 +13,7 @@ on:
        - master
 
 env:
-  PYTHON_VERSION: "3.8"
+  PYTHON_VERSION: "3.12"
   USER_SPECIFIED_BRANCH: ${{ github.event.inputs.branch }}
   REPO_OWNER: ${{ github.repository_owner }} # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
 
@@ -28,6 +28,11 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install -y libcairo2-dev python3-dev
 
       - name: Install Python dependencies for MkDocs
         run: |

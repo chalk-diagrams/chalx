@@ -101,7 +101,9 @@ d = (
     .line_color(white)
 )
 
-cubes = project(projection, cube(), [V3(x, y, z) for x, y, z in zip(a, b, c)])
+cubes = project(
+    projection, cube(), [V3(float(x), float(y), float(z)) for x, y, z in zip(a, b, c)]
+)
 cubes.sort(key=lambda x: x[1], reverse=True)
 d2 = concat([p.stroke() for p, _ in cubes])
 d = d2.fill_color(papaya).fill_opacity(0.9).line_width(0.05).with_envelope(d) + d
