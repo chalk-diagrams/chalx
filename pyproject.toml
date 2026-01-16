@@ -4,8 +4,6 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.pyright]
-venv = ".venv12"
-venvPath = "."
 include = ["chalk", "walkthrough", "examples"]
 ignore = ["**/tests/*"]
 reportUnknownMemberType = "none"

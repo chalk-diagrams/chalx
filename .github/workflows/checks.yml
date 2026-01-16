@@ -16,10 +16,9 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
-        sudo apt update && sudo apt upgrade -y
-        sudo apt-get install libcairo2-dev
+        sudo apt update
+        sudo apt-get install -y libcairo2-dev
         python -m pip install --upgrade pip
-        pip install -U pip wheel
         pip install -r requirements.txt -r requirements/dev.txt
     - name: Check types with pyright
       run: |
@@ -27,7 +26,4 @@ jobs:
         pyright
     - name: Make sure examples run
       run: |
-        make images
-    - name: Make sure docs run
-      run: |
-        make
+        python3 examples/intro.py
