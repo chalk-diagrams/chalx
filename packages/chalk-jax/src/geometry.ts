@@ -1,4 +1,4 @@
-import { np, type JaxArray } from "./jax.js";
+import { np, tree, type JaxArray } from "./jax.js";
 import {
   EPSILON,
   type Affine,
@@ -79,6 +79,29 @@ const DEFAULT_STYLE: ShapeStyle = {
   strokeOpacity: scalar(1),
 };
 
+function refStyle(style: ShapeStyle): ShapeStyle {
+  return tree.ref(style) as ShapeStyle;
+}
+
+function refShape(shape: Shape): Shape {
+  return {
+    ...shape,
+    location: shape.location.ref,
+    transform: shape.transform.ref,
+    style: refStyle(shape.style),
+  };
+}
+
+function refSegment(segmentValue: ArcSegment): ArcSegment {
+  return {
+    ...segmentValue,
+    transform: segmentValue.transform.ref,
+    startAngle: segmentValue.startAngle.ref,
+    deltaAngle: segmentValue.deltaAngle.ref,
+    endOffset: segmentValue.endOffset.ref,
+  };
+}
+
 function linearPart(transform: Affine): Affine {
   return np.stack(
     [
@@ -99,20 +122,20 @@ export function emptyScene(): Scene {
 }
 
 export function trail(...segments: ArcSegment[]): Trail {
-  return { segments, closed: false };
+  return { segments: segments.map((entry) => refSegment(entry)), closed: false };
 }
 
 export function scene(...shapes: Shape[]): Scene {
-  return { shapes };
+  return { shapes: shapes.map((entry) => refShape(entry)) };
 }
 
 export function concatScenes(...scenes: Scene[]): Scene {
-  return { shapes: scenes.flatMap((entry) => [...entry.shapes]) };
+  return { shapes: scenes.flatMap((entry) => entry.shapes.map((shape) => refShape(shape))) };
 }
 
 export function concatTrails(...trails: Trail[]): Trail {
   return {
-    segments: trails.flatMap((entry) => [...entry.segments]),
+    segments: trails.flatMap((entry) => entry.segments.map((segmentValue) => refSegment(segmentValue))),
     closed: trails.some((entry) => entry.closed),
   };
 }
@@ -125,10 +148,14 @@ export function arcSegment(offset: Vec2Like, bendHeight: ScalarLike): ArcSegment
   const q = asVec2(offset);
   const d = length(q);
   const safeH = scalar(bendHeight);
+  const safeHRef = safeH.ref;
+  const absSafeH = np.absolute(safeHRef.ref);
+  const smallHeight = np.less(absSafeH, EPSILON);
+  const epsilonSigned = np.copysign(scalar(EPSILON), safeHRef.ref);
   const h = np.where(
-    np.less(np.absolute(safeH.ref), EPSILON),
-    np.copysign(scalar(EPSILON), safeH),
-    safeH,
+    smallHeight,
+    epsilonSigned,
+    safeHRef,
   );
   const d2 = d.ref.mul(d.ref);
   const h2 = h.ref.mul(h.ref);
@@ -166,15 +193,15 @@ export function arcBetween(
 ): ArcSegment {
   const diff = sub(to, from);
   const base = arcSegment(diff, bendHeight);
-  return {
+  return refSegment({
     ...base,
-    transform: compose(translation(asVec2(from)), base.transform),
-  };
+    transform: compose(translation(asVec2(from)), base.transform.ref),
+  });
 }
 
 export function trailFromOffsets(offsets: Vec2Like[], closed = false): Trail {
   return {
-    segments: offsets.map((offset) => segment(offset)),
+    segments: offsets.map((offset) => refSegment(segment(offset))),
     closed,
   };
 }
@@ -196,11 +223,13 @@ export function trailFromPoints(points: Vec2Like[], closed = false): Trail {
 export function transformTrail(input: Trail, affine: Affine): Trail {
   const linear = linearPart(affine);
   return {
-    segments: input.segments.map((segmentEntry) => ({
-      ...segmentEntry,
-      transform: compose(linear.ref, segmentEntry.transform),
-      endOffset: applyToVector(linear.ref, segmentEntry.endOffset),
-    })),
+    segments: input.segments.map((segmentEntry) =>
+      refSegment({
+        ...segmentEntry,
+        transform: compose(linear.ref, segmentEntry.transform.ref),
+        endOffset: applyToVector(linear.ref, segmentEntry.endOffset.ref),
+      }),
+    ),
     closed: input.closed,
   };
 }
@@ -231,19 +260,22 @@ export function shearTrailY(input: Trail, lambda: ScalarLike): Trail {
 
 export function stroke(input: Trail, style: Partial<ShapeStyle> = {}): Shape {
   return {
-    trail: input,
+    trail: {
+      segments: input.segments.map((segmentValue) => refSegment(segmentValue)),
+      closed: input.closed,
+    },
     location: point(0, 0),
     transform: identity(),
-    style: { ...DEFAULT_STYLE, ...style },
+    style: refStyle({ ...DEFAULT_STYLE, ...style }),
   };
 }
 
 export function locate(shape: Shape, location: Vec2Like): Shape {
-  return { ...shape, location: asVec2(location) };
+  return { ...shape, location: asVec2(location).ref };
 }
 
 export function transformShape(shape: Shape, affine: Affine): Shape {
-  return { ...shape, transform: compose(affine, shape.transform) };
+  return { ...shape, transform: compose(affine, shape.transform.ref) };
 }
 
 export function translateShape(shape: Shape, x: ScalarLike, y: ScalarLike): Shape {
@@ -263,27 +295,27 @@ export function rotateShapeBy(shape: Shape, turns: ScalarLike): Shape {
 }
 
 export function lineWidth(shape: Shape, value: ScalarLike): Shape {
-  return { ...shape, style: { ...shape.style, lineWidth: scalar(value) } };
+  return { ...shape, style: refStyle({ ...shape.style, lineWidth: scalar(value) }) };
 }
 
 export function fillColor(shape: Shape, value: ColorLike): Shape {
-  return { ...shape, style: { ...shape.style, fill: asColor(value) } };
+  return { ...shape, style: refStyle({ ...shape.style, fill: asColor(value) }) };
 }
 
 export function strokeColor(shape: Shape, value: ColorLike): Shape {
-  return { ...shape, style: { ...shape.style, stroke: asColor(value) } };
+  return { ...shape, style: refStyle({ ...shape.style, stroke: asColor(value) }) };
 }
 
 export function fillOpacity(shape: Shape, value: ScalarLike): Shape {
-  return { ...shape, style: { ...shape.style, fillOpacity: scalar(value) } };
+  return { ...shape, style: refStyle({ ...shape.style, fillOpacity: scalar(value) }) };
 }
 
 export function strokeOpacity(shape: Shape, value: ScalarLike): Shape {
-  return { ...shape, style: { ...shape.style, strokeOpacity: scalar(value) } };
+  return { ...shape, style: refStyle({ ...shape.style, strokeOpacity: scalar(value) }) };
 }
 
 export function addShape(sceneValue: Scene, shapeValue: Shape): Scene {
-  return { shapes: [...sceneValue.shapes, shapeValue] };
+  return { shapes: [...sceneValue.shapes.map((shape) => refShape(shape)), refShape(shapeValue)] };
 }
 
 export function resolvedArcs(shape: Shape): ResolvedArc[] {
@@ -403,12 +435,12 @@ export function centerTrail(input: Trail): Trail {
   return {
     segments: input.segments.map((segEntry, index) => {
       if (index === 0) {
-        return {
+        return refSegment({
           ...segEntry,
-          transform: compose(translation(negate(center.ref)), segEntry.transform),
-        };
+          transform: compose(translation(negate(center.ref)), segEntry.transform.ref),
+        });
       }
-      return segEntry;
+      return refSegment(segEntry);
     }),
     closed: input.closed,
   };
@@ -427,7 +459,7 @@ export function centered(shape: Shape): Shape {
 }
 
 export function makeStyle(style: Partial<ShapeStyle>): ShapeStyle {
-  return { ...DEFAULT_STYLE, ...style };
+  return refStyle({ ...DEFAULT_STYLE, ...style });
 }
 
 export function aroundCircle(radius: ScalarLike, thetaRadians: ScalarLike): Vector {

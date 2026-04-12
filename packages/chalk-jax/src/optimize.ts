@@ -1,6 +1,6 @@
 import type { GradientTransformation } from "@jax-js/optax";
 
-import { blockUntilReady, grad, optax, type JaxArray, type JsTree } from "./jax.js";
+import { blockUntilReady, grad, optax, tree, type JaxArray, type JsTree } from "./jax.js";
 
 export interface OptimizeOptions<Params extends JsTree<JaxArray>, Aux> {
   readonly steps: number;
@@ -29,16 +29,20 @@ export async function optimize<Params extends JsTree<JaxArray>, Aux = undefined>
     (params: Params) => objective(params)[0],
   ) as unknown as (params: Params) => Params;
 
-  let params = initialParams;
-  let state = optimizer.init(params);
+  let params = tree.ref(initialParams) as Params;
+  let state = optimizer.init(tree.ref(initialParams) as Params);
   const history: Array<{ step: number; loss: number; aux: Aux }> = [];
 
   for (let step = 0; step < options.steps; step += 1) {
-    const [lossValue, aux] = objective(params);
-    const grads = objectiveGrad(params);
+    const paramsForLoss = tree.ref(params) as Params;
+    const paramsForGrad = tree.ref(params) as Params;
+    const paramsForUpdate = tree.ref(params) as Params;
+    const paramsForApply = tree.ref(params) as Params;
+    const [lossValue, aux] = objective(paramsForLoss);
+    const grads = objectiveGrad(paramsForGrad);
     await blockUntilReady(lossValue);
-    const [updates, nextState] = optimizer.update(grads, state, params);
-    params = optax.applyUpdates(params, updates);
+    const [updates, nextState] = optimizer.update(grads, state, paramsForUpdate);
+    params = optax.applyUpdates(paramsForApply, updates);
     state = nextState;
     const loss = lossValue.item();
     history.push({ step, loss, aux });

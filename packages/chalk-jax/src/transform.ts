@@ -81,11 +81,11 @@ export function asVec2(value: Vec2Like): Vector {
 }
 
 export function xOf(v: Vec2Like): JaxArray {
-  return asVec2(v).slice(0);
+  return asVec2(v).ref.slice(0);
 }
 
 export function yOf(v: Vec2Like): JaxArray {
-  return asVec2(v).slice(1);
+  return asVec2(v).ref.slice(1);
 }
 
 export function identity(): Affine {
@@ -94,7 +94,9 @@ export function identity(): Affine {
 
 export function translation(x: ScalarLike, y?: ScalarLike): Affine {
   const offset = y === undefined ? asVec2(x as Vec2Like) : vec2(x, y);
-  return matrix3(1, 0, xOf(offset), 0, 1, yOf(offset.ref), 0, 0, 1);
+  const ox = xOf(offset.ref);
+  const oy = yOf(offset.ref);
+  return matrix3(1, 0, ox, 0, 1, oy, 0, 0, 1);
 }
 
 export function scale(x: ScalarLike, y?: ScalarLike): Affine {
@@ -130,7 +132,7 @@ export function compose(...transforms: Affine[]): Affine {
   }
   let out = transforms[0]!.ref;
   for (let i = 1; i < transforms.length; i += 1) {
-    out = np.matmul(out, transforms[i]!);
+    out = np.matmul(out, transforms[i]!.ref);
   }
   return out;
 }
@@ -144,38 +146,52 @@ export function homogeneous(v: Vec2Like, w: ScalarLike): JaxArray {
 }
 
 export function fromHomogeneous(v: JaxArray): JaxArray {
-  const w = v.slice(2);
-  return np.stack([v.slice(0).div(w.ref), v.slice(1).div(w)], 0);
+  const w = v.ref.slice(2);
+  const x = v.ref.slice(0);
+  const y = v.slice(1);
+  return np.stack([x.div(w.ref), y.div(w)], 0);
 }
 
 export function applyToPoint(transform: Affine, p: Vec2Like): Point {
-  return fromHomogeneous(np.matmul(transform, homogeneous(p, 1)));
+  return fromHomogeneous(np.matmul(transform.ref, homogeneous(p, 1)));
 }
 
 export function applyToVector(transform: Affine, v: Vec2Like): Vector {
-  return fromHomogeneous(np.matmul(transform, homogeneous(v, 0)));
+  return fromHomogeneous(np.matmul(transform.ref, homogeneous(v, 0)));
 }
 
 export function add(a: Vec2Like, b: Vec2Like): Vector {
-  return asVec2(a).add(asVec2(b));
+  const av = asVec2(a);
+  const bv = asVec2(b);
+  return av.ref.add(bv.ref);
 }
 
 export function sub(a: Vec2Like, b: Vec2Like): Vector {
-  return asVec2(a).sub(asVec2(b));
+  const av = asVec2(a);
+  const bv = asVec2(b);
+  return av.ref.sub(bv.ref);
 }
 
 export function mul(a: Vec2Like, amount: ScalarLike): Vector {
-  return asVec2(a).mul(scalar(amount));
+  const av = asVec2(a);
+  const amt = scalar(amount);
+  return av.ref.mul(amt.ref);
 }
 
 export function dot(a: Vec2Like, b: Vec2Like): JaxArray {
-  return asVec2(a).mul(asVec2(b)).sum();
+  const av = asVec2(a);
+  const bv = asVec2(b);
+  return av.ref.mul(bv.ref).sum();
 }
 
 export function cross2d(a: Vec2Like, b: Vec2Like): JaxArray {
   const av = asVec2(a);
   const bv = asVec2(b);
-  return av.slice(0).mul(bv.slice(1)).sub(av.slice(1).mul(bv.slice(0)));
+  const avx = av.ref.slice(0);
+  const avy = av.slice(1);
+  const bvy = bv.ref.slice(1);
+  const bvx = bv.slice(0);
+  return avx.mul(bvy).sub(avy.mul(bvx));
 }
 
 export function lengthSquared(v: Vec2Like): JaxArray {
@@ -187,13 +203,14 @@ export function length(v: Vec2Like): JaxArray {
 }
 
 export function normalize(v: Vec2Like): Vector {
-  const lv = length(v);
-  return asVec2(v).div(lv);
+  const vv = asVec2(v);
+  const lv = length(vv.ref);
+  return vv.ref.div(lv.ref);
 }
 
 export function perpendicular(v: Vec2Like): Vector {
   const vv = asVec2(v);
-  return np.stack([np.negative(vv.slice(1)), vv.slice(0)], 0);
+  return np.stack([np.negative(vv.ref.slice(1)), vv.ref.slice(0)], 0);
 }
 
 export function midpoint(a: Vec2Like, b: Vec2Like): Vector {
@@ -207,8 +224,7 @@ export function polar(thetaRadians: ScalarLike, radius: ScalarLike = 1): Vector 
 }
 
 export function angleOf(v: Vec2Like): JaxArray {
-  const vv = asVec2(v);
-  return np.atan2(vv.slice(1), vv.slice(0));
+  return np.atan2(yOf(v), xOf(v));
 }
 
 export function wrapAngle(theta: ScalarLike): JaxArray {
@@ -268,5 +284,5 @@ export function asColor(value: ColorLike): JaxArray {
 }
 
 export function negate(v: Vec2Like): Vector {
-  return np.negative(asVec2(v));
+  return np.negative(asVec2(v).ref);
 }

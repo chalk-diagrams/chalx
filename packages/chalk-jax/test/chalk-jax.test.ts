@@ -35,25 +35,34 @@ describe("chalk-jax", () => {
     expect(data[16]?.[16]?.[0]).toBeGreaterThan(0);
   });
 
-  it("optimizes a translated circle toward a target image", async () => {
-    const targetShape = fillColor(translateShape(circle(5), 18, 15), color(0.9, 0.3, 0.2));
+  it(
+    "optimizes fill color toward a target image",
+    async () => {
+    const targetShape = fillColor(translateShape(circle(5), 18, 15), color(0.9, 0.3, 0.2, 1));
     const target = renderScene(scene(targetShape), { width: 40, height: 40, fillSoftness: 0.9 });
 
-    const objective = (params: { offset: JaxArray }) => {
-      const shape = fillColor(
-        translateShape(circle(5), params.offset.slice(0), params.offset.slice(1)),
-        color(0.9, 0.3, 0.2),
-      );
-      const image = renderScene(scene(shape), { width: 40, height: 40, fillSoftness: 0.9 });
-      const loss = image.ref.sub(target.ref).mul(image.ref.sub(target.ref)).mean();
-      return [loss, image] as [JaxArray, JaxArray];
-    };
+      const objective = (params: { fill: JaxArray }) => {
+        const shape = fillColor(
+          translateShape(circle(5), 18, 15),
+          params.fill.ref,
+        );
+        const image = renderScene(scene(shape), { width: 40, height: 40, fillSoftness: 0.9 });
+        const delta1 = image.ref.sub(target.ref);
+        const delta2 = image.ref.sub(target.ref);
+        const loss = delta1.mul(delta2).mean();
+        return [loss, image] as [JaxArray, JaxArray];
+      };
 
-    const start = { offset: np.array([6, 8]) };
-    const result = await optimize(start, objective, { steps: 25, learningRate: 0.25 });
-    const finalOffset = (await result.params.offset.jsAsync()) as number[];
+      const start = { fill: np.array([0.1, 0.2, 0.9, 1.0]) };
+      const result = await optimize(start, objective, { steps: 6, learningRate: 0.3 });
+      const finalColor = (await result.params.fill.jsAsync()) as number[];
+      const firstLoss = result.history[0]!.loss;
+      const lastLoss = result.history[result.history.length - 1]!.loss;
 
-    expect(finalOffset[0]).toBeGreaterThan(10);
-    expect(finalOffset[1]).toBeGreaterThan(10);
-  });
+      expect(lastLoss).toBeLessThan(firstLoss);
+      expect(finalColor[0]).toBeGreaterThan(0.1);
+      expect(finalColor[2]).toBeLessThan(0.9);
+    },
+    15000,
+  );
 });

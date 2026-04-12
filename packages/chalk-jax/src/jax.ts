@@ -4,12 +4,13 @@ import {
   init,
   jit,
   numpy as np,
+  tree,
   valueAndGrad,
   vmap,
 } from "@jax-js/jax";
 import * as optax from "@jax-js/optax";
 
-export { blockUntilReady, grad, init, jit, np, optax, valueAndGrad, vmap };
+export { blockUntilReady, grad, init, jit, np, optax, tree, valueAndGrad, vmap };
 
 export type JaxArray = import("@jax-js/jax").Array;
 export type JsTree<T> = import("@jax-js/jax").JsTree<T>;

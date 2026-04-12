@@ -7,7 +7,6 @@ import {
   fillColor,
   fillOpacity,
   initJax,
-  layoutScene,
   lineWidth,
   point,
   rectangle,
@@ -50,7 +49,7 @@ async function main(): Promise<void> {
   );
 
   const image = renderScene(
-    layoutScene(concatScenes(scene(canvas), scene(moon, squareNode)), 128, 128),
+    concatScenes(scene(canvas), scene(moon, squareNode)),
     {
       width: 128,
       height: 128,
