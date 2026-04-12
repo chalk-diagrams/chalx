@@ -1,0 +1,41 @@
+{
+  "name": "@chalk-diagrams/chalk-jax",
+  "version": "0.1.0",
+  "description": "Minimal DiffRast-oriented Chalk port for TypeScript and jax-js",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "example:diffrast": "tsx examples/diffrast.ts",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "chalk",
+    "jax-js",
+    "differentiable-rendering",
+    "rasterization"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  },
+  "dependencies": {
+    "@jax-js/jax": "^0.1.11",
+    "@jax-js/optax": "^0.1.2"
+  }
+}
