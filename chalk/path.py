@@ -31,7 +31,11 @@ class Path(Transformable):
         """Prefix shape of stored geometry (usually empty)."""
         if not self.loc_trails:
             return ()
-        return self.loc_trails[0].trail.segments.transform.shape[:-3]
+        from chalk.segment import segment_parts
+        from chalk.trail import located_trail, trail_segment
+
+        t, _ = segment_parts(trail_segment(located_trail(self.loc_trails[0])))
+        return tuple(t.shape[:-3]) if t.ndim >= 3 else ()
 
     def remove_scale(self) -> Path:
         """Remove scale from the path."""

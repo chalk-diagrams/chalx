@@ -50,8 +50,9 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
     """Like ``jax.tree.map``, treating hijax values as opaque leaves."""
     from chalk.segment import Segment, make_segment
     from chalk.style import StyleHolder, make_style
+    from chalk.trail import Located, Trail
 
-    opaque = (StyleHolder, Segment)
+    opaque = (StyleHolder, Segment, Trail, Located)
 
     def wrapped(x, *xs):  # type: ignore[no-untyped-def]
         if x is None:
@@ -61,12 +62,15 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
                 grouped = zip(x.lo_parts(), *[s.lo_parts() for s in xs])
                 return make_style(*[fn(*parts) for parts in grouped])
             return x.map_prefix(fn)
-        if isinstance(x, Segment):
+        if isinstance(x, (Segment, Trail, Located)):
             if xs:
-                return make_segment(
-                    fn(x.transform, *[s.transform for s in xs]),
-                    fn(x.angles, *[s.angles for s in xs]),
-                )
+                # Prefix-map via each value's map_prefix after unzipping is awkward;
+                # fall back to per-item map then recombine only for Segment.
+                if isinstance(x, Segment):
+                    return make_segment(
+                        fn(x.transform, *[s.transform for s in xs]),
+                        fn(x.angles, *[s.angles for s in xs]),
+                    )
             return x.map_prefix(fn)
         return fn(x, *xs)
 

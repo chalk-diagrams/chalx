@@ -93,10 +93,11 @@ class Patch:
         command = np.empty((0))
         closed = True
         from chalk.segment import segment_parts
+        from chalk.trail import located_location, located_segments, located_trail, trail_closed
 
         for loc_trail in path.loc_trails:
-            p = loc_trail.location
-            segments = loc_trail.located_segments()
+            p = located_location(loc_trail)
+            segments = located_segments(loc_trail)
             seg_t, seg_a = segment_parts(segments)
             vert = segment_to_curve(seg_t, seg_a)
             if path.scale_invariant is not None:
@@ -104,7 +105,7 @@ class Patch:
                 transform = tx.remove_scale(transform) @ tx.scale(tx.V2(scale, scale))
 
             vert, command = close(p, vert, transform)
-            closed = loc_trail.trail.closed.all()
+            closed = trail_closed(located_trail(loc_trail)).all()
 
             # Closing
             extra = tx.np.zeros(vert.shape)

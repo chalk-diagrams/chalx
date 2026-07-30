@@ -124,9 +124,10 @@ class Segment(Monoid):
         return make_segment(t, a)
 
     def to_trail(self) -> Trail:
-        from chalk.trail import Trail
+        from chalk.trail import make_trail
 
-        return Trail(self, tx.np.full(self.angles.shape[:-1], False))
+        _, angles = segment_parts(self)
+        return make_trail(self, jnp.zeros(angles.shape[:-1], dtype=bool))
 
     def reduce(self, axis: int = 0) -> Segment:
         shape = self.shape
