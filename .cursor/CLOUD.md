@@ -23,7 +23,7 @@ JAX is required (`jax.numpy` everywhere). The old `CHALK_JAX` numpy dual-path is
   - `core.py` - Core diagram types and operations
   - `shapes.py` - Shape primitives (circle, square, rectangle, etc.)
   - `combinators.py` - Composition functions (hcat, vcat, beside, above)
-  - `trail.py` - Trail / Located (not batchable)
+  - `trail.py` - Trail / Located are hijax types (`trail[...]`, `located[...]`)
   - `segment.py` - Segment is a hijax type (`seg[N]` / `seg[B;N]`)
   - `path.py` - Geometric Path (not hijax yet)
   - `hijax_path.py` - Standalone polyline HiPath mock
