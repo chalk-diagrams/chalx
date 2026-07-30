@@ -470,6 +470,27 @@ def style_to_mpl(style) -> Dict[str, Any]:
     return StyleToMpl(jax.typeof(style))(style)
 
 
+def composite(img, alpha, paint):
+    """Over-composite coverage ``alpha`` with ``paint`` onto ``img``.
+
+    ``img``: ``[..., H, W, C]`` (usually C=3).
+    ``alpha``: ``[..., H, W]``.
+    ``paint``: ``StyleHolder``, RGB ``[..., C]``, or a colour name.
+    """
+    import jax.numpy as jnp
+
+    img = jnp.asarray(img)
+    alpha = jnp.asarray(alpha)[..., None]
+    if isinstance(paint, StyleHolder):
+        mpl = style_to_mpl(paint)
+        color = mpl["facecolor"] * mpl["alpha"][..., None]
+    elif isinstance(paint, str):
+        color = jnp.asarray(to_color(paint))
+    else:
+        color = jnp.asarray(paint)
+    return (1.0 - alpha) * img + alpha * color
+
+
 __all__ = [
     "Style",
     "to_color",
@@ -478,4 +499,5 @@ __all__ = [
     "StyleSpec",
     "make_style",
     "style_to_mpl",
+    "composite",
 ]

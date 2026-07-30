@@ -338,10 +338,17 @@ def get_trace(self: Diagram) -> Trace:
     return make_trace(self._accept(_GetLocatedSegments(), tx._ident_arr))
 
 
+def trace_measure(*args, **kwargs):
+    from chalk.measure import trace_measure as _tm
+
+    return _tm(*args, **kwargs)
+
+
 __all__ = [
     "Trace",
     "make_trace",
     "transform_trace",
     "trace_ray",
     "trace_segment",
+    "trace_measure",
 ]
