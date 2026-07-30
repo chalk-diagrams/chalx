@@ -50,12 +50,6 @@ if eval(os.environ.get("CHALK_CHECK", "0")):
 
 
 jax_type = [
-    chalk.core.Primitive,
-    chalk.core.Compose,
-    chalk.core.ApplyTransform,
-    chalk.core.Empty,
-    chalk.core.ApplyStyle,
-    chalk.core.ComposeAxis,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
     chalk.path.Text,
@@ -64,12 +58,7 @@ jax_type = [
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
 
-
-jax.tree_util.register_pytree_node(
-    chalk.core.ApplyName,
-    lambda tree: ((tree.diagram,), (tree.dname,)),
-    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),  # type: ignore
-)
+import chalk.diag  # noqa: F401  # register opaque diag[] hijax type
 
 
 if not TYPE_CHECKING:
