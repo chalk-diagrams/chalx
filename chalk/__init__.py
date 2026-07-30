@@ -56,7 +56,6 @@ jax_type = [
     chalk.core.Empty,
     chalk.core.ApplyStyle,
     chalk.core.ComposeAxis,
-    chalk.path.Path,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
     chalk.path.Text,

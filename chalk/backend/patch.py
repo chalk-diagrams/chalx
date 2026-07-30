@@ -5,10 +5,11 @@ from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
+import numpy as onp
 from matplotlib.text import TextPath
 
 import chalk.transform as tx
-from chalk.path import Path
+from chalk.path import Path, Text
 from chalk.style import StyleHolder
 
 if TYPE_CHECKING:
@@ -92,15 +93,19 @@ class Patch:
         vert = np.empty((0, 3, 1))
         command = np.empty((0))
         closed = True
+        from chalk.path import path_get_located, path_is_scale_invariant, path_text_bytes
         from chalk.segment import segment_parts
         from chalk.trail import located_location, located_segments, located_trail, trail_closed
+        import jax
 
-        for loc_trail in path.loc_trails:
+        path_ty = jax.typeof(path)
+        for i in range(path_ty.n_locs):
+            loc_trail = path_get_located(path, i)
             p = located_location(loc_trail)
             segments = located_segments(loc_trail)
             seg_t, seg_a = segment_parts(segments)
             vert = segment_to_curve(seg_t, seg_a)
-            if path.scale_invariant is not None:
+            if bool(onp.asarray(path_is_scale_invariant(path))):
                 scale = height / 20
                 transform = tx.remove_scale(transform) @ tx.scale(tx.V2(scale, scale))
 
@@ -118,8 +123,10 @@ class Patch:
 
         vert = vert[..., :2, 0]
         # Text rendering
-        if path.text is not None:
-            text_path = TextPath((0, 0), path.text.to_str(), size=1, usetex=True)
+        if path_ty.text_len:
+            text_path = TextPath(
+                (0, 0), Text(path_text_bytes(path)).to_str(), size=1, usetex=True
+            )
             command = np.concatenate([command, text_path.codes], -1)
             v = text_path.vertices
             # Center

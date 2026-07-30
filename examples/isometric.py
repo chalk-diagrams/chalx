@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from chalk import *
+from chalk.path import make_path
 from colour import Color
 from typing import List
 import numpy as np
@@ -59,7 +60,7 @@ def cube():
 def to_trail(trail: np.ndarray, locations: np.ndarray):
     return [
         (
-            Path(
+            make_path(
                 (
                     Trail.from_offsets([V2(*v[:2]) for v in trail])
                     .close()

@@ -49,12 +49,13 @@ def ftos(f: Floating) -> Scalars:
 def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
     """Like ``jax.tree.map``, treating hijax values as opaque leaves."""
     from chalk.envelope import Envelope
+    from chalk.path import Path
     from chalk.segment import Segment, make_segment
     from chalk.style import StyleHolder, make_style
     from chalk.trace import Trace
     from chalk.trail import Located, Trail
 
-    opaque = (StyleHolder, Segment, Trail, Located, Envelope, Trace)
+    opaque = (StyleHolder, Segment, Trail, Located, Envelope, Trace, Path)
 
     def wrapped(x, *xs):  # type: ignore[no-untyped-def]
         if x is None:
@@ -71,7 +72,7 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
                     fn(x.angles, *[s.angles for s in xs]),
                 )
             return x.map_prefix(fn)
-        if isinstance(x, (Trail, Located, Envelope, Trace)):
+        if isinstance(x, (Trail, Located, Envelope, Trace, Path)):
             return x.map_prefix(fn)
         return fn(x, *xs)
 

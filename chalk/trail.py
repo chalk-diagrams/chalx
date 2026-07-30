@@ -157,9 +157,9 @@ class Located(Transformable):
         return transform_located(self, t)
 
     def to_path(self) -> Path:
-        from chalk.path import Path
+        from chalk.path import make_path
 
-        return Path(tuple([self._promote()]))
+        return make_path((self._promote(),))
 
 
 @dataclass(frozen=True)
