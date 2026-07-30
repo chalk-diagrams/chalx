@@ -109,19 +109,36 @@ def ftos(f: Floating) -> Scalars:
 
 
 def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
-    """Like ``jax.tree.map``, treating hijax StyleHolder as opaque leaves."""
-    from chalk.style import StyleHolder
+    """Like ``jax.tree.map``, treating hijax values as opaque leaves."""
+    from chalk.segment import Segment, make_segment
+    from chalk.style import StyleHolder, make_style
+
+    opaque = (StyleHolder, Segment)
 
     def wrapped(x, *xs):  # type: ignore[no-untyped-def]
+        if x is None:
+            return None
         if isinstance(x, StyleHolder):
-            return x.map_prefix(fn if not xs else (lambda a: fn(a, *xs)))
+            if xs:
+                return make_style(
+                    fn(x.base, *[s.base for s in xs]),
+                    fn(x.mask, *[s.mask for s in xs]),
+                )
+            return x.map_prefix(fn)
+        if isinstance(x, Segment):
+            if xs:
+                return make_segment(
+                    fn(x.transform, *[s.transform for s in xs]),
+                    fn(x.angles, *[s.angles for s in xs]),
+                )
+            return x.map_prefix(fn)
         return fn(x, *xs)
 
     return jax.tree.map(
         wrapped,
         tree,
         *rest,
-        is_leaf=lambda x: isinstance(x, StyleHolder),
+        is_leaf=lambda x: isinstance(x, opaque),
     )
 
 
@@ -147,12 +164,10 @@ class Batchable:
     def __getitem__(self, ind: int | Tuple[int, ...]) -> Self:
         shape = self.shape
         if isinstance(ind, tuple) and Ellipsis in ind:  # type: ignore
-            # We only want ... to apply to the prefix args
-            return jax.tree.map(
+            return tree_map(
                 lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self
             )  # type: ignore
-        else:
-            return jax.tree.map(lambda x: x[ind], self)  # type: ignore
+        return tree_map(lambda x: x[ind], self)  # type: ignore
 
 
 def index_update(arr: Array, index: Any, values: Any) -> Array:  # type:ignore

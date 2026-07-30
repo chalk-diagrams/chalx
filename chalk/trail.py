@@ -69,7 +69,7 @@ class Trail(Monoid, Transformable, TrailLike):
     @staticmethod
     def empty() -> Trail:
         """Empty trail for monoid"""
-        seg = Segment(tx.np.zeros((0, 3, 3)), tx.np.zeros((0, 2)))
+        seg = Segment.empty()
         return Trail(seg, tx.np.full(seg.angles.shape[:-1], False))
 
     def __add__(self, other: Trail) -> Trail:

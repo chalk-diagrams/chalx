@@ -64,7 +64,6 @@ jax_type = [
     chalk.backend.patch.Patch,
     chalk.path.Text,
     chalk.subdiagram.Subdiagram,
-    chalk.segment.Segment,
 ]
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)

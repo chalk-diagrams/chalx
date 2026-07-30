@@ -70,8 +70,16 @@ def broadcast_to(
         return tree
 
     def reshape(x: tx.Array) -> tx.Array:
-        shape = x.shape
-        return tx.np.broadcast_to(x, new_shape + shape[len(old_shape) :])
+        shape = tuple(x.shape)
+        if not old_shape:
+            return tx.np.broadcast_to(x, tuple(new_shape) + shape)
+        prefix = shape[: len(old_shape)]
+        compatible = len(shape) >= len(old_shape) and all(
+            p == o or p == 1 for p, o in zip(prefix, old_shape)
+        )
+        if compatible:
+            return tx.np.broadcast_to(x, tuple(new_shape) + shape[len(old_shape) :])
+        return x
 
     return tx.tree_map(reshape, tree)
 

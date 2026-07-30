@@ -116,14 +116,16 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
         shaft = segment.stroke()
         seg = segment.segments
         tan = -tx.perpendicular(seg.q - tx.scale(tx.V2(1, -1)) @ seg.center)  # type: ignore
-        φ = tx.angle(tan)
+        φ = tx.np.asarray(tx.angle(tan)).reshape(-1)[-1]
         arrow = arrow.rotate(φ)
         if style.arc_height < 0:
             arrow = arrow.rotate(180)
     else:
         shaft = style.trail.stroke().scale_uniform_to_x(l_adj).fill_opacity(0)
 
-        arrow = arrow.rotate(-style.trail.segments.angles[-1, 0])
+        arrow = arrow.rotate(
+            -tx.np.asarray(style.trail.segments.angles).reshape(-1, 2)[-1, 0]
+        )
     return shaft.apply_style(style.shaft_style).translate_by(
         t * tx.unit_x
     ) + arrow.translate_by((l_adj + t) * tx.unit_x)

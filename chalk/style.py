@@ -237,7 +237,10 @@ class StyleHolder(Stylable):
 
     def map_prefix(self, fn: Callable[[Any], Any]) -> StyleHolder:
         """Apply an array fn to prefix-batched lojax components (eager)."""
-        return make_style(fn(self.base), fn(self.mask))
+        base, mask = fn(self.base), fn(self.mask)
+        if base is None and mask is None:
+            return self
+        return make_style(base, mask)
 
     def get(self, key: str) -> tx.Scalars:
         import numpy as onp

@@ -7,7 +7,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Tuple
+
+import jax
+import jax.numpy as jnp
+from jax.experimental.hijax import (
+    HiType,
+    MappingSpec,
+    ShapedArray,
+    VJPHiPrimitive,
+    register_hitype,
+)
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
@@ -32,39 +42,86 @@ def _ensure_2d(x: tx.Array) -> tx.Array:
 
 
 @dataclass(frozen=True)
-class Segment(Monoid):
-    """Ellipse arcs with start angle and delta.
+class SegSpec(MappingSpec):
+    pass
 
-    The monoid concatenates along the segment axis. Prefix batch dims may
-    exist on the stored arrays, but Segment is not itself a Batchable array.
-    """
+
+@dataclass(frozen=True)
+class SegTy(HiType):
+    """``seg[*B; N]`` — N arc segments, optional prefix batch."""
+
+    batch_shape: Tuple[int, ...]
+    n_segs: int
+    dtype_name: str = "float32"
+
+    def lo_ty(self):
+        dt = jnp.dtype(self.dtype_name)
+        return [
+            ShapedArray(self.batch_shape + (self.n_segs, 3, 3), dt),
+            ShapedArray(self.batch_shape + (self.n_segs, 2), dt),
+        ]
+
+    def lower_val(self, seg: Segment):
+        return [seg.transform, seg.angles]
+
+    def raise_val(self, transform, angles) -> Segment:
+        return Segment(transform, angles)
+
+    def to_tangent_aval(self):
+        return SegTy(self.batch_shape, self.n_segs, self.dtype_name)
+
+    def str_short(self, short_dtypes=False, mesh_axis_types=False):
+        batch = ",".join(str(d) for d in self.batch_shape)
+        prefix = f"{batch};" if batch else ""
+        return f"seg[{prefix}{self.n_segs}]"
+
+    __repr__ = str_short
+
+    def dec_rank(self, size, spec):
+        assert isinstance(spec, SegSpec)
+        assert self.batch_shape and self.batch_shape[0] == size
+        return SegTy(self.batch_shape[1:], self.n_segs, self.dtype_name)
+
+    def inc_rank(self, size, spec):
+        assert isinstance(spec, SegSpec)
+        return SegTy((size, *self.batch_shape), self.n_segs, self.dtype_name)
+
+    def leading_axis_spec(self):
+        return SegSpec()
+
+
+@dataclass(frozen=True)
+class Segment(Monoid):
+    """Opaque hijax segment. Peek arrays only eagerly or in expand."""
 
     transform: Affine
     angles: Angles
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        return self.transform.shape[:-2]
+        return tuple(self.transform.shape[:-2])
 
     def tuple(self) -> Tuple[Affine, Angles]:
         return self.transform, self.angles
 
     @staticmethod
     def empty() -> Segment:
-        return Segment(
-            tx.np.empty((0, 3, 3)),
-            tx.np.empty((0, 2)),
-        )
+        return make_segment(jnp.zeros((0, 3, 3)), jnp.zeros((0, 2)))
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
         assert angles.shape[-1] == 2
         angles = tx.prefix_broadcast(angles, transform.shape[:-2], 1)  # type: ignore
-        return Segment(transform, angles.astype(float))
+        return make_segment(transform, angles.astype(float))
 
     def promote(self) -> Segment:
-        """Ensures that there is a segment axis."""
-        return Segment(_ensure_3d(self.transform), _ensure_2d(self.angles))
+        return make_segment(_ensure_3d(self.transform), _ensure_2d(self.angles))
+
+    def map_prefix(self, fn: Callable[[Any], Any]) -> Segment:
+        t, a = fn(self.transform), fn(self.angles)
+        if t is None and a is None:
+            return self
+        return make_segment(t, a)
 
     def to_trail(self) -> Trail:
         from chalk.trail import Trail
@@ -73,40 +130,19 @@ class Segment(Monoid):
 
     def reduce(self, axis: int = 0) -> Segment:
         shape = self.shape
-        return Segment(
+        return make_segment(
             self.transform.reshape(*shape[:-2], -1, 3, 3),
             self.angles.reshape(*shape[:-2], -1, 2),
         )
 
     def apply_transform(self, t: Affine) -> Segment:
-        return Segment.make(t @ self.transform, self.angles)
+        return transform_segment(self, t)
 
     def __add__(self, other: Segment) -> Segment:
-        def broadcast_ex(
-            a: tx.Array, b: tx.Array, axis: int
-        ) -> Tuple[tx.Array, tx.Array]:
-            a_s, b_s = list(a.shape), list(b.shape)
-            a_s[axis] = 1
-            b_s[axis] = 1
-            new = tx.np.broadcast_shapes(a_s, b_s)
-            a_s1, b_s2 = list(new), list(new)
-            a_s1[axis] = a.shape[axis]
-            b_s2[axis] = b.shape[axis]
-            return tx.np.broadcast_to(a, a_s1), tx.np.broadcast_to(b, b_s2)
-
-        if self.transform.shape[0] == 0:
-            return other
-        self, other = self.promote(), other.promote()
-        trans = broadcast_ex(self.transform, other.transform, -3)
-        angles = broadcast_ex(self.angles, other.angles, -2)
-        return Segment.make(
-            tx.np.concatenate(trans, axis=-3),
-            tx.np.concatenate(angles, axis=-2),
-        )
+        return concat_segments(self, other)
 
     @property
     def q(self) -> P2_t:
-        """Target point"""
         q: P2_t = tx.to_point(tx.polar(self.angles.sum(-1)))
         q = self.transform @ q
         return q
@@ -117,13 +153,26 @@ class Segment(Monoid):
         return center
 
     def is_in_mod_360(self, d: V2_t) -> tx.Mask:
-        angle0_deg = self.angles[..., 0]
-        angle1_deg = self.angles.sum(-1)
+        return _is_in_mod_360(self.angles, d)
 
-        low = tx.np.minimum(angle0_deg, angle1_deg)
-        high = tx.np.maximum(angle0_deg, angle1_deg)
-        check = (high - low) % 360
-        return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
+
+def _is_in_mod_360(angles: Angles, d: V2_t) -> tx.Mask:
+    angle0_deg = angles[..., 0]
+    angle1_deg = angles.sum(-1)
+    low = tx.np.minimum(angle0_deg, angle1_deg)
+    high = tx.np.maximum(angle0_deg, angle1_deg)
+    check = (high - low) % 360
+    return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
+
+
+register_hitype(
+    Segment,
+    lambda s: SegTy(
+        tuple(s.transform.shape[:-3]) if s.transform.ndim >= 3 else (),
+        int(s.transform.shape[-3]) if s.transform.ndim >= 3 else int(s.transform.shape[0]),
+        jnp.asarray(s.transform).dtype.name,
+    ),
+)
 
 
 def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
@@ -166,10 +215,8 @@ def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     v2 = tx.polar(angle1_deg)
 
     return tx.np.where(  # type: ignore
-        (is_circle | Segment(trans, angles).is_in_mod_360(d)),
-        # Case 1: P2 at arc
+        (is_circle | _is_in_mod_360(angles, d)),
         1 / tx.length(d),
-        # Case 2: P2 outside of arc
         tx.np.maximum(tx.dot(d, v1), tx.dot(d, v2)),
     )
 
@@ -181,16 +228,128 @@ def arc_trace(
 ) -> Tuple[tx.Array, tx.Array]:
     """Computes the trace for a batch of segments."""
     ray = tx.Ray(p, v)
-    segment = Segment(trans, angles)
     d1, mask1, d2, mask2 = tx.ray_circle_intersection(ray.pt, ray.v, 1)
-
-    # Mask out traces that are not in the angle range.
-    mask1 = mask1 & segment.is_in_mod_360(ray.point(d1))
-    mask2 = mask2 & segment.is_in_mod_360(ray.point(d2))
+    mask1 = mask1 & _is_in_mod_360(angles, ray.point(d1))
+    mask2 = mask2 & _is_in_mod_360(angles, ray.point(d2))
 
     d = tx.np.stack([d1, d2], -1)
     mask = tx.np.stack([mask1, mask2], -1)
     return d, mask
+
+
+def _seg_typeof(transform, angles) -> SegTy:
+    t = jnp.asarray(transform)
+    if t.ndim == 2:
+        t = t[None, ...]
+    n_segs = int(t.shape[-3])
+    batch = tuple(t.shape[:-3])
+    return SegTy(batch, n_segs, t.dtype.name)
+
+
+class MakeSegment(VJPHiPrimitive):
+    def __init__(self, t_aval, a_aval):
+        self.in_avals = (t_aval, a_aval)
+        t_shape = t_aval.shape
+        if len(t_shape) == 2:
+            batch, n = (), 1
+        else:
+            batch, n = tuple(t_shape[:-3]), int(t_shape[-3])
+        self.out_aval = SegTy(batch, n, t_aval.dtype.name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, transform, angles):
+        t = jnp.asarray(transform)
+        a = jnp.asarray(angles)
+        if t.ndim == 2:
+            t = t[None, ...]
+        if a.ndim == 1:
+            a = a[None, ...]
+        return Segment(t, a)
+
+    def batch(self, axis_data, args, in_dims):
+        t, a = args
+        dt, da = in_dims
+        if dt is None and da is None:
+            return make_segment(t, a), None
+        return make_segment(t, a), SegSpec()
+
+
+class ConcatSegments(VJPHiPrimitive):
+    def __init__(self, a: SegTy, b: SegTy):
+        batch = tuple(jnp.broadcast_shapes(a.batch_shape, b.batch_shape))
+        self.in_avals = (a, b)
+        self.out_aval = SegTy(batch, a.n_segs + b.n_segs, a.dtype_name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, a: Segment, b: Segment):
+        if a.transform.shape[0] == 0:
+            return b
+        if b.transform.shape[0] == 0:
+            return a
+        ta, tb = _ensure_3d(a.transform), _ensure_3d(b.transform)
+        aa, ab = _ensure_2d(a.angles), _ensure_2d(b.angles)
+
+        def broadcast_ex(x, y, axis):
+            xs, ys = list(x.shape), list(y.shape)
+            xs[axis] = 1
+            ys[axis] = 1
+            new = jnp.broadcast_shapes(xs, ys)
+            xs2, ys2 = list(new), list(new)
+            xs2[axis] = x.shape[axis]
+            ys2[axis] = y.shape[axis]
+            return jnp.broadcast_to(x, xs2), jnp.broadcast_to(y, ys2)
+
+        trans = broadcast_ex(jnp.asarray(ta), jnp.asarray(tb), -3)
+        angs = broadcast_ex(jnp.asarray(aa), jnp.asarray(ab), -2)
+        return Segment(
+            jnp.concatenate(trans, axis=-3), jnp.concatenate(angs, axis=-2)
+        )
+
+    def batch(self, axis_data, args, in_dims):
+        a, b = args
+        da, db = in_dims
+        if da is None and db is None:
+            return concat_segments(a, b), None
+        return concat_segments(a, b), SegSpec()
+
+
+class TransformSegment(VJPHiPrimitive):
+    def __init__(self, seg_aval: SegTy, t_aval):
+        # Affine may carry the segment axis (e.g. per-point translations).
+        # Keep the segment type; broadcasting happens in expand.
+        self.in_avals = (seg_aval, t_aval)
+        self.out_aval = seg_aval
+        self.params = {}
+        super().__init__()
+
+    def expand(self, seg: Segment, t):
+        return Segment(jnp.asarray(t) @ jnp.asarray(seg.transform), seg.angles)
+
+    def batch(self, axis_data, args, in_dims):
+        seg, t = args
+        ds, dt = in_dims
+        if ds is None and dt is None:
+            return transform_segment(seg, t), None
+        return transform_segment(seg, t), SegSpec()
+
+
+def make_segment(transform, angles) -> Segment:
+    transform = jnp.asarray(transform)
+    angles = jnp.asarray(angles)
+    return MakeSegment(jax.typeof(transform), jax.typeof(angles))(
+        transform, angles
+    )
+
+
+def concat_segments(a, b) -> Segment:
+    return ConcatSegments(jax.typeof(a), jax.typeof(b))(a, b)
+
+
+def transform_segment(seg, t) -> Segment:
+    t = jnp.asarray(t)
+    return TransformSegment(jax.typeof(seg), jax.typeof(t))(seg, t)
 
 
 __all__ = []

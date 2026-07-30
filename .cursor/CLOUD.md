@@ -22,12 +22,12 @@ Chalk is a Python library for declarative drawing and diagrams. It provides a fu
   - `shapes.py` - Shape primitives (circle, square, rectangle, etc.)
   - `combinators.py` - Composition functions (hcat, vcat, beside, above)
   - `trail.py` - Trail / Located (not batchable)
-  - `segment.py` - Geometric Segment (not batchable)
-  - `path.py` - Geometric Path (not batchable; stroke to a Diagram)
-  - `hijax_path.py` - Experimental opaque hijax Path mock
+  - `segment.py` - Segment is a hijax type (`seg[N]` / `seg[B;N]`)
+  - `path.py` - Geometric Path (not hijax yet)
+  - `hijax_path.py` - Standalone polyline HiPath mock
   - `transform.py` - Geometric transformations (V2, P2, Affine)
-  - `style.py` - StyleHolder (not batchable)
-  - `envelope.py` / `trace.py` - Envelope and Trace (not batchable)
+  - `style.py` - StyleHolder is a hijax type (`style[]` / `style[B]`)
+  - `envelope.py` / `trace.py` - not hijax yet
   - `backend/` - Rendering backends (cairo.py, svg.py, matplotlib.py)
 - `examples/` - Example scripts demonstrating library usage
 - `tests/` - Unit tests (note: some tests have outdated imports)
