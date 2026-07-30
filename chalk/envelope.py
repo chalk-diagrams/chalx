@@ -19,7 +19,6 @@ from chalk.transform import (
     Transformable,
     V2_t,
 )
-from chalk.transform import Batchable, Batched
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -70,10 +69,12 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
 
 
 @dataclass
-class Envelope(Transformable, Monoid, Batchable):
+class Envelope(Transformable, Monoid):
+    """Geometric envelope derived from segments. Not a Batchable array type."""
+
     segment: Segment
 
-    def __call__(self: BatchEnvelope, direction: tx.V2_tC) -> Float[tx.Array, "..."]:
+    def __call__(self, direction: tx.V2_tC) -> Float[tx.Array, "..."]:
         """Compute the shortest distance from the origin to the envelope boundary in the given
         direction.
 
@@ -89,15 +90,14 @@ class Envelope(Transformable, Monoid, Batchable):
 
         """
         return env(*self.segment.tuple(), direction)
-        return env(*self.segment.tuple(), direction)
 
-    def __add__(self: BatchEnvelope, other: BatchEnvelope) -> BatchEnvelope:
+    def __add__(self, other: Envelope) -> Envelope:
         return Envelope(self.segment + other.segment)
 
     all_dir = tx.np.stack([tx.unit_x, -tx.unit_x, tx.unit_y, -tx.unit_y], axis=0)
 
     @property
-    def center(self: BatchEnvelope) -> P2_t:
+    def center(self) -> P2_t:
         """Calculate the center point based on left, right, top, and bottom distances from origin."""
         d = self(Envelope.all_dir)
         return P2(
@@ -106,25 +106,25 @@ class Envelope(Transformable, Monoid, Batchable):
         )
 
     @property
-    def width(self: BatchEnvelope) -> Scalars:
+    def width(self) -> Scalars:
         """Calculate the width based on left and right distances from origin."""
         d1 = self(Envelope.all_dir[:2])
         return tx.np.asarray(d1[0] + d1[1])
 
     @property
-    def height(self: BatchEnvelope) -> Scalars:
+    def height(self) -> Scalars:
         """Calculate the height based on top and bottom distances from origin."""
         d1 = self(Envelope.all_dir[2:])
         return tx.np.asarray(d1[0] + d1[1])
 
-    def size(self: BatchEnvelope) -> Tuple[Scalars, Scalars]:
+    def size(self) -> Tuple[Scalars, Scalars]:
         """Calculate width and height based on left, right, top, and bottom distances from origin."""
         d = self(Envelope.all_dir)
         width = tx.np.asarray(d[0] + d[1])
         height = tx.np.asarray(d[2] + d[3])
         return width, height
 
-    def envelope_v(self: BatchEnvelope, v: V2_t) -> V2_t:
+    def envelope_v(self, v: V2_t) -> V2_t:
         """Calculate the envelope vector in a given direction from origin."""
         v = tx.norm(v)
         d = self(v)
@@ -195,6 +195,4 @@ def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     return Envelope(segment)
 
 
-BatchEnvelope = Batched[Envelope, "*#B"]
-
-__all__ = ["BatchEnvelope", "Envelope"]
+__all__ = ["Envelope"]

@@ -26,7 +26,8 @@ Chalk is a Python library for declarative drawing and diagrams. It provides a fu
   - `path.py` - Geometric Path (not batchable; stroke to a Diagram)
   - `hijax_path.py` - Experimental opaque hijax Path mock
   - `transform.py` - Geometric transformations (V2, P2, Affine)
-  - `style.py` - Styling (colors, line widths)
+  - `style.py` - StyleHolder (not batchable)
+  - `envelope.py` / `trace.py` - Envelope and Trace (not batchable)
   - `backend/` - Rendering backends (cairo.py, svg.py, matplotlib.py)
 - `examples/` - Example scripts demonstrating library usage
 - `tests/` - Unit tests (note: some tests have outdated imports)

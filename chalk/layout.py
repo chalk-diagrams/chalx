@@ -157,10 +157,11 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
 
 
 def add_dim(m: Any, size: int) -> Any:
-    if not isinstance(m, StyleHolder):
-        m = tx.np.asarray(m)
+    if isinstance(m, StyleHolder):
+        return m.expand_dims(size)
+    m = tx.np.asarray(m)
     for _ in range(size):
-        m = m[..., None]  # type: ignore
+        m = m[..., None]
     return m
 
 

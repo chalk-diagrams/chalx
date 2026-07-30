@@ -151,13 +151,27 @@ def Style(
 
 
 @dataclass(frozen=True)
-class StyleHolder(Stylable, tx.Batchable):
+class StyleHolder(Stylable):
+    """Packed style vector. Prefix dims may exist on ``base``/``mask``, but
+    this is not a Batchable array type."""
+
     base: Scalars
     mask: Mask
 
     @property
     def shape(self) -> Tuple[int, ...]:
         return self.base.shape[:-1]
+
+    def size(self) -> Tuple[int, ...]:
+        return self.shape
+
+    def expand_dims(self, n: int = 1) -> StyleHolder:
+        """Insert ``n`` length-1 axes before the style feature dim."""
+        base, mask = self.base, self.mask
+        for _ in range(n):
+            base = base[..., None, :]
+            mask = mask[..., None, :]
+        return StyleHolder(base, mask)
 
     def get(self, key: str) -> tx.Scalars:
         v = self.base[..., slice(*STYLE_LOCATIONS[key])]
@@ -226,7 +240,5 @@ class StyleHolder(Stylable, tx.Batchable):
         style["alpha"] = self.fill_opacity_[..., 0]
         return style
 
-
-BatchStyle = tx.Batched[StyleHolder, "#*B"]
 
 __all__ = ["Style", "to_color"]

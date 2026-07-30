@@ -24,10 +24,10 @@ from chalk.transform import P2_t, V2_t
 if TYPE_CHECKING:
     from chalk.arrow import ArrowOpts
     from chalk.backend.patch import Patch
-    from chalk.envelope import BatchEnvelope
+    from chalk.envelope import Envelope
     from chalk.path import Path
     from chalk.subdiagram import Name, Subdiagram
-    from chalk.trace import BatchTrace
+    from chalk.trace import Trace
     from chalk.trail import Located, Trail
     from chalk.visitor import A, DiagramVisitor
 
@@ -159,11 +159,11 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """
         ...
 
-    def get_envelope(self: BatchDiagram) -> BatchEnvelope:
+    def get_envelope(self: BatchDiagram) -> Envelope:
         """Get the envelope of the diagram."""
         ...
 
-    def get_trace(self: BatchDiagram) -> BatchTrace:
+    def get_trace(self: BatchDiagram) -> Trace:
         """Get the trace of the diagram."""
         ...
 

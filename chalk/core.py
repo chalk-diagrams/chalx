@@ -23,7 +23,7 @@ import chalk.transform as tx
 import chalk.types
 from chalk.broadcast import broadcast_diagrams
 from chalk.path import Path
-from chalk.style import BatchStyle, StyleHolder
+from chalk.style import StyleHolder
 from chalk.transform import Affine, Batched
 from chalk.types import BatchDiagram, BroadDiagram, Diagram, EmptyDiagram
 from chalk.visitor import DiagramVisitor
@@ -268,7 +268,7 @@ class Primitive(BaseDiagram):
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(self.prim_shape, self.style, new_diagram.transform)
 
-    def apply_style(self: BatchPrimitive, other_style: BatchStyle) -> BatchPrimitive:
+    def apply_style(self: BatchPrimitive, other_style: StyleHolder) -> BatchPrimitive:
         new_diagram = ApplyStyle(other_style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
         return Primitive(
@@ -340,7 +340,7 @@ class ApplyStyle(BaseDiagram):
     def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_apply_style(self, args)
 
-    def apply_style(self, style: BatchStyle) -> ApplyStyle:
+    def apply_style(self, style: StyleHolder) -> ApplyStyle:
         new_style = ApplyStyle(style, Empty())
         new_style, self = broadcast_diagrams(new_style, self)
         app_style = new_style.style.merge(self.style)

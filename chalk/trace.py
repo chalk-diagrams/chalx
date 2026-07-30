@@ -8,7 +8,6 @@ from chalk.monoid import Monoid
 from chalk.segment import Segment, arc_trace
 from chalk.transform import Affine, P2_t, Transformable, V2_t
 from chalk.visitor import DiagramVisitor
-from chalk.array_types import Batched
 
 if TYPE_CHECKING:
     from chalk.core import ApplyTransform, Primitive
@@ -125,6 +124,4 @@ def get_trace(self: Diagram) -> Trace:
     return Trace(self._accept(_GetLocatedSegments(), tx.ident))
 
 
-BatchTrace = Batched[Trace, "*#B"]
-
-__all__ = ["BatchTrace", "Trace"]
+__all__ = ["Trace"]
