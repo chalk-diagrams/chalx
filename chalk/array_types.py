@@ -120,10 +120,8 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
             return None
         if isinstance(x, StyleHolder):
             if xs:
-                return make_style(
-                    fn(x.base, *[s.base for s in xs]),
-                    fn(x.mask, *[s.mask for s in xs]),
-                )
+                grouped = zip(x.lo_parts(), *[s.lo_parts() for s in xs])
+                return make_style(*[fn(*parts) for parts in grouped])
             return x.map_prefix(fn)
         if isinstance(x, Segment):
             if xs:

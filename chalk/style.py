@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import numpy as onp
 from colour import Color
 from jax.experimental.hijax import (
     HiType,
@@ -17,56 +18,34 @@ from jax.experimental.hijax import (
 from typing_extensions import Self
 
 import chalk.transform as tx
-from chalk.transform import ColorVec, Mask, Property, Scalars
+from chalk.transform import ColorVec, Property, Scalars
 
 PropLike = Union[Property, float]
 ColorLike = Union[str, Color, ColorVec]
 
+# flags[..., i]
+_F_FILL_COLOR = 0
+_F_LINE_COLOR = 1
+_F_FILL_OPACITY = 2
+_F_LINE_OPACITY = 3
+_F_LINE_WIDTH = 4
+_N_FLAGS = 5
+
 
 def to_color(c: ColorLike) -> ColorVec:
-    """Convert various color representations to a ColorVec.
-
-    Args:
-        c: Color representation, can be:
-           - str: A color name or hex code
-           - `Color`: A colour.Color object
-           - ColorVec: Already in the correct format
-
-    Returns:
-        ColorVec: A numpy array representing RGB values
-
-    """
+    """Convert colour name / Color / RGB array to an RGB vector."""
     if isinstance(c, str):
         return tx.np.asarray(Color(c).rgb)
-    elif isinstance(c, Color):
+    if isinstance(c, Color):
         return tx.np.asarray(c.rgb)
     return c
 
 
-FC = Color("white")
-LC = Color("black")
-LW = 0.1
-
-STYLE_LOCATIONS = {
-    "fill_color": (0, 3),
-    "fill_opacity": (3, 4),
-    "line_color": (4, 7),
-    "line_opacity": (7, 8),
-    "line_width": (8, 9),
-    "output_size": (9, 10),
-    "dashing": (10, 12),
-}
-
-DEFAULTS = {
-    "fill_color": to_color(FC),
-    "fill_opacity": tx.np.asarray([1.0]),
-    "line_color": to_color(LC),
-    "line_opacity": tx.np.asarray([1.0]),
-    "line_width": tx.np.asarray([LW]),
-    "output_size": tx.np.asarray(200.0),
-    "dashing": tx.np.asarray(0),
-}
-STYLE_SIZE = 12
+_DEFAULT_FILL = jnp.asarray(Color("white").rgb, dtype=jnp.float32)
+_DEFAULT_LINE = jnp.asarray(Color("black").rgb, dtype=jnp.float32)
+_DEFAULT_FILL_OPACITY = jnp.float32(1.0)
+_DEFAULT_LINE_OPACITY = jnp.float32(1.0)
+_DEFAULT_LINE_WIDTH = jnp.float32(0.1)
 
 
 class Stylable:
@@ -83,15 +62,10 @@ class Stylable:
         return self.apply_style(Style(fill_opacity=opacity))
 
     def dashing(self, dashing_strokes: List[float], offset: float) -> Self:
-        """TODO: implement this function."""
         return self.apply_style(Style())
 
     def apply_style(self: Self, style: StyleHolder) -> Self:
         raise NotImplementedError("Abstract")
-
-
-def m(a: Optional[Any], b: Optional[Any]) -> Optional[Any]:
-    return a if a is not None else b
 
 
 class WidthType(Enum):
@@ -99,7 +73,31 @@ class WidthType(Enum):
     NORMALIZED = auto()
 
 
-@tx.jit
+def _batch_of(value: Any, is_color: bool) -> Tuple[int, ...]:
+    x = jnp.asarray(value)
+    if is_color:
+        return tuple(x.shape[:-1]) if x.ndim >= 1 else ()
+    return tuple(x.shape)
+
+
+def _broadcast_color(value: Any, batch: Tuple[int, ...]) -> jax.Array:
+    x = jnp.asarray(value, dtype=jnp.float32)
+    if x.shape == (3,):
+        x = jnp.broadcast_to(x, batch + (3,))
+    elif x.shape == batch + (3,):
+        pass
+    elif x.ndim == 1 and batch == ():
+        x = jnp.asarray(x, dtype=jnp.float32)
+    else:
+        x = jnp.broadcast_to(x, batch + (3,))
+    return x
+
+
+def _broadcast_scalar(value: Any, batch: Tuple[int, ...]) -> jax.Array:
+    x = jnp.asarray(value, dtype=jnp.float32)
+    return jnp.broadcast_to(x, batch)
+
+
 def Style(
     line_width: Optional[PropLike] = None,
     line_color: Optional[ColorLike] = None,
@@ -107,60 +105,48 @@ def Style(
     fill_color: Optional[ColorLike] = None,
     fill_opacity: Optional[PropLike] = None,
 ) -> StyleHolder:
-    """Create a StyleHolder with specified style properties.
-
-    Args:
-        line_width: Width of the line. Can be a float or a `Property`.
-            Shape: Scalar or broadcastable to the shape of the diagram.
-        line_color: Color of the line. Can be a string, `Color` object, or `ColorVec`.
-            Shape: RGB tuple or broadcastable to (3,) for each point.
-        line_opacity: Opacity of the line. Can be a float or a `Property`.
-            Shape: Scalar or broadcastable to the shape of the diagram.
-        fill_color: Color of the fill. Can be a string, `Color` object, or `ColorVec`.
-            Shape: RGB tuple or broadcastable to (3,) for each point.
-        fill_opacity: Opacity of the fill. Can be a float or a `Property`.
-            Shape: Scalar or broadcastable to the shape of the diagram.
-
-    Returns:
-        A `StyleHolder` object with the specified style properties.
-
-    """
-    b = (
-        tx.np.zeros(STYLE_SIZE),
-        tx.np.zeros(STYLE_SIZE, dtype=bool),
-    )
-
-    def update(
-        b: Tuple[tx.Array, tx.Array], key: str, value: Any
-    ) -> Tuple[tx.Array, tx.Array]:  # type: ignore
-        base, mask = b
-        index = (Ellipsis, slice(*STYLE_LOCATIONS[key]))
-        if value is not None:
-            value = tx.np.asarray(value)
-            if len(value.shape) != len(base.shape) - 1:
-                n = tx.np.zeros(
-                    value.shape[: len(value.shape) - len(DEFAULTS[key].shape)]
-                    + (STYLE_SIZE,)
-                )
-                base, _ = tx.np.broadcast_arrays(base, n)
-                mask, _ = tx.np.broadcast_arrays(mask, n)
-            base = tx.index_update(base, index, value)  # type: ignore
-            mask = tx.index_update(mask, index, True)  # type: ignore
-        return base, mask
-
-    if line_width is not None:
-        b = update(b, "line_width", tx.np.asarray(line_width)[..., None])
-    b = update(b, "line_color", line_color)
-    if line_opacity is not None:
-        b = update(b, "line_opacity", tx.np.asarray(line_opacity)[..., None])
-    b = update(b, "fill_color", fill_color)
+    """Build a style from named properties (batched if any arg is)."""
+    batches = [()]
+    if fill_color is not None:
+        batches.append(_batch_of(to_color(fill_color), True))
+    if line_color is not None:
+        batches.append(_batch_of(to_color(line_color), True))
     if fill_opacity is not None:
-        b = update(b, "fill_opacity", tx.np.asarray(fill_opacity)[..., None])
-    return make_style(*b)
+        batches.append(_batch_of(fill_opacity, False))
+    if line_opacity is not None:
+        batches.append(_batch_of(line_opacity, False))
+    if line_width is not None:
+        batches.append(_batch_of(line_width, False))
+    batch: Tuple[int, ...] = tuple(jnp.broadcast_shapes(*batches))
+
+    fc = jnp.broadcast_to(_DEFAULT_FILL, batch + (3,))
+    lc = jnp.broadcast_to(_DEFAULT_LINE, batch + (3,))
+    fo = jnp.broadcast_to(_DEFAULT_FILL_OPACITY, batch)
+    lo = jnp.broadcast_to(_DEFAULT_LINE_OPACITY, batch)
+    lw = jnp.broadcast_to(_DEFAULT_LINE_WIDTH, batch)
+    flags = jnp.zeros(batch + (_N_FLAGS,), dtype=bool)
+
+    if fill_color is not None:
+        fc = _broadcast_color(to_color(fill_color), batch)
+        flags = flags.at[..., _F_FILL_COLOR].set(True)
+    if line_color is not None:
+        lc = _broadcast_color(to_color(line_color), batch)
+        flags = flags.at[..., _F_LINE_COLOR].set(True)
+    if fill_opacity is not None:
+        fo = _broadcast_scalar(fill_opacity, batch)
+        flags = flags.at[..., _F_FILL_OPACITY].set(True)
+    if line_opacity is not None:
+        lo = _broadcast_scalar(line_opacity, batch)
+        flags = flags.at[..., _F_LINE_OPACITY].set(True)
+    if line_width is not None:
+        lw = _broadcast_scalar(line_width, batch)
+        flags = flags.at[..., _F_LINE_WIDTH].set(True)
+
+    return make_style(fc, lc, fo, lo, lw, flags)
 
 
 # ---------------------------------------------------------------------------
-# Hijax StyleHolder — opaque style[*B]
+# Hijax style — separate color / scalar payloads
 # ---------------------------------------------------------------------------
 
 
@@ -175,26 +161,37 @@ class StyleTy(HiType):
     dtype_name: str = "float32"
 
     def lo_ty(self):
-        shape = self.batch_shape + (STYLE_SIZE,)
+        b = self.batch_shape
+        dt = jnp.dtype(self.dtype_name)
         return [
-            ShapedArray(shape, jnp.dtype(self.dtype_name)),
-            ShapedArray(shape, jnp.dtype("bool")),
+            ShapedArray(b + (3,), dt),  # fill_color RGB
+            ShapedArray(b + (3,), dt),  # line_color RGB
+            ShapedArray(b, dt),  # fill_opacity
+            ShapedArray(b, dt),  # line_opacity
+            ShapedArray(b, dt),  # line_width
+            ShapedArray(b + (_N_FLAGS,), jnp.dtype("bool")),
         ]
 
     def lower_val(self, style: StyleHolder):
-        return [style.base, style.mask]
+        return [
+            style.fill_rgb,
+            style.line_rgb,
+            style.fill_alpha,
+            style.line_alpha,
+            style.stroke_width,
+            style.set_flags,
+        ]
 
-    def raise_val(self, base, mask) -> StyleHolder:
-        return StyleHolder(base, mask)
+    def raise_val(self, fill_rgb, line_rgb, fill_alpha, line_alpha, stroke_width, set_flags):
+        return StyleHolder(
+            fill_rgb, line_rgb, fill_alpha, line_alpha, stroke_width, set_flags
+        )
 
     def to_tangent_aval(self):
         return StyleTy(self.batch_shape, self.dtype_name)
 
     def vspace_zero(self):
-        z = jnp.zeros(
-            self.batch_shape + (STYLE_SIZE,), dtype=jnp.dtype(self.dtype_name)
-        )
-        return StyleHolder(z, jnp.zeros_like(z, dtype=bool))
+        return StyleHolder.empty_with_batch(self.batch_shape, self.dtype_name)
 
     def vspace_add(self, x, y):
         return merge_styles(x, y)
@@ -220,14 +217,28 @@ class StyleTy(HiType):
 
 @dataclass(frozen=True)
 class StyleHolder(Stylable):
-    """Opaque hijax style. Peek ``base``/``mask`` only eagerly or in expand."""
+    """Opaque hijax style with separate color and stroke fields."""
 
-    base: Scalars
-    mask: Mask
+    fill_rgb: Scalars
+    line_rgb: Scalars
+    fill_alpha: Scalars
+    line_alpha: Scalars
+    stroke_width: Scalars
+    set_flags: Any
+
+    def lo_parts(self) -> Tuple[Any, ...]:
+        return (
+            self.fill_rgb,
+            self.line_rgb,
+            self.fill_alpha,
+            self.line_alpha,
+            self.stroke_width,
+            self.set_flags,
+        )
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        return tuple(self.base.shape[:-1])
+        return tuple(jnp.asarray(self.stroke_width).shape)
 
     def size(self) -> Tuple[int, ...]:
         return self.shape
@@ -236,45 +247,52 @@ class StyleHolder(Stylable):
         return expand_style(self, n)
 
     def map_prefix(self, fn: Callable[[Any], Any]) -> StyleHolder:
-        """Apply an array fn to prefix-batched lojax components (eager)."""
-        base, mask = fn(self.base), fn(self.mask)
-        if base is None and mask is None:
+        parts = [fn(p) for p in self.lo_parts()]
+        if all(p is None for p in parts):
             return self
-        return make_style(base, mask)
+        return make_style(*parts)
 
-    def get(self, key: str) -> tx.Scalars:
-        import numpy as onp
-
-        base = onp.asarray(self.base)
-        mask = onp.asarray(self.mask)
-        v = base[..., slice(*STYLE_LOCATIONS[key])]
-        return onp.where(
-            mask[..., slice(*STYLE_LOCATIONS[key])], v, onp.asarray(DEFAULTS[key])
-        )
-
-    @property
-    def line_width_(self) -> Property:
-        return self.get("line_width")
-
-    @property
-    def line_color_(self) -> ColorVec:
-        return self.get("line_color")
-
-    @property
-    def line_opacity_(self) -> Property:
-        return self.get("line_opacity")
+    def _flag(self, i: int) -> Any:
+        return onp.asarray(self.set_flags)[..., i]
 
     @property
     def fill_color_(self) -> ColorVec:
-        return self.get("fill_color")
+        val = onp.asarray(self.fill_rgb)
+        flag = self._flag(_F_FILL_COLOR)
+        default = onp.broadcast_to(onp.asarray(_DEFAULT_FILL), val.shape)
+        return onp.where(flag[..., None], val, default)
+
+    @property
+    def line_color_(self) -> ColorVec:
+        val = onp.asarray(self.line_rgb)
+        flag = self._flag(_F_LINE_COLOR)
+        default = onp.broadcast_to(onp.asarray(_DEFAULT_LINE), val.shape)
+        return onp.where(flag[..., None], val, default)
 
     @property
     def fill_opacity_(self) -> Property:
-        return self.get("fill_opacity")
+        val = onp.asarray(self.fill_alpha)
+        flag = self._flag(_F_FILL_OPACITY)
+        default = onp.broadcast_to(onp.asarray(_DEFAULT_FILL_OPACITY), val.shape)
+        return onp.where(flag, val, default)
+
+    @property
+    def line_opacity_(self) -> Property:
+        val = onp.asarray(self.line_alpha)
+        flag = self._flag(_F_LINE_OPACITY)
+        default = onp.broadcast_to(onp.asarray(_DEFAULT_LINE_OPACITY), val.shape)
+        return onp.where(flag, val, default)
+
+    @property
+    def line_width_(self) -> Property:
+        val = onp.asarray(self.stroke_width)
+        flag = self._flag(_F_LINE_WIDTH)
+        default = onp.broadcast_to(onp.asarray(_DEFAULT_LINE_WIDTH), val.shape)
+        return onp.where(flag, val, default)
 
     @property
     def output_size(self) -> Property:
-        return self.get("output_size")
+        return onp.asarray(200.0)
 
     @property
     def dashing_(self) -> None:
@@ -282,9 +300,18 @@ class StyleHolder(Stylable):
 
     @classmethod
     def empty(cls) -> StyleHolder:
+        return cls.empty_with_batch(())
+
+    @classmethod
+    def empty_with_batch(cls, batch: Tuple[int, ...], dtype_name: str = "float32") -> StyleHolder:
+        dt = jnp.dtype(dtype_name)
         return make_style(
-            tx.np.zeros((STYLE_SIZE,)),
-            tx.np.zeros((STYLE_SIZE,), dtype=bool),
+            jnp.broadcast_to(_DEFAULT_FILL.astype(dt), batch + (3,)),
+            jnp.broadcast_to(_DEFAULT_LINE.astype(dt), batch + (3,)),
+            jnp.broadcast_to(jnp.asarray(_DEFAULT_FILL_OPACITY, dt), batch),
+            jnp.broadcast_to(jnp.asarray(_DEFAULT_LINE_OPACITY, dt), batch),
+            jnp.broadcast_to(jnp.asarray(_DEFAULT_LINE_WIDTH, dt), batch),
+            jnp.zeros(batch + (_N_FLAGS,), dtype=bool),
         )
 
     @classmethod
@@ -298,52 +325,53 @@ class StyleHolder(Stylable):
         return merge_styles(self, other)
 
     def to_mpl(self) -> Dict[str, Any]:
-        style = {}
-        f = self.fill_color_
-        style["facecolor"] = f
-        lc = self.line_color_
-        style["edgecolor"] = lc
-        lw = self.line_width_
-        style["linewidth"] = lw[..., 0]
-        style["alpha"] = self.fill_opacity_[..., 0]
-        return style
+        lw = onp.asarray(self.line_width_)
+        alpha = onp.asarray(self.fill_opacity_)
+        return {
+            "facecolor": onp.asarray(self.fill_color_),
+            "edgecolor": onp.asarray(self.line_color_),
+            "linewidth": lw,
+            "alpha": alpha,
+        }
 
 
 register_hitype(
     StyleHolder,
     lambda s: StyleTy(
-        tuple(s.base.shape[:-1]),
-        jnp.asarray(s.base).dtype.name,
+        tuple(jnp.asarray(s.stroke_width).shape),
+        jnp.asarray(s.fill_rgb).dtype.name,
     ),
 )
 
 
 class MakeStyle(VJPHiPrimitive):
-    def __init__(self, base_aval, mask_aval):
-        if tuple(base_aval.shape) != tuple(mask_aval.shape):
-            raise TypeError(f"style base/mask shape mismatch: {base_aval} {mask_aval}")
-        if not base_aval.shape or base_aval.shape[-1] != STYLE_SIZE:
-            raise TypeError(f"style feature dim must be {STYLE_SIZE}, got {base_aval}")
-        self.in_avals = (base_aval, mask_aval)
-        self.out_aval = StyleTy(
-            tuple(base_aval.shape[:-1]), base_aval.dtype.name
-        )
+    def __init__(self, *avals):
+        fc, lc, fo, lo, lw, flags = avals
+        batch = tuple(lw.shape)
+        self.in_avals = avals
+        self.out_aval = StyleTy(batch, fc.dtype.name)
         self.params = {}
         super().__init__()
 
-    def expand(self, base, mask):
-        return StyleHolder(jnp.asarray(base), jnp.asarray(mask).astype(bool))
+    def expand(self, fill_color, line_color, fill_opacity, line_opacity, line_width, flags):
+        return StyleHolder(
+            jnp.asarray(fill_color),
+            jnp.asarray(line_color),
+            jnp.asarray(fill_opacity),
+            jnp.asarray(line_opacity),
+            jnp.asarray(line_width),
+            jnp.asarray(flags).astype(bool),
+        )
 
     def batch(self, axis_data, args, in_dims):
-        base, mask = args
-        db, dm = in_dims
-        if db is None and dm is None:
-            return make_style(base, mask), None
-        if db is not None and db != 0:
-            base = jnp.moveaxis(base, db, 0)
-        if dm is not None and dm != 0:
-            mask = jnp.moveaxis(mask, dm, 0)
-        return make_style(base, mask), StyleSpec()
+        if all(d is None for d in in_dims):
+            return make_style(*args), None
+        moved = []
+        for a, d in zip(args, in_dims):
+            if d is not None and d != 0:
+                a = jnp.moveaxis(a, d, 0)
+            moved.append(a)
+        return make_style(*moved), StyleSpec()
 
 
 class MergeStyles(VJPHiPrimitive):
@@ -355,14 +383,26 @@ class MergeStyles(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, a: StyleHolder, b: StyleHolder):
-        mask = a.mask | b.mask
-        base = jnp.where(b.mask, b.base, a.base)
-        return StyleHolder(base, mask)
+        af, bf = a.set_flags, b.set_flags
+
+        def overlay_color(av, bv, fi):
+            return jnp.where(bf[..., fi, None], bv, av)
+
+        def overlay_scalar(av, bv, fi):
+            return jnp.where(bf[..., fi], bv, av)
+
+        return StyleHolder(
+            overlay_color(a.fill_rgb, b.fill_rgb, _F_FILL_COLOR),
+            overlay_color(a.line_rgb, b.line_rgb, _F_LINE_COLOR),
+            overlay_scalar(a.fill_alpha, b.fill_alpha, _F_FILL_OPACITY),
+            overlay_scalar(a.line_alpha, b.line_alpha, _F_LINE_OPACITY),
+            overlay_scalar(a.stroke_width, b.stroke_width, _F_LINE_WIDTH),
+            af | bf,
+        )
 
     def batch(self, axis_data, args, in_dims):
         a, b = args
-        da, db = in_dims
-        if da is None and db is None:
+        if all(d is None for d in in_dims):
             return merge_styles(a, b), None
         return merge_styles(a, b), StyleSpec()
 
@@ -377,11 +417,10 @@ class ExpandStyle(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, style: StyleHolder):
-        base, mask = style.base, style.mask
+        parts = list(style.lo_parts())
         for _ in range(self.n):
-            base = base[..., None, :]
-            mask = mask[..., None, :]
-        return StyleHolder(base, mask)
+            parts = [p[..., None, :] if i in (0, 1, 5) else p[..., None] for i, p in enumerate(parts)]
+        return StyleHolder(*parts)
 
     def batch(self, axis_data, args, in_dims):
         (style,) = args
@@ -391,10 +430,18 @@ class ExpandStyle(VJPHiPrimitive):
         return expand_style(style, self.n), StyleSpec()
 
 
-def make_style(base, mask) -> StyleHolder:
-    base = jnp.asarray(base)
-    mask = jnp.asarray(mask).astype(bool)
-    return MakeStyle(jax.typeof(base), jax.typeof(mask))(base, mask)
+def make_style(
+    fill_color, line_color, fill_opacity, line_opacity, line_width, flags
+) -> StyleHolder:
+    parts = [
+        jnp.asarray(fill_color),
+        jnp.asarray(line_color),
+        jnp.asarray(fill_opacity),
+        jnp.asarray(line_opacity),
+        jnp.asarray(line_width),
+        jnp.asarray(flags).astype(bool),
+    ]
+    return MakeStyle(*[jax.typeof(p) for p in parts])(*parts)
 
 
 def merge_styles(a, b) -> StyleHolder:
@@ -407,4 +454,4 @@ def expand_style(style, n: int = 1) -> StyleHolder:
     return ExpandStyle(jax.typeof(style), n)(style)
 
 
-__all__ = ["Style", "to_color", "StyleHolder", "StyleTy", "StyleSpec"]
+__all__ = ["Style", "to_color", "StyleHolder", "StyleTy", "StyleSpec", "make_style"]
