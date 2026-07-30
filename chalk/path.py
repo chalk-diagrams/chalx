@@ -6,8 +6,8 @@ from typing import Iterable, List, Optional, Tuple
 from chalk import transform as tx
 from chalk.segment import Segment
 from chalk.trail import Located, Trail
-from chalk.transform import Batched, P2_t, Transformable
-from chalk.types import BatchDiagram
+from chalk.transform import P2_t, Transformable
+from chalk.types import Diagram
 
 
 @dataclass(frozen=True)
@@ -19,8 +19,8 @@ class Text:
 
 
 @dataclass(unsafe_hash=True)
-class Path(Transformable, tx.Batchable):
-    """Path class."""
+class Path(Transformable):
+    """Geometric path. Batching belongs on Diagrams / hijax Paths, not here."""
 
     loc_trails: Tuple[Located, ...]
     text: Optional[Text] = None
@@ -28,7 +28,7 @@ class Path(Transformable, tx.Batchable):
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        """Get the shape of the path."""
+        """Prefix shape of stored geometry (usually empty)."""
         if not self.loc_trails:
             return ()
         return self.loc_trails[0].trail.segments.transform.shape[:-3]
@@ -53,11 +53,11 @@ class Path(Transformable, tx.Batchable):
         """Create an empty path."""
         return Path(())
 
-    def __add__(self: BatchPath, other: BatchPath) -> BatchPath:
+    def __add__(self, other: Path) -> Path:
         """Add two paths."""
         return Path(self.loc_trails + other.loc_trails)
 
-    def apply_transform(self: BatchPath, t: tx.Affine) -> BatchPath:
+    def apply_transform(self, t: tx.Affine) -> Path:
         """Apply an affine transformation to the path."""
         return Path(
             tuple([loc_trail.apply_transform(t) for loc_trail in self.loc_trails])
@@ -69,7 +69,7 @@ class Path(Transformable, tx.Batchable):
             for pt in loc_trails.points():
                 yield pt
 
-    def stroke(self: BatchPath) -> BatchDiagram:
+    def stroke(self) -> Diagram:
         """Returns a primitive diagram from a path"""
         from chalk.core import Primitive
 
@@ -130,7 +130,5 @@ class Path(Transformable, tx.Batchable):
         points = list([tx.P2(x, y) for x, y in coords])
         return Path.from_points(points, closed)
 
-
-BatchPath = Batched[Path, "*#B"]
 
 __all__ = ["Path"]

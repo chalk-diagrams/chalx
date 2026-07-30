@@ -259,8 +259,7 @@ class Primitive(BaseDiagram):
 
     @classmethod
     def from_path(cls, shape: Path) -> BatchPrimitive:
-        # assert shape.size() == (), f"Shape size: {shape.size()}"
-        return cls(shape, None, tx.make_ident(shape.size()))
+        return cls(shape, None, tx.make_ident(shape.shape))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
         chalk.broadcast.check(t.shape[:-2], self.shape, str(type(self)), "Transform")

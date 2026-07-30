@@ -1,10 +1,8 @@
 """Opaque batched Path via JAX hijax types.
 
-Chalk currently batch-broadcasts ``Path`` by storing prefix batch axes on
-every internal array and treating the dataclass as a pytree (see
-``chalk.path.Path`` + ``Batchable``). That makes Paths *look* like JAX
-arrays, but under ``jit``/``vmap`` they explode into independent leaves
-and callers can freely break invariants.
+Chalk ``Path`` is no longer a ``Batchable`` / ``BatchPath`` array stand-in.
+Diagram batching lives on transforms; this module is the prototype for
+true batched paths as opaque hijax values.
 
 Hijax types are the better model: a Path is one value of one type in a
 jaxpr, produced and consumed only through primitives.

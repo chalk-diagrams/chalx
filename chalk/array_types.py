@@ -56,9 +56,9 @@ if TYPE_CHECKING or not eval(os.environ.get("CHALK_JAX", "0")):
                 size = x.size()
             ds = []
             for k in range(size[0]):
-                d = jax.tree_map(lambda x: x[k], x)
+                d = jax.tree.map(lambda x: x[k], x)
                 ds.append(fn(d))
-            final = jax.tree_map(lambda *x: np.stack(x, 0), *ds)
+            final = jax.tree.map(lambda *x: np.stack(x, 0), *ds)
 
             return final  # type: ignore
 
@@ -134,11 +134,11 @@ class Batchable:
         shape = self.shape
         if isinstance(ind, tuple) and Ellipsis in ind:  # type: ignore
             # We only want ... to apply to the prefix args
-            return jax.tree_map(
+            return jax.tree.map(
                 lambda x: x[ind + (slice(None),) * (len(x.shape) - len(shape))], self
             )  # type: ignore
         else:
-            return jax.tree_map(lambda x: x[ind], self)  # type: ignore
+            return jax.tree.map(lambda x: x[ind], self)  # type: ignore
 
 
 def index_update(arr: Array, index: Any, values: Any) -> Array:  # type:ignore
