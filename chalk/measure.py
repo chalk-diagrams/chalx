@@ -18,7 +18,7 @@ from chalk.trace import Trace, TraceTy, get_trace, trace_ray
 
 def _fill_row(splits, mask, n_bins: int):
     splits = jnp.asarray(splits)
-    mask = jnp.asarray(mask).astype(bool)
+    mask = jnp.asarray(mask) > 0
     k = splits.shape[-1]
     split_int = jnp.floor(splits).astype(jnp.int32)
     valid = mask & (split_int >= 0) & (split_int < n_bins)
@@ -56,7 +56,7 @@ def _leibniz_row(g, f, splits, mask, kern: int):
     samples = jnp.arange(kern) - (kern // 2)
     n = f.shape[0]
     split_int = jnp.floor(splits).astype(jnp.int32)
-    mask = mask.astype(bool)
+    mask = jnp.asarray(mask) > 0
 
     def grad_p(s, s_off, m):
         off = s_off - s

@@ -190,8 +190,7 @@ class TransformTrace(VJPHiPrimitive):
     def vjp_fwd(self, nzs_in, tr, t):
         from chalk.geom import data as geom_data
 
-        xf = jnp.asarray(tr.segment.transform)
-        ang = jnp.asarray(tr.segment.angles)
+        xf, ang = segment_parts(trace_segment(tr))
         t_arr = geom_data(t)
 
         def f(xf_, ang_, t_):
@@ -236,13 +235,11 @@ class TraceRay(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, tr: Trace, point, direction):
-        xf = jnp.asarray(tr.segment.transform)
-        ang = jnp.asarray(tr.segment.angles)
-        return _trace(xf, ang, point, direction)
+        xf, ang = segment_parts(trace_segment(tr))
+        return _trace(xf, ang, jnp.asarray(point), jnp.asarray(direction))
 
     def vjp_fwd(self, nzs_in, tr, point, direction):
-        xf = jnp.asarray(tr.segment.transform)
-        ang = jnp.asarray(tr.segment.angles)
+        xf, ang = segment_parts(trace_segment(tr))
         point = jnp.asarray(point)
         direction = jnp.asarray(direction)
         dist, mask = _trace(xf, ang, point, direction)
