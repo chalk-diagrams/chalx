@@ -2,9 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import jax
+import jax.numpy as jnp
 from colour import Color
+from jax.experimental.hijax import (
+    HiType,
+    MappingSpec,
+    ShapedArray,
+    VJPHiPrimitive,
+    register_hitype,
+)
 from typing_extensions import Self
 
 import chalk.transform as tx
@@ -147,36 +156,97 @@ def Style(
     b = update(b, "fill_color", fill_color)
     if fill_opacity is not None:
         b = update(b, "fill_opacity", tx.np.asarray(fill_opacity)[..., None])
-    return StyleHolder(*b)
+    return make_style(*b)
+
+
+# ---------------------------------------------------------------------------
+# Hijax StyleHolder — opaque style[*B]
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class StyleSpec(MappingSpec):
+    """vmap spec: styles batch on a leading axis."""
+
+
+@dataclass(frozen=True)
+class StyleTy(HiType):
+    batch_shape: Tuple[int, ...]
+    dtype_name: str = "float32"
+
+    def lo_ty(self):
+        shape = self.batch_shape + (STYLE_SIZE,)
+        return [
+            ShapedArray(shape, jnp.dtype(self.dtype_name)),
+            ShapedArray(shape, jnp.dtype("bool")),
+        ]
+
+    def lower_val(self, style: StyleHolder):
+        return [style.base, style.mask]
+
+    def raise_val(self, base, mask) -> StyleHolder:
+        return StyleHolder(base, mask)
+
+    def to_tangent_aval(self):
+        return StyleTy(self.batch_shape, self.dtype_name)
+
+    def vspace_zero(self):
+        z = jnp.zeros(
+            self.batch_shape + (STYLE_SIZE,), dtype=jnp.dtype(self.dtype_name)
+        )
+        return StyleHolder(z, jnp.zeros_like(z, dtype=bool))
+
+    def vspace_add(self, x, y):
+        return merge_styles(x, y)
+
+    def str_short(self, short_dtypes=False, mesh_axis_types=False):
+        batch = ",".join(str(d) for d in self.batch_shape)
+        return f"style[{batch}]" if batch else "style[]"
+
+    __repr__ = str_short
+
+    def dec_rank(self, size, spec):
+        assert isinstance(spec, StyleSpec)
+        assert self.batch_shape and self.batch_shape[0] == size
+        return StyleTy(self.batch_shape[1:], self.dtype_name)
+
+    def inc_rank(self, size, spec):
+        assert isinstance(spec, StyleSpec)
+        return StyleTy((size, *self.batch_shape), self.dtype_name)
+
+    def leading_axis_spec(self):
+        return StyleSpec()
 
 
 @dataclass(frozen=True)
 class StyleHolder(Stylable):
-    """Packed style vector. Prefix dims may exist on ``base``/``mask``, but
-    this is not a Batchable array type."""
+    """Opaque hijax style. Peek ``base``/``mask`` only eagerly or in expand."""
 
     base: Scalars
     mask: Mask
 
     @property
     def shape(self) -> Tuple[int, ...]:
-        return self.base.shape[:-1]
+        return tuple(self.base.shape[:-1])
 
     def size(self) -> Tuple[int, ...]:
         return self.shape
 
     def expand_dims(self, n: int = 1) -> StyleHolder:
-        """Insert ``n`` length-1 axes before the style feature dim."""
-        base, mask = self.base, self.mask
-        for _ in range(n):
-            base = base[..., None, :]
-            mask = mask[..., None, :]
-        return StyleHolder(base, mask)
+        return expand_style(self, n)
+
+    def map_prefix(self, fn: Callable[[Any], Any]) -> StyleHolder:
+        """Apply an array fn to prefix-batched lojax components (eager)."""
+        return make_style(fn(self.base), fn(self.mask))
 
     def get(self, key: str) -> tx.Scalars:
-        v = self.base[..., slice(*STYLE_LOCATIONS[key])]
-        return tx.np.where(
-            self.mask[..., slice(*STYLE_LOCATIONS[key])], v, DEFAULTS[key]
+        import numpy as onp
+
+        base = onp.asarray(self.base)
+        mask = onp.asarray(self.mask)
+        v = base[..., slice(*STYLE_LOCATIONS[key])]
+        return onp.where(
+            mask[..., slice(*STYLE_LOCATIONS[key])], v, onp.asarray(DEFAULTS[key])
         )
 
     @property
@@ -209,9 +279,9 @@ class StyleHolder(Stylable):
 
     @classmethod
     def empty(cls) -> StyleHolder:
-        return cls(
-            tx.np.zeros((STYLE_SIZE)),
-            tx.np.zeros((STYLE_SIZE), dtype=bool),
+        return make_style(
+            tx.np.zeros((STYLE_SIZE,)),
+            tx.np.zeros((STYLE_SIZE,), dtype=bool),
         )
 
     @classmethod
@@ -222,23 +292,116 @@ class StyleHolder(Stylable):
         return self.merge(other)
 
     def merge(self, other: StyleHolder) -> StyleHolder:
-        mask = self.mask | other.mask
-        base = tx.np.where(other.mask, other.base, self.base)
-        return StyleHolder(base, mask)
+        return merge_styles(self, other)
 
     def to_mpl(self) -> Dict[str, Any]:
         style = {}
         f = self.fill_color_
-        style["facecolor"] = f  # (f[0], f[1], f[2])
-        # style += f"fill: rgb({f[0]} {f[1]} {f[2]});"
+        style["facecolor"] = f
         lc = self.line_color_
-        style["edgecolor"] = lc  # (lc[0], lc[1], lc[2])
-
-        # Set by observation
+        style["edgecolor"] = lc
         lw = self.line_width_
         style["linewidth"] = lw[..., 0]
         style["alpha"] = self.fill_opacity_[..., 0]
         return style
 
 
-__all__ = ["Style", "to_color"]
+register_hitype(
+    StyleHolder,
+    lambda s: StyleTy(
+        tuple(s.base.shape[:-1]),
+        jnp.asarray(s.base).dtype.name,
+    ),
+)
+
+
+class MakeStyle(VJPHiPrimitive):
+    def __init__(self, base_aval, mask_aval):
+        if tuple(base_aval.shape) != tuple(mask_aval.shape):
+            raise TypeError(f"style base/mask shape mismatch: {base_aval} {mask_aval}")
+        if not base_aval.shape or base_aval.shape[-1] != STYLE_SIZE:
+            raise TypeError(f"style feature dim must be {STYLE_SIZE}, got {base_aval}")
+        self.in_avals = (base_aval, mask_aval)
+        self.out_aval = StyleTy(
+            tuple(base_aval.shape[:-1]), base_aval.dtype.name
+        )
+        self.params = {}
+        super().__init__()
+
+    def expand(self, base, mask):
+        return StyleHolder(jnp.asarray(base), jnp.asarray(mask).astype(bool))
+
+    def batch(self, axis_data, args, in_dims):
+        base, mask = args
+        db, dm = in_dims
+        if db is None and dm is None:
+            return make_style(base, mask), None
+        if db is not None and db != 0:
+            base = jnp.moveaxis(base, db, 0)
+        if dm is not None and dm != 0:
+            mask = jnp.moveaxis(mask, dm, 0)
+        return make_style(base, mask), StyleSpec()
+
+
+class MergeStyles(VJPHiPrimitive):
+    def __init__(self, a: StyleTy, b: StyleTy):
+        batch = tuple(jnp.broadcast_shapes(a.batch_shape, b.batch_shape))
+        self.in_avals = (a, b)
+        self.out_aval = StyleTy(batch, a.dtype_name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, a: StyleHolder, b: StyleHolder):
+        mask = a.mask | b.mask
+        base = jnp.where(b.mask, b.base, a.base)
+        return StyleHolder(base, mask)
+
+    def batch(self, axis_data, args, in_dims):
+        a, b = args
+        da, db = in_dims
+        if da is None and db is None:
+            return merge_styles(a, b), None
+        return merge_styles(a, b), StyleSpec()
+
+
+class ExpandStyle(VJPHiPrimitive):
+    def __init__(self, style_aval: StyleTy, n: int):
+        self.in_avals = (style_aval,)
+        self.out_aval = StyleTy(
+            style_aval.batch_shape + (1,) * int(n), style_aval.dtype_name
+        )
+        self.params = dict(n=int(n))
+        super().__init__()
+
+    def expand(self, style: StyleHolder):
+        base, mask = style.base, style.mask
+        for _ in range(self.n):
+            base = base[..., None, :]
+            mask = mask[..., None, :]
+        return StyleHolder(base, mask)
+
+    def batch(self, axis_data, args, in_dims):
+        (style,) = args
+        (d,) = in_dims
+        if d is None:
+            return expand_style(style, self.n), None
+        return expand_style(style, self.n), StyleSpec()
+
+
+def make_style(base, mask) -> StyleHolder:
+    base = jnp.asarray(base)
+    mask = jnp.asarray(mask).astype(bool)
+    return MakeStyle(jax.typeof(base), jax.typeof(mask))(base, mask)
+
+
+def merge_styles(a, b) -> StyleHolder:
+    return MergeStyles(jax.typeof(a), jax.typeof(b))(a, b)
+
+
+def expand_style(style, n: int = 1) -> StyleHolder:
+    if n == 0:
+        return style
+    return ExpandStyle(jax.typeof(style), n)(style)
+
+
+__all__ = ["Style", "to_color", "StyleHolder", "StyleTy", "StyleSpec"]

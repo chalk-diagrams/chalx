@@ -108,7 +108,21 @@ def ftos(f: Floating) -> Scalars:
     return np.asarray(f, dtype=np.double)
 
 
-tree_map = jax.tree.map
+def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
+    """Like ``jax.tree.map``, treating hijax StyleHolder as opaque leaves."""
+    from chalk.style import StyleHolder
+
+    def wrapped(x, *xs):  # type: ignore[no-untyped-def]
+        if isinstance(x, StyleHolder):
+            return x.map_prefix(fn if not xs else (lambda a: fn(a, *xs)))
+        return fn(x, *xs)
+
+    return jax.tree.map(
+        wrapped,
+        tree,
+        *rest,
+        is_leaf=lambda x: isinstance(x, StyleHolder),
+    )
 
 
 def multi_vmap(fn: Callable[[Array], Array], t: int) -> Callable[[Array], Array]:
