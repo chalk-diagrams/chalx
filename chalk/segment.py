@@ -16,7 +16,12 @@ from jax.experimental.hijax import (
     MappingSpec,
     ShapedArray,
     VJPHiPrimitive,
+    Zero,
+    apply_derived_linearization,
+    linearize_from_jvp,
     register_hitype,
+    transpose_jvp,
+    vjp_fwd_from_jvp,
 )
 
 import chalk.transform as tx
@@ -54,6 +59,10 @@ class SegTy(HiType):
     n_segs: int
     dtype_name: str = "float32"
 
+    @property
+    def dtype(self):
+        return jnp.dtype(self.dtype_name)
+
     def lo_ty(self):
         dt = jnp.dtype(self.dtype_name)
         return [
@@ -69,6 +78,16 @@ class SegTy(HiType):
 
     def to_tangent_aval(self):
         return SegTy(self.batch_shape, self.n_segs, self.dtype_name)
+
+    def vspace_zero(self):
+        dt = jnp.dtype(self.dtype_name)
+        return Segment(
+            jnp.zeros(self.batch_shape + (self.n_segs, 3, 3), dt),
+            jnp.zeros(self.batch_shape + (self.n_segs, 2), dt),
+        )
+
+    def vspace_add(self, x: Segment, y: Segment):
+        return Segment(x.transform + y.transform, x.angles + y.angles)
 
     def str_short(self, short_dtypes=False, mesh_axis_types=False):
         batch = ",".join(str(d) for d in self.batch_shape)
@@ -273,6 +292,21 @@ class MakeSegment(VJPHiPrimitive):
             a = a[None, ...]
         return Segment(t, a)
 
+    def jvp(self, primals, tangents):
+        xf, ang = primals
+        dxf, dang = tangents
+        prim = make_segment(xf, ang)
+        if isinstance(dxf, Zero):
+            dxf = jnp.zeros_like(jnp.asarray(xf))
+        if isinstance(dang, Zero):
+            dang = jnp.zeros_like(jnp.asarray(ang))
+        return prim, make_segment(dxf, dang)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
     def batch(self, axis_data, args, in_dims):
         t, a = args
         dt, da = in_dims
@@ -335,6 +369,24 @@ class TransformSegment(VJPHiPrimitive):
 
         return Segment(geom_data(t) @ jnp.asarray(seg.transform), seg.angles)
 
+    def jvp(self, primals, tangents):
+        from chalk.geom import data as geom_data
+
+        seg, t = primals
+        dseg, dt = tangents
+        prim = transform_segment(seg, t)
+        xf, ang = jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        t_arr = geom_data(t)
+        dxf = jnp.zeros_like(xf) if isinstance(dseg, Zero) else jnp.asarray(dseg.transform)
+        dang = jnp.zeros_like(ang) if isinstance(dseg, Zero) else jnp.asarray(dseg.angles)
+        dt_arr = jnp.zeros_like(t_arr) if isinstance(dt, Zero) else geom_data(dt)
+        return prim, make_segment(dt_arr @ xf + t_arr @ dxf, dang)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
     def batch(self, axis_data, args, in_dims):
         seg, t = args
         ds, dt = in_dims
@@ -372,6 +424,21 @@ class SegmentParts(VJPHiPrimitive):
 
     def expand(self, seg: Segment):
         return jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+
+    def jvp(self, primals, tangents):
+        (seg,), (dseg,) = primals, tangents
+        xf, ang = jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        if isinstance(dseg, Zero):
+            return (xf, ang), (Zero(jax.typeof(xf)), Zero(jax.typeof(ang)))
+        return (xf, ang), (
+            jnp.asarray(dseg.transform),
+            jnp.asarray(dseg.angles),
+        )
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
 
     def batch(self, axis_data, args, in_dims):
         (seg,) = args

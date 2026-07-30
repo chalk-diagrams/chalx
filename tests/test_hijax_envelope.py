@@ -5,7 +5,7 @@ import pytest
 
 from chalk import circle, unit_x
 from chalk.envelope import envelope_measure, make_envelope
-from chalk.trace import make_trace, trace_ray
+from chalk.trace import make_trace, trace_ray, transform_trace
 
 
 def test_envelope_typeof_and_measure():
@@ -35,3 +35,18 @@ def test_envelope_peek_fails():
     env = circle(1).get_envelope()
     with pytest.raises(AttributeError):
         jax.jit(lambda e: e.segment)(env)
+
+
+def test_trace_vjp_translation():
+    tr0 = circle(1).get_trace()
+    p = jnp.asarray([-3.0, 0.0, 1.0]).reshape(3, 1)
+    v = jnp.asarray([1.0, 0.0, 0.0]).reshape(3, 1)
+
+    def loss(dx):
+        t = jnp.eye(3).at[0, 2].set(dx)
+        d, _m = trace_ray(transform_trace(tr0, t), p, v)
+        return d[0]
+
+    g = jax.grad(loss)(0.0)
+    # Left hit of the unit circle is at x=-1; translating +dx increases ray t by dx.
+    onp.testing.assert_allclose(float(g), 1.0, atol=1e-3)

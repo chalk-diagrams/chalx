@@ -10,7 +10,12 @@ from jax.experimental.hijax import (
     MappingSpec,
     ShapedArray,
     VJPHiPrimitive,
+    Zero,
+    apply_derived_linearization,
+    linearize_from_jvp,
     register_hitype,
+    transpose_jvp,
+    vjp_fwd_from_jvp,
 )
 
 import chalk.transform as tx
@@ -18,6 +23,7 @@ from chalk.segment import (
     SegSpec,
     Segment,
     SegTy,
+    make_segment,
     segment_parts,
     transform_segment,
     arc_trace,
@@ -60,6 +66,10 @@ class TraceSpec(MappingSpec):
 class TraceTy(HiType):
     seg_ty: SegTy
 
+    @property
+    def dtype(self):
+        return jnp.dtype(self.seg_ty.dtype_name)
+
     def lo_ty(self):
         return self.seg_ty.lo_ty()
 
@@ -71,6 +81,12 @@ class TraceTy(HiType):
 
     def to_tangent_aval(self):
         return TraceTy(self.seg_ty)
+
+    def vspace_zero(self):
+        return Trace(self.seg_ty.vspace_zero())
+
+    def vspace_add(self, x: Trace, y: Trace):
+        return Trace(self.seg_ty.vspace_add(x.segment, y.segment))
 
     def str_short(self, short_dtypes=False, mesh_axis_types=False):
         inner = self.seg_ty.str_short(short_dtypes, mesh_axis_types)[4:-1]
@@ -141,6 +157,18 @@ class MakeTrace(VJPHiPrimitive):
     def expand(self, segment):
         return Trace(segment)
 
+    def jvp(self, primals, tangents):
+        (seg,), (dseg,) = primals, tangents
+        prim = make_trace(seg)
+        if isinstance(dseg, Zero):
+            return prim, Zero(self.out_aval.to_tangent_aval())
+        return prim, make_trace(dseg)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
     def batch(self, axis_data, args, in_dims):
         (seg,) = args
         (d,) = in_dims
@@ -158,6 +186,32 @@ class TransformTrace(VJPHiPrimitive):
 
     def expand(self, tr: Trace, t):
         return Trace(transform_segment(tr.segment, t))
+
+    def vjp_fwd(self, nzs_in, tr, t):
+        from chalk.geom import data as geom_data
+
+        xf = jnp.asarray(tr.segment.transform)
+        ang = jnp.asarray(tr.segment.angles)
+        t_arr = geom_data(t)
+
+        def f(xf_, ang_, t_):
+            return t_ @ xf_, ang_
+
+        (out_xf, out_ang), vjp = jax.vjp(f, xf, ang, t_arr)
+        return make_trace(make_segment(out_xf, out_ang)), vjp
+
+    def vjp_bwd_retval(self, vjp, g):
+        if isinstance(g, Zero):
+            dxf, dang, dt = vjp(
+                (
+                    jnp.zeros(self.out_aval.seg_ty.batch_shape + (self.out_aval.seg_ty.n_segs, 3, 3)),
+                    jnp.zeros(self.out_aval.seg_ty.batch_shape + (self.out_aval.seg_ty.n_segs, 2)),
+                )
+            )
+            return make_trace(make_segment(dxf, dang)), dt
+        gxf, gang = segment_parts(trace_segment(g))
+        dxf, dang, dt = vjp((gxf, gang))
+        return make_trace(make_segment(dxf, dang)), dt
 
     def batch(self, axis_data, args, in_dims):
         tr, t = args
@@ -182,7 +236,35 @@ class TraceRay(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, tr: Trace, point, direction):
-        return _trace(*segment_parts(tr.segment), point, direction)
+        xf = jnp.asarray(tr.segment.transform)
+        ang = jnp.asarray(tr.segment.angles)
+        return _trace(xf, ang, point, direction)
+
+    def vjp_fwd(self, nzs_in, tr, point, direction):
+        xf = jnp.asarray(tr.segment.transform)
+        ang = jnp.asarray(tr.segment.angles)
+        point = jnp.asarray(point)
+        direction = jnp.asarray(direction)
+        dist, mask = _trace(xf, ang, point, direction)
+
+        def dist_fn(xf_, ang_, p_, d_):
+            return _trace(xf_, ang_, p_, d_)[0]
+
+        _, vjp = jax.vjp(dist_fn, xf, ang, point, direction)
+        return (dist, mask), vjp
+
+    def vjp_bwd_retval(self, vjp, g):
+        g_dist, _g_mask = g
+        seg_ty = self.in_avals[0].seg_ty
+        if isinstance(g_dist, Zero):
+            dt = jnp.dtype(seg_ty.dtype_name)
+            z_xf = jnp.zeros(seg_ty.batch_shape + (seg_ty.n_segs, 3, 3), dt)
+            z_ang = jnp.zeros(seg_ty.batch_shape + (seg_ty.n_segs, 2), dt)
+            z_p = jnp.zeros(self.in_avals[1].shape, self.in_avals[1].dtype)
+            z_d = jnp.zeros(self.in_avals[2].shape, self.in_avals[2].dtype)
+            return make_trace(make_segment(z_xf, z_ang)), z_p, z_d
+        dxf, dang, dp, dd = vjp(jnp.asarray(g_dist))
+        return make_trace(make_segment(dxf, dang)), dp, dd
 
     def batch(self, axis_data, args, in_dims):
         tr, p, d = args
@@ -201,6 +283,18 @@ class TraceSegment(VJPHiPrimitive):
     def expand(self, tr: Trace):
         return tr.segment
 
+    def jvp(self, primals, tangents):
+        (tr,), (dtr,) = primals, tangents
+        prim = trace_segment(tr)
+        if isinstance(dtr, Zero):
+            return prim, Zero(self.out_aval.to_tangent_aval())
+        return prim, trace_segment(dtr)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
     def batch(self, axis_data, args, in_dims):
         (tr,) = args
         (d,) = in_dims
@@ -214,7 +308,6 @@ def make_trace(segment) -> Trace:
 
 
 def transform_trace(tr, t) -> Trace:
-    t = tx.data(t)
     return TransformTrace(jax.typeof(tr), jax.typeof(t))(tr, t)
 
 
