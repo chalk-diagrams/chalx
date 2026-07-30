@@ -89,7 +89,9 @@ class Envelope(Transformable, Monoid):
             An array of distances with shape "*C *B".
 
         """
-        return env(*self.segment.tuple(), direction)
+        from chalk.segment import segment_parts
+
+        return env(*segment_parts(self.segment), direction)
 
     def __add__(self, other: Envelope) -> Envelope:
         return Envelope(self.segment + other.segment)
@@ -157,7 +159,9 @@ class Envelope(Transformable, Monoid):
 
     def apply_transform(self, t: Affine) -> Envelope:
         """Apply affine transformation to the envelope."""
-        return Envelope(self.segment.apply_transform(t[..., None, :, :]))
+        from chalk.segment import transform_segment
+
+        return Envelope(transform_segment(self.segment, t[..., None, :, :]))
 
 
 class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
@@ -166,12 +170,13 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
     A_type = Segment
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
+        from chalk.segment import transform_segment
+
         segment = diagram.prim_shape.located_segments()
         t = t @ diagram.transform
         if len(t.shape) >= 3:
             t = t[..., None, :, :]
-        segment = segment.apply_transform(t)
-        return segment
+        return transform_segment(segment, t)
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:
         # Compose nodes can override the envelope.
@@ -183,15 +188,18 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
         return diagram.diagram._accept(self, t @ diagram.transform)
 
 
-@tx.jit
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     # assert self.size() == ()
     if t is None:
         t = tx.ident
+    from chalk.segment import segment_parts
+
     segment = self._accept(GetLocatedSegments(), t)
+    transform, _ = segment_parts(segment)
+    seg_shape = transform.shape[:-2]
     assert (
-        segment.shape[: len(self.shape)] == self.shape
-    ), f"{segment.transform.shape} {self.shape}"
+        seg_shape[: len(self.shape)] == self.shape
+    ), f"{transform.shape} {self.shape}"
     return Envelope(segment)
 
 

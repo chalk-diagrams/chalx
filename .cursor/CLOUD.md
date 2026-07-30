@@ -3,6 +3,8 @@
 ## Overview
 Chalk is a Python library for declarative drawing and diagrams. It provides a functional API for creating 2D diagrams with multiple rendering backends (Cairo/PNG, SVG, Matplotlib).
 
+JAX is required (`jax.numpy` everywhere). The old `CHALK_JAX` numpy dual-path is gone.
+
 ## Quick Commands
 
 | Task | Command |

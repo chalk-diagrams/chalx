@@ -143,14 +143,14 @@ class Segment(Monoid):
 
     @property
     def q(self) -> P2_t:
-        q: P2_t = tx.to_point(tx.polar(self.angles.sum(-1)))
-        q = self.transform @ q
-        return q
+        return segment_q(self)
 
     @property
     def center(self) -> P2_t:
-        center: P2_t = self.transform @ tx.P2(0, 0)
-        return center
+        return segment_center(self)
+
+    def parts(self) -> Tuple[Affine, Angles]:
+        return segment_parts(self)
 
     def is_in_mod_360(self, d: V2_t) -> tx.Mask:
         return _is_in_mod_360(self.angles, d)
@@ -350,6 +350,95 @@ def concat_segments(a, b) -> Segment:
 def transform_segment(seg, t) -> Segment:
     t = jnp.asarray(t)
     return TransformSegment(jax.typeof(seg), jax.typeof(t))(seg, t)
+
+
+class SegmentParts(VJPHiPrimitive):
+    """Unpack a segment to ``(transform, angles)`` arrays."""
+
+    def __init__(self, seg_aval: SegTy):
+        t_aval, a_aval = seg_aval.lo_ty()
+        self.in_avals = (seg_aval,)
+        self.out_aval = (t_aval, a_aval)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, seg: Segment):
+        return jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+
+    def batch(self, axis_data, args, in_dims):
+        (seg,) = args
+        (d,) = in_dims
+        if d is None:
+            return segment_parts(seg), None
+        return segment_parts(seg), (0, 0)
+
+
+class SegmentQ(VJPHiPrimitive):
+    """Endpoint of each arc, as homogeneous points ``[..., 3, 1]``."""
+
+    def __init__(self, seg_aval: SegTy):
+        self.in_avals = (seg_aval,)
+        self.out_aval = ShapedArray(
+            seg_aval.batch_shape + (seg_aval.n_segs, 3, 1),
+            jnp.dtype(seg_aval.dtype_name),
+        )
+        self.params = {}
+        super().__init__()
+
+    def expand(self, seg: Segment):
+        angles = jnp.asarray(seg.angles)
+        transform = jnp.asarray(seg.transform)
+        ang = angles.sum(-1)
+        rad = jnp.deg2rad(ang)
+        x, y = jnp.cos(rad), jnp.sin(rad)
+        ones = jnp.ones_like(x)
+        q = jnp.stack([x, y, ones], axis=-1)[..., None]
+        return transform @ q
+
+    def batch(self, axis_data, args, in_dims):
+        (seg,) = args
+        (d,) = in_dims
+        if d is None:
+            return segment_q(seg), None
+        return segment_q(seg), 0
+
+
+class SegmentCenter(VJPHiPrimitive):
+    """Ellipse center of each arc, as homogeneous points."""
+
+    def __init__(self, seg_aval: SegTy):
+        self.in_avals = (seg_aval,)
+        self.out_aval = ShapedArray(
+            seg_aval.batch_shape + (seg_aval.n_segs, 3, 1),
+            jnp.dtype(seg_aval.dtype_name),
+        )
+        self.params = {}
+        super().__init__()
+
+    def expand(self, seg: Segment):
+        transform = jnp.asarray(seg.transform)
+        origin = jnp.zeros(transform.shape[:-2] + (3, 1), dtype=transform.dtype)
+        origin = origin.at[..., 2, 0].set(1.0)
+        return transform @ origin
+
+    def batch(self, axis_data, args, in_dims):
+        (seg,) = args
+        (d,) = in_dims
+        if d is None:
+            return segment_center(seg), None
+        return segment_center(seg), 0
+
+
+def segment_parts(seg) -> Tuple[jax.Array, jax.Array]:
+    return SegmentParts(jax.typeof(seg))(seg)
+
+
+def segment_q(seg) -> jax.Array:
+    return SegmentQ(jax.typeof(seg))(seg)
+
+
+def segment_center(seg) -> jax.Array:
+    return SegmentCenter(jax.typeof(seg))(seg)
 
 
 __all__ = []

@@ -7,6 +7,8 @@ from chalk.segment import (
     Segment,
     concat_segments,
     make_segment,
+    segment_parts,
+    segment_q,
     transform_segment,
 )
 from chalk.transform import translation
@@ -48,3 +50,15 @@ def test_attribute_access_fails_under_jit():
     s = _unit_seg()
     with pytest.raises(AttributeError):
         jax.jit(lambda seg: seg.transform)(s)
+
+
+def test_jit_segment_q():
+    s = _unit_seg()
+    q = jax.jit(segment_q)(s)
+    assert tuple(q.shape[-2:]) == (3, 1)
+    onp.testing.assert_allclose(onp.asarray(s.q), onp.asarray(q), rtol=1e-5)
+    text = str(jax.jit(segment_q).trace(s).jaxpr)
+    assert "call_hi_primitive" in text
+    t, a = jax.jit(segment_parts)(s)
+    assert t.shape[-2:] == (3, 3)
+    assert a.shape[-1] == 2

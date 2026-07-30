@@ -147,9 +147,11 @@ class ToSize(DiagramVisitor[Size, Size]):
         return diagram.diagram._accept(self, t)
 
     def visit_apply_style(self, diagram: core.ApplyStyle, t: Size) -> Size:
+        import jax
+
         if diagram.style is None:  # type: ignore
             return diagram.diagram.accept(self, t)
-        return Size(diagram.style.size())
+        return Size(tuple(jax.typeof(diagram.style).batch_shape))
 
     def visit_compose_axis(self, diagram: core.ComposeAxis, t: Size) -> Size:
         return diagram.diagrams._accept(self, t).remove_axis(0)

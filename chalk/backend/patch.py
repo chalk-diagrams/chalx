@@ -92,10 +92,13 @@ class Patch:
         vert = np.empty((0, 3, 1))
         command = np.empty((0))
         closed = True
+        from chalk.segment import segment_parts
+
         for loc_trail in path.loc_trails:
             p = loc_trail.location
             segments = loc_trail.located_segments()
-            vert = segment_to_curve(segments.transform, segments.angles)
+            seg_t, seg_a = segment_parts(segments)
+            vert = segment_to_curve(seg_t, seg_a)
             if path.scale_invariant is not None:
                 scale = height / 20
                 transform = tx.remove_scale(transform) @ tx.scale(tx.V2(scale, scale))
@@ -131,15 +134,14 @@ class Patch:
         return Patch(vert, command, style, order, height, closed)
 
 
-@tx.jit  # type: ignore
 def patch_from_prim(prim: Primitive, style: StyleHolder, height: tx.IntLike) -> Patch:
     size = prim.size()
     style = prim.style if prim.style is not None else style
     assert isinstance(prim.prim_shape, Path)
     assert prim.order is not None
-    in_style = (
-        style.to_mpl()
-    )  # tx.multi_vmap(style.to_mpl.__func__, len(size))(style),  # type: ignore
+    from chalk.style import style_to_mpl
+
+    in_style = style_to_mpl(style)
     patch = Patch.from_path(
         prim.prim_shape,
         prim.transform,

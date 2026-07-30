@@ -39,12 +39,12 @@ class Path(Transformable):
 
     def located_segments(self) -> Segment:
         """Get located segments of the path."""
+        from chalk.segment import concat_segments
+
         ls = Segment.empty()
         for loc_trail in self.loc_trails:
-            if ls is None:  # type: ignore
-                ls = loc_trail.located_segments()
-            else:
-                ls += loc_trail.located_segments()
+            nxt = loc_trail.located_segments()
+            ls = concat_segments(ls, nxt)
         return ls
 
     # Monoid - compose

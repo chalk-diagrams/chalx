@@ -52,18 +52,11 @@ class DiagramVisitor(Generic[A, B]):
         axis = len(diagram.diagrams.size()) - 1
         fn = diagram.diagrams._accept.__func__  # type: ignore
         fn = partial(fn, visitor=self, args=t)
-        ed: A
-        if not tx.JAX_MODE:
-            ds = []
-            for k in range(size[-1]):
-                # tx.tree_map(lambda x: print("shape", x.shape, k), diagram.diagrams)
-                d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
-                ds.append(fn(d))
-            ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
-        else:
-            import jax
-
-            ed = jax.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
+        ds = []
+        for k in range(int(size[-1])):
+            d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
+            ds.append(fn(d))
+        ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
         return self.A_type.reduce(ed, axis)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:

@@ -325,14 +325,7 @@ class StyleHolder(Stylable):
         return merge_styles(self, other)
 
     def to_mpl(self) -> Dict[str, Any]:
-        lw = onp.asarray(self.line_width_)
-        alpha = onp.asarray(self.fill_opacity_)
-        return {
-            "facecolor": onp.asarray(self.fill_color_),
-            "edgecolor": onp.asarray(self.line_color_),
-            "linewidth": lw,
-            "alpha": alpha,
-        }
+        return style_to_mpl(self)
 
 
 register_hitype(
@@ -454,4 +447,67 @@ def expand_style(style, n: int = 1) -> StyleHolder:
     return ExpandStyle(jax.typeof(style), n)(style)
 
 
-__all__ = ["Style", "to_color", "StyleHolder", "StyleTy", "StyleSpec", "make_style"]
+class StyleToMpl(VJPHiPrimitive):
+    def __init__(self, style_aval: StyleTy):
+        b = style_aval.batch_shape
+        dt = jnp.dtype(style_aval.dtype_name)
+        self.in_avals = (style_aval,)
+        self.out_aval = {
+            "facecolor": ShapedArray(b + (3,), dt),
+            "edgecolor": ShapedArray(b + (3,), dt),
+            "linewidth": ShapedArray(b, dt),
+            "alpha": ShapedArray(b, dt),
+        }
+        self.params = {}
+        super().__init__()
+
+    def expand(self, style: StyleHolder):
+        flags = jnp.asarray(style.set_flags)
+        fc = jnp.where(
+            flags[..., _F_FILL_COLOR, None],
+            style.fill_rgb,
+            jnp.broadcast_to(_DEFAULT_FILL, style.fill_rgb.shape),
+        )
+        lc = jnp.where(
+            flags[..., _F_LINE_COLOR, None],
+            style.line_rgb,
+            jnp.broadcast_to(_DEFAULT_LINE, style.line_rgb.shape),
+        )
+        fo = jnp.where(
+            flags[..., _F_FILL_OPACITY],
+            style.fill_alpha,
+            jnp.broadcast_to(_DEFAULT_FILL_OPACITY, style.fill_alpha.shape),
+        )
+        lw = jnp.where(
+            flags[..., _F_LINE_WIDTH],
+            style.stroke_width,
+            jnp.broadcast_to(_DEFAULT_LINE_WIDTH, style.stroke_width.shape),
+        )
+        return {
+            "facecolor": fc,
+            "edgecolor": lc,
+            "linewidth": lw,
+            "alpha": fo,
+        }
+
+    def batch(self, axis_data, args, in_dims):
+        (style,) = args
+        (d,) = in_dims
+        if d is None:
+            return style_to_mpl(style), None
+        return style_to_mpl(style), {k: 0 for k in ("facecolor", "edgecolor", "linewidth", "alpha")}
+
+
+def style_to_mpl(style) -> Dict[str, Any]:
+    return StyleToMpl(jax.typeof(style))(style)
+
+
+__all__ = [
+    "Style",
+    "to_color",
+    "StyleHolder",
+    "StyleTy",
+    "StyleSpec",
+    "make_style",
+    "style_to_mpl",
+]

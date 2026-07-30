@@ -30,8 +30,10 @@ class Located(Transformable):
     #     return Located(self.trail.split(i), self.location[i])
 
     def located_segments(self) -> Segment:
+        from chalk.segment import transform_segment
+
         pts = self.points()
-        return self.trail.segments.apply_transform(tx.translation(pts))
+        return transform_segment(self.trail.segments, tx.translation(pts))
 
     def points(self) -> P2_t:
         r: P2_t = self.trail.points() + self.location[..., None, :, :]
@@ -99,7 +101,9 @@ class Trail(Monoid, Transformable, TrailLike):
 
     def points(self) -> P2_t:
         """Get points along the trail."""
-        q = self.segments.q
+        from chalk.segment import segment_q
+
+        q = segment_q(self.segments)
         return tx.to_point(tx.np.cumsum(q, axis=-3) - q)
 
     def at(self, p: P2_t) -> Located:
