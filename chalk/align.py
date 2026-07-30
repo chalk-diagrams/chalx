@@ -7,7 +7,7 @@ from chalk.types import Diagram
 
 def align_to(self: Diagram, v: V2_t) -> Diagram:
     envelope = self.get_envelope()
-    t = tx.translation(-envelope.envelope_v(v))
+    t = tx.translation(-tx.data(envelope.envelope_v(v)))
     return self.apply_transform(t)
 
 
@@ -62,7 +62,7 @@ def center_xy(self: Diagram) -> Diagram:
     envelope = self.get_envelope()
     # if envelope.is_empty:
     #     return self
-    t = tx.translation(-envelope.center)
+    t = tx.translation(-tx.data(envelope.center))
     return self.apply_transform(t)
 
 

@@ -325,7 +325,9 @@ class DiagPrim(VJPHiPrimitive):
 
 
 def diag_prim(path, xf, style=None, order=None):
-    xf = jnp.asarray(xf)
+    from chalk.geom import data as geom_data
+
+    xf = geom_data(xf)
     args = [path, xf]
     sav = jax.typeof(style) if style is not None else None
     oav = jax.typeof(order) if order is not None else None
@@ -354,7 +356,9 @@ class DiagXf(VJPHiPrimitive):
 
 
 def diag_xf(diagram, xf):
-    xf = jnp.asarray(xf)
+    from chalk.geom import data as geom_data
+
+    xf = geom_data(xf)
     return DiagXf(jax.typeof(diagram), jax.typeof(xf))(diagram, xf)
 
 

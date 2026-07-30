@@ -110,6 +110,7 @@ class Segment:
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
+        transform = tx.data(transform)
         assert angles.shape[-1] == 2
         angles = tx.prefix_broadcast(angles, transform.shape[:-2], 1)  # type: ignore
         return make_segment(transform, angles.astype(float))
@@ -181,7 +182,7 @@ register_hitype(
 
 
 def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
-    p, q = tx.np.broadcast_arrays(p, q)
+    p, q = tx.np.broadcast_arrays(tx.data(p), tx.data(q))
     h = abs(height)
     d = tx.length(q - p)
     # Determine the arc's angle θ and its radius r
@@ -330,7 +331,9 @@ class TransformSegment(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, seg: Segment, t):
-        return Segment(jnp.asarray(t) @ jnp.asarray(seg.transform), seg.angles)
+        from chalk.geom import data as geom_data
+
+        return Segment(geom_data(t) @ jnp.asarray(seg.transform), seg.angles)
 
     def batch(self, axis_data, args, in_dims):
         seg, t = args
@@ -341,7 +344,7 @@ class TransformSegment(VJPHiPrimitive):
 
 
 def make_segment(transform, angles) -> Segment:
-    transform = jnp.asarray(transform)
+    transform = tx.data(transform)
     angles = jnp.asarray(angles)
     return MakeSegment(jax.typeof(transform), jax.typeof(angles))(
         transform, angles
@@ -353,7 +356,7 @@ def concat_segments(a, b) -> Segment:
 
 
 def transform_segment(seg, t) -> Segment:
-    t = jnp.asarray(t)
+    t = tx.data(t)
     return TransformSegment(jax.typeof(seg), jax.typeof(t))(seg, t)
 
 

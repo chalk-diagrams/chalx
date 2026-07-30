@@ -329,7 +329,7 @@ class TransformTrail(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, trail: Trail, t):
-        t = jnp.asarray(t)
+        t = tx.data(t)
         t = tx.remove_translation(t)
         if t.ndim >= 3:
             t = t[:, None, :, :]
@@ -402,7 +402,8 @@ class TrailPoints(VJPHiPrimitive):
 
     def expand(self, trail: Trail):
         q = segment_q(trail.segments)
-        return tx.to_point(jnp.cumsum(q, axis=-3) - q)
+        pts = jnp.cumsum(q, axis=-3) - q
+        return pts.at[..., 2, 0].set(1.0)
 
     def batch(self, axis_data, args, in_dims):
         (trail,) = args
@@ -461,7 +462,7 @@ class MakeLocated(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, trail, location):
-        return Located(trail, jnp.asarray(location))
+        return Located(trail, tx.data(location))
 
     def batch(self, axis_data, args, in_dims):
         trail, loc = args
@@ -478,7 +479,7 @@ class TransformLocated(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, loc: Located, t):
-        t = jnp.asarray(t)
+        t = tx.data(t)
         p = t[..., None, :, :] @ loc.location
         if p.ndim == 3:
             p = p[:, None]
@@ -583,7 +584,7 @@ def concat_trails(a, b) -> Trail:
 
 
 def transform_trail(trail, t) -> Trail:
-    t = jnp.asarray(t)
+    t = tx.data(t)
     return TransformTrail(jax.typeof(trail), jax.typeof(t))(trail, t)
 
 
@@ -608,12 +609,12 @@ def trail_segment(trail) -> Segment:
 
 
 def make_located(trail, location) -> Located:
-    location = jnp.asarray(location)
+    location = tx.data(location)
     return MakeLocated(jax.typeof(trail), jax.typeof(location))(trail, location)
 
 
 def transform_located(loc, t) -> Located:
-    t = jnp.asarray(t)
+    t = tx.data(t)
     return TransformLocated(jax.typeof(loc), jax.typeof(t))(loc, t)
 
 
@@ -642,7 +643,7 @@ def arc_seg(offset: V2_t, height: tx.Floating) -> Trail:
 
 
 def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
-    arc_p = tx.to_point(tx.polar(angle))
+    arc_p = tx.polar(angle)
     return Segment.make(
         tx.translation(-arc_p), tx.np.asarray([angle, dangle])
     ).to_trail()

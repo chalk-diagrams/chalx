@@ -52,7 +52,7 @@ class Subdiagram:
     # style: Style
 
     def get_location(self) -> P2_t:
-        r: P2_t = self.transform @ tx.origin
+        r: P2_t = tx.data(self.transform) @ tx.data(tx.origin)
         return r
 
     def get_envelope(self) -> Envelope:
@@ -68,7 +68,7 @@ class Subdiagram:
         """
         o = self.get_location()
         d, m = self.get_trace().trace_p(o, -v)
-        return tx.np.where(m, d, tx.origin)
+        return tx.np.where(m, d, tx._origin_arr)
 
 
 class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
@@ -103,7 +103,7 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 def get_subdiagram(self: Diagram, name: Any) -> Optional[Subdiagram]:
     if not isinstance(name, Name):
         name = Name(name)
-    return self._accept(GetSubdiagram(name), tx.ident).data
+    return self._accept(GetSubdiagram(name), tx._ident_arr).data
 
 
 def with_names(

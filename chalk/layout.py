@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def get_primitives(self: SingleDiagram) -> List[Primitive]:
-    return self._accept(ToListOrder(), tx.ident).ls
+    return self._accept(ToListOrder(), tx._ident_arr).ls
 
 
 def animate(

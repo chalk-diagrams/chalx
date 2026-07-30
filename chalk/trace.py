@@ -106,8 +106,10 @@ class Trace(Transformable):
         return transform_trace(self, t)
 
     def trace_v(self, p: P2_t, v: V2_t) -> Tuple[tx.V2_tC, tx.MaskC]:
-        v = tx.norm(v)
-        dists, m = trace_ray(self, p, v)
+        v = tx.norm(tx.data(v) if not isinstance(v, tx.Vec) else v)
+        if isinstance(v, tx.Vec):
+            v = tx.data(v)
+        dists, m = trace_ray(self, tx.data(p), v)
         d = tx.np.sort(dists + (1 - m) * 1e10, axis=-1)
         ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=-1)
         m = tx.np.take_along_axis(m, ad, axis=-1)
@@ -212,13 +214,13 @@ def make_trace(segment) -> Trace:
 
 
 def transform_trace(tr, t) -> Trace:
-    t = jnp.asarray(t)
+    t = tx.data(t)
     return TransformTrace(jax.typeof(tr), jax.typeof(t))(tr, t)
 
 
 def trace_ray(tr, point, direction) -> Tuple[jax.Array, jax.Array]:
-    point = jnp.asarray(point)
-    direction = jnp.asarray(direction)
+    point = tx.data(point)
+    direction = tx.data(direction)
     return TraceRay(jax.typeof(tr), jax.typeof(point), jax.typeof(direction))(
         tr, point, direction
     )
@@ -240,7 +242,7 @@ class _GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
 
 def get_trace(self: Diagram) -> Trace:
-    return make_trace(self._accept(_GetLocatedSegments(), tx.ident))
+    return make_trace(self._accept(_GetLocatedSegments(), tx._ident_arr))
 
 
 __all__ = [

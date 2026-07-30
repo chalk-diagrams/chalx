@@ -82,7 +82,9 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
     return tx.np.asarray(v)
 
 
-ALL_DIR = tx.np.stack([tx.unit_x, -tx.unit_x, tx.unit_y, -tx.unit_y], axis=0)
+ALL_DIR = tx.np.stack(
+    [tx._unit_x_arr, -tx._unit_x_arr, tx._unit_y_arr, -tx._unit_y_arr], axis=0
+)
 
 
 @dataclass(frozen=True)
@@ -134,7 +136,7 @@ class Envelope(Transformable):
         return make_envelope(self.segment.map_prefix(fn))
 
     def __call__(self, direction: tx.V2_tC) -> Float[tx.Array, "..."]:
-        return envelope_measure(self, direction)
+        return envelope_measure(self, tx.data(direction))
 
     def __add__(self, other: Envelope) -> Envelope:
         return concat_envelopes(self, other)
@@ -303,12 +305,12 @@ def concat_envelopes(a, b) -> Envelope:
 
 
 def transform_envelope(envelope, t) -> Envelope:
-    t = jnp.asarray(t)
+    t = tx.data(t)
     return TransformEnvelope(jax.typeof(envelope), jax.typeof(t))(envelope, t)
 
 
 def envelope_measure(envelope, direction) -> jax.Array:
-    direction = jnp.asarray(direction)
+    direction = tx.data(direction)
     return EnvelopeMeasure(jax.typeof(envelope), jax.typeof(direction))(
         envelope, direction
     )
@@ -339,7 +341,7 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     if t is None:
-        t = tx.ident
+        t = tx._ident_arr
     segment = self._accept(GetLocatedSegments(), t)
     transform, _ = segment_parts(segment)
     seg_shape = transform.shape[:-2]

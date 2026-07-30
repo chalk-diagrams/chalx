@@ -35,19 +35,21 @@ from chalk.array_types import (
 from jaxtyping import Float
 from typing_extensions import Self
 
+import chalk.geom as geom
+from chalk.geom import Affine, Pt, Vec, data
+
 # Core shaped types used throughout
 # *#B means arbitrary or no batch dimension
 #
 
-Affine = Float[Array, "*#B 3 3"]
-"""An affine transformation with a batch"""
-
+AffineArr = Float[Array, "*#B 3 3"]
 Angles = Float[Array, "*#B 2"]
 """An arc specified by start and angle diff."""
 
-V2_t = Float[Array, "*#B 3 1"]
-
-P2_t = Float[Array, "*#B 3 1"]
+V2_t = Vec
+P2_t = Pt
+V2_tC = Float[Array, "*#C 3 1"]
+P2_tC = Float[Array, "*#C 3 1"]
 
 ColorVec = Float[Array, "#*B 3"]
 """A batch of RGB colors"""
@@ -55,43 +57,47 @@ ColorVec = Float[Array, "#*B 3"]
 
 Property = Float[Array, "#*B"]
 
-V2_tC = Float[Array, "*#C 3 1"]
-P2_tC = Float[Array, "*#C 3 1"]
+# Homogeneous array constants (for jitted / expand code).
+_unit_x_arr = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
+_unit_y_arr = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
+_origin_arr = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
+_ident_arr = np.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
-
-# Basic geometric primitives
-unit_x: V2_t = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
-unit_y: V2_t = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
-origin: P2_t = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
-ident: Affine = np.asarray([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0, 0, 1]]]).reshape(
-    (3, 3)
-)
+unit_x: V2_t = geom.unit_x
+unit_y: V2_t = geom.unit_y
+origin: P2_t = geom.origin
+ident: Affine = geom.ident
 
 
 def make_ident(shape: Tuple[int, ...]) -> Affine:
     """Create an identity affine with the given shape."""
-    return np.broadcast_to(ident, shape + (3, 3))
+    return geom.make_ident(shape)
 
 
-@jit
-# @partial(vectorize, signature="(),()->(3,1)")
 def V2(x: Floating, y: Floating) -> V2_t:
     """Map (x,y) of any shape to a (batched) vector."""
     if isinstance(x, float) and isinstance(y, float):
-        return np.array([x, y, 0]).reshape(3, 1)
-
-    x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
-    s: V2_t = np.stack([x, y, o], axis=-1)[..., None]
-    return s
+        return geom.make_v2(x, y)
+    x, y = np.broadcast_arrays(ftos(x), ftos(y))
+    return geom.make_v2(x, y)
 
 
-@jit
-# @partial(vectorize, signature="(),()->(3,1)")
 def P2(x: Floating, y: Floating) -> P2_t:
     """Map (x,y) of any shape to a (batched) point."""
+    x, y = np.broadcast_arrays(ftos(x), ftos(y))
+    return geom.make_p2(x, y)
+
+
+def _v2_arr(x: Floating, y: Floating):
+    if isinstance(x, float) and isinstance(y, float):
+        return np.array([x, y, 0.0]).reshape(3, 1)
+    x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(0.0))
+    return np.stack([x, y, o], axis=-1)[..., None]
+
+
+def _p2_arr(x: Floating, y: Floating):
     x, y, o = np.broadcast_arrays(ftos(x), ftos(y), ftos(1.0))
-    s: P2_t = np.stack([x, y, o], axis=-1)[..., None]
-    return s
+    return np.stack([x, y, o], axis=-1)[..., None]
 
 
 @jit
@@ -99,60 +105,104 @@ def P2(x: Floating, y: Floating) -> P2_t:
 def to_P2(x: Float[Array, "*B 2"]) -> P2_t:
     """Map a standard vector to a point"""
     _, o = np.broadcast_arrays(x[..., :1], ftos(1.0))
-    s: P2_t = np.concatenate([x, o], axis=-1)[..., None]
-    return s
+    s = np.concatenate([x, o], axis=-1)[..., None]
+    return geom.make_p2_from_data(s)
 
 
 @jit
+def _norm_arr(v):
+    return v / _length_arr(v)[..., None, None]
+
+
 def norm(v: V2_t) -> V2_t:
-    v = v / length(v)[..., None, None]
-    return v
+    if isinstance(v, Vec):
+        return geom.v2_scale(v, 1.0 / geom.length(v))
+    return _norm_arr(v)
 
 
 @jit
+def _length_arr(v) -> Scalars:
+    return np.asarray(np.sqrt(_length2_arr(v)))
+
+
 def length(v: V2_t) -> Scalars:
     """Length of a vector"""
-    return np.asarray(np.sqrt(length2(v)))
+    if isinstance(v, (Vec, Pt)):
+        return geom.length(geom.as_vec(v))
+    return _length_arr(v)
 
 
 @partial(vectorize, signature="(3,1),()->(3,1)")
+def _scale_vec_arr(v, d):
+    d = np.asarray(d)
+    return d[..., None, None] * v
+
+
 def scale_vec(v: V2_t, d: Floating) -> V2_t:
     """Scale a vector by a scalar"""
-    d = np.asarray(d)
-    v = d[..., None, None] * v
-    return v
+    if isinstance(v, Vec):
+        return geom.v2_scale(v, d)
+    return _scale_vec_arr(v, d)
 
 
 @jit
 @partial(vectorize, signature="(3,1)->()")
-def length2(v: V2_t) -> Scalars:
-    """Length^2 of a vector"""
+def _length2_arr(v) -> Scalars:
     return np.asarray((v * v)[..., :2, 0].sum(-1))
 
 
+def length2(v: V2_t) -> Scalars:
+    """Length^2 of a vector"""
+    if isinstance(v, (Vec, Pt)):
+        return geom.length2(geom.as_vec(v))
+    return _length2_arr(v)
+
+
 @jit
 @partial(vectorize, signature="(3,1)->()")
+def _angle_arr(v) -> Scalars:
+    return np.asarray(from_rad * np.arctan2(v[..., 1, 0], v[..., 0, 0]))
+
+
 def angle(v: V2_t) -> Scalars:
     """Angle of a vector in degrees"""
-    return np.asarray(from_rad * rad(v))
+    return _angle_arr(data(v))
 
 
 @jit
 @partial(vectorize, signature="(3,1)->()")
+def _rad_arr(v) -> Scalars:
+    return np.asarray(np.arctan2(v[..., 1, 0], v[..., 0, 0]))
+
+
 def rad(v: P2_t) -> Scalars:
     """Angle of a vector in radians"""
-    return np.asarray(np.arctan2(v[..., 1, 0], v[..., 0, 0]))
+    return _rad_arr(data(v))
 
 
 @jit
 @partial(vectorize, signature="(3,1)->(3,1)")
+def _perpendicular_arr(v):
+    return np.stack([-v[..., 1, :], v[..., 0, :], v[..., 2, :]], axis=-2)
+
+
 def perpendicular(v: V2_t) -> V2_t:
     """Perpendicular of a vector"""
-    return np.stack([-v[..., 1, :], v[..., 0, :], v[..., 2, :]], axis=-2)
+    out = _perpendicular_arr(data(v))
+    if isinstance(v, Vec):
+        return geom.make_v2_from_data(out)
+    return out
 
 
 @jit
 @partial(vectorize, signature="(),(),(),(),(),()->(3,3)")
+def _make_affine_arr(a, b, c, d, e, f):
+    vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
+    vals = np.broadcast_arrays(*vals)  # type: ignore
+    x = np.stack(vals, axis=-1)
+    return x.reshape(vals[0].shape + (3, 3))
+
+
 def make_affine(
     a: Floating,
     b: Floating,
@@ -161,90 +211,127 @@ def make_affine(
     e: Floating,
     f: Floating,
 ) -> Affine:
-    """Create affine array from values"""
-    vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
-    vals = np.broadcast_arrays(*vals)  # type: ignore
-    x = np.stack(vals, axis=-1)
-    r: Affine = x.reshape(vals[0].shape + (3, 3))
-    return r
+    """Create affine from values"""
+    return geom.make_xf(_make_affine_arr(a, b, c, d, e, f))
 
 
 @jit
 @partial(vectorize, signature="(3,1),(3,1)->()")
-def dot(v1: V2_t, v2: V2_t) -> Scalars:
-    """Dot of vectors"""
+def _dot_arr(v1, v2) -> Scalars:
     return np.asarray((v1 * v2).sum(-1).sum(-1))
 
 
+def dot(v1: V2_t, v2: V2_t) -> Scalars:
+    """Dot of vectors"""
+    return _dot_arr(data(v1), data(v2))
+
+
 @jit
 @partial(vectorize, signature="(3,1),(3,1)->()")
+def _cross_arr(v1, v2) -> Scalars:
+    return np.cross(v1, v2)
+
+
 def cross(v1: V2_t, v2: V2_t) -> Scalars:
     """Cross of vectors"""
-    s: Scalars = np.cross(v1, v2)
-    return s
+    return _cross_arr(data(v1), data(v2))
 
 
 def to_point(v: V2_t) -> P2_t:
     """Convert a vector to a point (allows transpose)"""
-    index = (Ellipsis, 2, 0)
-    return index_update(v, index, 1)  # type: ignore
+    if isinstance(v, Pt):
+        return v
+    if isinstance(v, Vec):
+        return geom.to_point(v)
+    return geom.make_p2_from_data(index_update(data(v), (Ellipsis, 2, 0), 1))
 
 
-@jit
-@partial(vectorize, signature="(3,1)->(3,1)")
 def to_vec(p: P2_t) -> V2_t:
     """Convert a point to a vector (disallows transpose)"""
-    index = (Ellipsis, 2, 0)
-    return index_update(p, index, 0)  # type: ignore
+    if isinstance(p, Vec):
+        return p
+    if isinstance(p, Pt):
+        return geom.to_vec(p)
+    return geom.make_v2_from_data(index_update(data(p), (Ellipsis, 2, 0), 0))
 
 
 @jit
 @partial(vectorize, signature="()->(3,1)")
-def polar(angle: Floating) -> V2_t:
-    """Angle in degress to a vector"""
+def _polar_arr(angle: Floating):
     rad = to_radians(angle)
     x, y = np.cos(rad), np.sin(rad)
-    return V2(x, y)
+    return _v2_arr(x, y)
+
+
+def polar(angle: Floating) -> V2_t:
+    """Angle in degress to a vector.
+
+    Returns a homogeneous array for use in jitted geometry kernels.
+    Wrap with ``V2``/``make_v2_from_data`` at user boundaries if needed.
+    """
+    return _polar_arr(angle)
 
 
 @jit
 @partial(vectorize, signature="(3,1)->(3,3)")
+def _scale_arr(vec):
+    base = np.broadcast_to(_ident_arr, vec.shape[:-2] + (3, 3))
+    index = (Ellipsis, np.arange(0, 2), np.arange(0, 2))
+    return index_update(base, index, vec[..., :2, 0])
+
+
 def scale(vec: V2_t) -> Affine:
     """Create a affine scale matrix"""
-    base = make_ident(vec.shape[:-2])
-    index = (Ellipsis, np.arange(0, 2), np.arange(0, 2))
-    return index_update(base, index, vec[..., :2, 0])  # type: ignore
+    if isinstance(vec, Vec):
+        return geom.xf_scale(vec)
+    return geom.make_xf(_scale_arr(data(vec)))
 
 
 @jit
 @partial(vectorize, signature="(3,1)->(3,3)")
+def _translation_arr(vec):
+    index = (Ellipsis, slice(0, 2), 2)
+    base = np.broadcast_to(_ident_arr, vec.shape[:-2] + (3, 3))
+    return index_update(base, index, vec[..., :2, 0])
+
+
 def translation(vec: V2_t) -> Affine:
     """Create an affine translation matrix"""
-    index = (Ellipsis, slice(0, 2), 2)
-    base = make_ident(vec.shape[:-2])
-    return index_update(base, index, vec[..., :2, 0])  # type: ignore
+    if isinstance(vec, Vec):
+        return geom.xf_translation(vec)
+    return geom.make_xf(_translation_arr(data(vec)))
 
 
 @jit
 @partial(vectorize, signature="(3,3)->(3,1)")
-def get_translation(aff: Affine) -> V2_t:
-    """Get the translation of an affine matrix"""
+def _get_translation_arr(aff):
     index = (Ellipsis, slice(0, 2), 0)
     base = np.zeros((aff.shape[:-2]) + (3, 1))
-    return index_update(base, index, aff[..., :2, 2])  # type: ignore
+    return index_update(base, index, aff[..., :2, 2])
+
+
+def get_translation(aff: Affine) -> V2_t:
+    """Get the translation of an affine matrix"""
+    if isinstance(aff, Affine):
+        return geom.xf_get_translation(aff)
+    return _get_translation_arr(aff)
 
 
 @jit
-def rotation(r: Floating) -> Affine:
-    """Create an affine rotation matrix in radians"""
+def _rotation_arr(r: Floating):
     rad = ftos(r)
     shape = rad.shape
     rad = -rad
     ca, sa = np.cos(rad), np.sin(rad)
     m = np.stack([ca, -sa, sa, ca], axis=-1).reshape(shape + (2, 2))
     index = (Ellipsis, slice(0, 2), slice(0, 2))
-    base = make_ident(shape)
-    return index_update(base, index, m)  # type: ignore
+    base = np.broadcast_to(_ident_arr, shape + (3, 3))
+    return index_update(base, index, m)
+
+
+def rotation(r: Floating) -> Affine:
+    """Create an affine rotation matrix in radians"""
+    return geom.make_xf(_rotation_arr(r))
 
 
 def rotation_angle(r: Floating) -> Affine:
@@ -406,20 +493,21 @@ class BoundingBox(Transformable):
 
     def apply_transform(self, t: Affine) -> Self:  # type: ignore
         # Todo: fix rotation
-        tl = t @ self.tl
-        br = t @ self.br
+        t = data(t)
+        tl = t @ data(self.tl)
+        br = t @ data(self.br)
         tl2 = np.minimum(tl, br)
         br2 = np.maximum(tl, br)
-        return BoundingBox(tl2, br2)  # type: ignore
+        return BoundingBox(geom.make_p2_from_data(tl2), geom.make_p2_from_data(br2))  # type: ignore
 
     @property
     def width(self) -> Scalars:
-        s: Scalars = (self.br - self.tl)[..., 0, 0]
+        s: Scalars = (data(self.br) - data(self.tl))[..., 0, 0]
         return s
 
     @property
     def height(self) -> Scalars:
-        s: Scalars = (self.br - self.tl)[..., 1, 0]
+        s: Scalars = (data(self.br) - data(self.tl))[..., 1, 0]
         return s
 
     def to_rect(self) -> Any:  # type: ignore

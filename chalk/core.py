@@ -83,6 +83,7 @@ class BaseDiagram(chalk.types.Diagram):
     def apply_transform(self: BatchDiagram, t: Affine) -> BroadDiagram:
         from chalk.diag import diag_xf
 
+        t = tx.data(t)
         new_diagram = ApplyTransform(t, Empty())
         new, other = broadcast_diagrams(new_diagram, self)
         assert isinstance(new, ApplyTransform)
@@ -272,11 +273,12 @@ class Primitive(BaseDiagram):
     def from_path(cls, shape: Path) -> BatchPrimitive:
         from chalk.diag import diag_prim
 
-        return diag_prim(shape, tx.make_ident(shape.shape))
+        return diag_prim(shape, tx.data(tx.make_ident(shape.shape)))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
         from chalk.diag import diag_prim
 
+        t = tx.data(t)
         chalk.broadcast.check(t.shape[:-2], self.shape, str(type(self)), "Transform")
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
@@ -346,6 +348,7 @@ class ApplyTransform(BaseDiagram):
     def apply_transform(self, t: Affine) -> ApplyTransform:
         from chalk.diag import diag_xf
 
+        t = tx.data(t)
         new_diagram = ApplyTransform(t @ self.transform, Empty())
         new, other = broadcast_diagrams(new_diagram, self.diagram)
         return diag_xf(other, new.transform)

@@ -186,7 +186,7 @@ class Path(Transformable):
 
     @staticmethod
     def from_points(points: List[P2_t], closed: bool = False) -> Path:
-        ls_points = tx.np.broadcast_arrays(*points)
+        ls_points = tx.np.broadcast_arrays(*[tx.data(p) for p in points])
         return Path.from_array(tx.np.stack(ls_points, axis=-3), closed)
 
     @staticmethod
@@ -339,7 +339,7 @@ class TransformPath(VJPHiPrimitive):
 
 
 def transform_path(path, t) -> Path:
-    t = jnp.asarray(t)
+    t = tx.data(t)
     return TransformPath(jax.typeof(path), jax.typeof(t))(path, t)
 
 
