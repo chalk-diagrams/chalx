@@ -11,6 +11,7 @@ Chalk is a Python library for declarative drawing and diagrams. It provides a fu
 | Format check | `ruff format --check chalk/` |
 | Type check | `pyright` |
 | Run tests | `pytest tests/` |
+| Run hijax Path mock | `pytest tests/test_hijax_path.py` |
 | Run example | `python3 examples/intro.py` |
 | Pre-commit | `pre-commit run --all-files` or `make style` |
 
@@ -21,6 +22,8 @@ Chalk is a Python library for declarative drawing and diagrams. It provides a fu
   - `shapes.py` - Shape primitives (circle, square, rectangle, etc.)
   - `combinators.py` - Composition functions (hcat, vcat, beside, above)
   - `trail.py` - Path/trail construction
+  - `path.py` - Pytree-batched Path (prefix batch dims on arrays)
+  - `hijax_path.py` - Experimental opaque hijax Path mock
   - `transform.py` - Geometric transformations (V2, P2, Affine)
   - `style.py` - Styling (colors, line widths)
   - `backend/` - Rendering backends (cairo.py, svg.py, matplotlib.py)
@@ -44,6 +47,17 @@ diagram = hcat([c, s])  # or c | s
 # Render
 diagram.render('output.png', height=256)
 diagram.render_svg('output.svg', height=256)
+```
+
+## Hijax Path mock
+
+`chalk/hijax_path.py` is an experimental opaque Path built on
+[`jax.experimental.hijax`](https://docs.jax.dev/en/latest/hijax_types.html).
+It is not wired into the main `chalk.path.Path` yet.
+
+```bash
+pytest tests/test_hijax_path.py
+python examples/hijax_path.py
 ```
 
 ## Known Issues
