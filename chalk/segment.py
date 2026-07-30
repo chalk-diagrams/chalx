@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Tuple
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
-from chalk.transform import Affine, Angles, Batchable, Batched, P2_t, V2_t
+from chalk.transform import Affine, Angles, P2_t, V2_t
 
 if TYPE_CHECKING:
     from jaxtyping import Array
@@ -32,9 +32,11 @@ def _ensure_2d(x: tx.Array) -> tx.Array:
 
 
 @dataclass(frozen=True)
-class Segment(Monoid, Batchable):
-    """A batch of ellipse arcs with starting angle and the delta.
-    The monoid operation is the concat along the batch dimension.
+class Segment(Monoid):
+    """Ellipse arcs with start angle and delta.
+
+    The monoid concatenates along the segment axis. Prefix batch dims may
+    exist on the stored arrays, but Segment is not itself a Batchable array.
     """
 
     transform: Affine
@@ -44,28 +46,24 @@ class Segment(Monoid, Batchable):
     def shape(self) -> Tuple[int, ...]:
         return self.transform.shape[:-2]
 
-    @property
-    def dtype(self) -> str:
-        return "seg"
-
     def tuple(self) -> Tuple[Affine, Angles]:
         return self.transform, self.angles
 
     @staticmethod
-    def empty() -> Batched[Segment, "0"]:
+    def empty() -> Segment:
         return Segment(
             tx.np.empty((0, 3, 3)),
             tx.np.empty((0, 2)),
         )
 
     @staticmethod
-    def make(transform: Affine, angles: Angles) -> Segment_t:
+    def make(transform: Affine, angles: Angles) -> Segment:
         assert angles.shape[-1] == 2
         angles = tx.prefix_broadcast(angles, transform.shape[:-2], 1)  # type: ignore
         return Segment(transform, angles.astype(float))
 
     def promote(self) -> Segment:
-        """Ensures that there is a batch axis"""
+        """Ensures that there is a segment axis."""
         return Segment(_ensure_3d(self.transform), _ensure_2d(self.angles))
 
     def to_trail(self) -> Trail:
@@ -80,8 +78,7 @@ class Segment(Monoid, Batchable):
             self.angles.reshape(*shape[:-2], -1, 2),
         )
 
-    # Transformable
-    def apply_transform(self, t: Affine) -> Segment_t:
+    def apply_transform(self, t: Affine) -> Segment:
         return Segment.make(t @ self.transform, self.angles)
 
     def __add__(self, other: Segment) -> Segment:
@@ -108,7 +105,7 @@ class Segment(Monoid, Batchable):
         )
 
     @property
-    def q(self: Segment_t) -> P2_t:
+    def q(self) -> P2_t:
         """Target point"""
         q: P2_t = tx.to_point(tx.polar(self.angles.sum(-1)))
         q = self.transform @ q
@@ -129,7 +126,7 @@ class Segment(Monoid, Batchable):
         return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
 
 
-def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment_t:
+def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     p, q = tx.np.broadcast_arrays(p, q)
     h = abs(height)
     d = tx.length(q - p)
@@ -195,8 +192,5 @@ def arc_trace(
     mask = tx.np.stack([mask1, mask2], -1)
     return d, mask
 
-
-BatchSegment = Batched[Segment, "*#B"]
-Segment_t = BatchSegment
 
 __all__ = []

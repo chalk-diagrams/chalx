@@ -8,7 +8,7 @@ from jaxtyping import Float
 
 import chalk.transform as tx
 from chalk.monoid import Monoid
-from chalk.segment import BatchSegment, Segment, arc_envelope
+from chalk.segment import Segment, arc_envelope
 from chalk.transform import (
     P2,
     V2,
@@ -71,7 +71,7 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
 
 @dataclass
 class Envelope(Transformable, Monoid, Batchable):
-    segment: BatchSegment
+    segment: Segment
 
     def __call__(self: BatchEnvelope, direction: tx.V2_tC) -> Float[tx.Array, "..."]:
         """Compute the shortest distance from the origin to the envelope boundary in the given

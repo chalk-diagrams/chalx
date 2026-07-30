@@ -60,6 +60,8 @@ class Located(Transformable):
 
 @dataclass(frozen=True, unsafe_hash=True)
 class Trail(Monoid, Transformable, TrailLike):
+    """A sequence of segments. Not a batched array type."""
+
     segments: Segment
     closed: tx.Mask
 
