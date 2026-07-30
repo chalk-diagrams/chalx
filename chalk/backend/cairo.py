@@ -36,7 +36,7 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             c2 = v[i + 1] + 2 / 3 * (v[i] - v[i + 1])
             ctx.curve_to(
                 c1[0],
-                c1[0],
+                c1[1],
                 c2[0],
                 c2[1],
                 v[i + 1, 0],
@@ -78,11 +78,16 @@ def patches_to_file(
     time: Tuple[int, ...] = (),
 ) -> None:
     import cairo
+    from PIL import Image
 
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(width), int(height))
     ctx = cairo.Context(surface)
     render_cairo_patches(patches, ctx, time)
     surface.write_to_png(path)
+    # Cairo writes transparency; composite onto white so black strokes are visible.
+    png = Image.open(path).convert("RGBA")
+    background = Image.new("RGBA", png.size, (255, 255, 255, 255))
+    Image.alpha_composite(background, png).convert("RGB").save(path)
 
 
 def render(
