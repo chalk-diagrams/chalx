@@ -29,3 +29,10 @@ def test_peek_root_class_not_required():
     d = circle(1) | square(1)
     # users shouldn't need the node type; typeof stays diag
     assert "diag" in str(jax.typeof(d))
+
+
+def test_add_is_atop():
+    a, b = circle(1), square(1)
+    d = a + b
+    assert str(jax.typeof(d)).startswith("diag")
+    assert d.size() == a.size()

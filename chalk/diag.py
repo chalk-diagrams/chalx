@@ -266,6 +266,197 @@ def _register():
 _register()
 
 
+# ---------------------------------------------------------------------------
+# Constructor primitives (opaque build API)
+# ---------------------------------------------------------------------------
+
+
+class DiagEmpty(VJPHiPrimitive):
+    def __init__(self):
+        self.in_avals = ()
+        self.out_aval = DiagTy("empty")
+        self.params = {}
+        super().__init__()
+
+    def expand(self):
+        return C.Empty()
+
+    def batch(self, axis_data, args, in_dims):
+        return diag_empty(), None
+
+
+def diag_empty():
+    return DiagEmpty()()
+
+
+class DiagPrim(VJPHiPrimitive):
+    def __init__(self, path_aval, xf_aval, style_aval=None, order_aval=None):
+        ins = [path_aval, xf_aval]
+        if style_aval is not None:
+            ins.append(style_aval)
+        if order_aval is not None:
+            ins.append(order_aval)
+        xf_shape = tuple(xf_aval.shape[:-2])
+        self.in_avals = tuple(ins)
+        self.out_aval = DiagTy(
+            "prim",
+            xf_shape,
+            path_aval,
+            style_aval,
+            xf_shape,
+            order_aval is not None,
+        )
+        self.params = dict(
+            has_style=style_aval is not None, has_order=order_aval is not None
+        )
+        super().__init__()
+
+    def expand(self, path, xf, *rest):
+        style = rest[0] if self.has_style else None
+        order = rest[-1] if self.has_order else None
+        return C.Primitive(path, style, xf, order)
+
+    def batch(self, axis_data, args, in_dims):
+        path, xf, *rest = args
+        style = rest[0] if self.has_style else None
+        order = rest[-1] if self.has_order else None
+        out = diag_prim(path, xf, style, order)
+        return out, (None if all(d is None for d in in_dims) else DiagSpec())
+
+
+def diag_prim(path, xf, style=None, order=None):
+    xf = jnp.asarray(xf)
+    args = [path, xf]
+    sav = jax.typeof(style) if style is not None else None
+    oav = jax.typeof(order) if order is not None else None
+    if style is not None:
+        args.append(style)
+    if order is not None:
+        args.append(order)
+    return DiagPrim(jax.typeof(path), jax.typeof(xf), sav, oav)(*args)
+
+
+class DiagXf(VJPHiPrimitive):
+    def __init__(self, child_aval: DiagTy, xf_aval):
+        self.in_avals = (child_aval, xf_aval)
+        xf_shape = tuple(xf_aval.shape[:-2])
+        self.out_aval = DiagTy("xf", xf_shape, None, None, xf_shape, False, (child_aval,))
+        self.params = {}
+        super().__init__()
+
+    def expand(self, child, xf):
+        return C.ApplyTransform(xf, child)
+
+    def batch(self, axis_data, args, in_dims):
+        child, xf = args
+        out = diag_xf(child, xf)
+        return out, (None if all(d is None for d in in_dims) else DiagSpec())
+
+
+def diag_xf(diagram, xf):
+    xf = jnp.asarray(xf)
+    return DiagXf(jax.typeof(diagram), jax.typeof(xf))(diagram, xf)
+
+
+class DiagStyle(VJPHiPrimitive):
+    def __init__(self, child_aval: DiagTy, style_aval: StyleTy):
+        self.in_avals = (child_aval, style_aval)
+        self.out_aval = DiagTy(
+            "style", style_aval.batch_shape, None, style_aval, (), False, (child_aval,)
+        )
+        self.params = {}
+        super().__init__()
+
+    def expand(self, child, style):
+        return C.ApplyStyle(style, child)
+
+    def batch(self, axis_data, args, in_dims):
+        child, style = args
+        out = diag_style(child, style)
+        return out, (None if all(d is None for d in in_dims) else DiagSpec())
+
+
+def diag_style(diagram, style):
+    return DiagStyle(jax.typeof(diagram), jax.typeof(style))(diagram, style)
+
+
+class DiagName(VJPHiPrimitive):
+    def __init__(self, child_aval: DiagTy, name: Tuple[Any, ...]):
+        self.in_avals = (child_aval,)
+        self.out_aval = DiagTy(
+            "name", child_aval.batch, None, None, (), False, (child_aval,), None, name
+        )
+        self.params = dict(name=name)
+        super().__init__()
+
+    def expand(self, child):
+        return C.ApplyName(Name(self.name), child)
+
+    def batch(self, axis_data, args, in_dims):
+        (child,) = args
+        out = diag_name(child, Name(self.name))
+        return out, (None if in_dims[0] is None else DiagSpec())
+
+
+def diag_name(diagram, name: Name):
+    return DiagName(jax.typeof(diagram), name.atomic_names)(diagram)
+
+
+class DiagCompose(VJPHiPrimitive):
+    def __init__(self, child_avals: Tuple[DiagTy, ...], env_aval: Optional[DiagTy]):
+        ins = list(child_avals) if env_aval is None else [env_aval, *child_avals]
+        batch = child_avals[0].batch if child_avals else ()
+        self.in_avals = tuple(ins)
+        self.out_aval = DiagTy(
+            "compose", batch, None, None, (), False, child_avals, env_aval
+        )
+        self.params = dict(n=len(child_avals), has_env=env_aval is not None)
+        super().__init__()
+
+    def expand(self, *args):
+        if self.has_env:
+            env, *children = args
+        else:
+            env, children = None, args
+        return C.Compose(env, tuple(children))
+
+    def batch(self, axis_data, args, in_dims):
+        if self.has_env:
+            env, *children = args
+        else:
+            env, children = None, args
+        out = diag_compose(tuple(children), env)
+        return out, (None if all(d is None for d in in_dims) else DiagSpec())
+
+
+def diag_compose(children, envelope=None):
+    children = tuple(children)
+    env_av = jax.typeof(envelope) if envelope is not None else None
+    args = (envelope, *children) if envelope is not None else children
+    return DiagCompose(tuple(jax.typeof(c) for c in children), env_av)(*args)
+
+
+class DiagAxis(VJPHiPrimitive):
+    def __init__(self, child_aval: DiagTy):
+        self.in_avals = (child_aval,)
+        batch = child_aval.batch[:-1] if child_aval.batch else ()
+        self.out_aval = DiagTy("axis", batch, None, None, (), False, (child_aval,))
+        self.params = {}
+        super().__init__()
+
+    def expand(self, child):
+        return C.ComposeAxis(child)
+
+    def batch(self, axis_data, args, in_dims):
+        (child,) = args
+        out = diag_axis(child)
+        return out, (None if in_dims[0] is None else DiagSpec())
+
+
+def diag_axis(diagram):
+    return DiagAxis(jax.typeof(diagram))(diagram)
+
+
 def map_diag_prefix(d, fn: Callable):
     if isinstance(d, C.Empty):
         return d
@@ -276,20 +467,20 @@ def map_diag_prefix(d, fn: Callable):
         order = fn(d.order) if d.order is not None else None
         if xf is None:
             return d
-        return C.Primitive(path, style, xf, order)
+        return diag_prim(path, xf, style, order)
     if isinstance(d, C.ApplyTransform):
         xf = fn(d.transform)
         child = map_diag_prefix(d.diagram, fn)
         if xf is None:
-            return C.ApplyTransform(d.transform, child)
-        return C.ApplyTransform(xf, child)
+            return diag_xf(child, d.transform)
+        return diag_xf(child, xf)
     if isinstance(d, C.ApplyStyle):
-        return C.ApplyStyle(d.style.map_prefix(fn), map_diag_prefix(d.diagram, fn))
+        return diag_style(map_diag_prefix(d.diagram, fn), d.style.map_prefix(fn))
     if isinstance(d, C.ApplyName):
-        return C.ApplyName(d.dname, map_diag_prefix(d.diagram, fn))
+        return diag_name(map_diag_prefix(d.diagram, fn), d.dname)
     if isinstance(d, C.Compose):
         env = map_diag_prefix(d.envelope, fn) if d.envelope is not None else None
-        return C.Compose(env, tuple(map_diag_prefix(c, fn) for c in d.diagrams))
+        return diag_compose(tuple(map_diag_prefix(c, fn) for c in d.diagrams), env)
     if isinstance(d, C.ComposeAxis):
-        return C.ComposeAxis(map_diag_prefix(d.diagrams, fn))
+        return diag_axis(map_diag_prefix(d.diagrams, fn))
     return d

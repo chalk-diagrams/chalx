@@ -16,7 +16,6 @@ import chalk.combinators
 import chalk.envelope
 import chalk.layout
 import chalk.model
-import chalk.monoid
 import chalk.subdiagram
 import chalk.trace
 import chalk.transform as tx
@@ -39,7 +38,7 @@ from chalk.transform import (
 )
 
 Trail = Any
-A = TypeVar("A", bound=chalk.monoid.Monoid)
+A = TypeVar("A")
 
 Svg_Height = 200
 Svg_Draw_Height = None
@@ -61,7 +60,7 @@ def set_svg_draw_height(height: int) -> None:
 class BaseDiagram(chalk.types.Diagram):
     """Diagram class."""
 
-    # Monoid
+    # Monoid (``d1 + d2`` is atop; multi-concat uses reduce_associative)
     __add__ = chalk.combinators.atop
 
     @property
@@ -76,23 +75,31 @@ class BaseDiagram(chalk.types.Diagram):
 
     @classmethod
     def empty(cls) -> EmptyDiagram:  # type: ignore
-        return Empty()
+        from chalk.diag import diag_empty
+
+        return diag_empty()
 
     # Tranformable
     def apply_transform(self: BatchDiagram, t: Affine) -> BroadDiagram:
+        from chalk.diag import diag_xf
+
         new_diagram = ApplyTransform(t, Empty())
         new, other = broadcast_diagrams(new_diagram, self)
         assert isinstance(new, ApplyTransform)
-        return ApplyTransform(new.transform, other)
+        return diag_xf(other, new.transform)
 
     def _compose_axis(self: BatchDiagram) -> Diagram:
-        return ComposeAxis(self)
+        from chalk.diag import diag_axis
+
+        return diag_axis(self)
 
     # Stylable
     def apply_style(self: BatchDiagram, style: StyleHolder) -> BroadDiagram:
+        from chalk.diag import diag_style
+
         new_diagram = ApplyStyle(style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
-        return ApplyStyle(new_diagram.style, self)
+        return diag_style(self, new_diagram.style)
 
     def __repr__(self) -> str:
         return f"Diagram[{self.shape}]"
@@ -107,10 +114,12 @@ class BaseDiagram(chalk.types.Diagram):
         envelope: Optional[BatchDiagram] = None,
         other: Optional[BatchDiagram] = None,
     ) -> BroadDiagram:
+        from chalk.diag import diag_compose
+
         if other is None and isinstance(self, Compose):
-            return Compose(envelope, tuple(self.diagrams))
+            return diag_compose(tuple(self.diagrams), envelope)
         if other is None and not isinstance(self, Compose):
-            return Compose(envelope, (self,))
+            return diag_compose((self,), envelope)
 
         # Broadcast
         self, other = broadcast_diagrams(self, other)  # type: ignore
@@ -119,16 +128,16 @@ class BaseDiagram(chalk.types.Diagram):
             return other
         elif isinstance(self, Compose) and isinstance(other, Compose):
             if self.envelope is None and other.envelope is None:
-                return Compose(envelope, self.diagrams + other.diagrams)
+                return diag_compose(self.diagrams + other.diagrams, envelope)
             else:
-                return Compose(envelope, (self, other))
+                return diag_compose((self, other), envelope)
         elif isinstance(other, Empty) and not isinstance(self, Compose):
-            return Compose(envelope, (self,))
+            return diag_compose((self,), envelope)
 
         elif isinstance(other, Compose) and other.envelope is None:
-            return Compose(envelope, (self,) + other.diagrams)
+            return diag_compose((self,) + other.diagrams, envelope)
         else:
-            return Compose(envelope, (self, other))
+            return diag_compose((self, other), envelope)
 
     # Layout
     _layout = chalk.layout.layout
@@ -255,32 +264,36 @@ class Primitive(BaseDiagram):
     order: Optional[tx.Ints] = None
 
     def set_order(self: BatchPrimitive, order: tx.Ints) -> BatchPrimitive:
-        return Primitive(self.prim_shape, self.style, self.transform, order)
+        from chalk.diag import diag_prim
+
+        return diag_prim(self.prim_shape, self.transform, self.style, order)
 
     @classmethod
     def from_path(cls, shape: Path) -> BatchPrimitive:
-        return cls(shape, None, tx.make_ident(shape.shape))
+        from chalk.diag import diag_prim
+
+        return diag_prim(shape, tx.make_ident(shape.shape))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
+        from chalk.diag import diag_prim
+
         chalk.broadcast.check(t.shape[:-2], self.shape, str(type(self)), "Transform")
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
-        return Primitive(self.prim_shape, self.style, new_diagram.transform)
+        return diag_prim(self.prim_shape, new_diagram.transform, self.style)
 
     def apply_style(self: BatchPrimitive, other_style: StyleHolder) -> BatchPrimitive:
+        from chalk.diag import diag_prim
+
         new_diagram = ApplyStyle(other_style, Empty())
         new_diagram, self = broadcast_diagrams(new_diagram, self)
-        return Primitive(
-            self.prim_shape,
-            (
-                self.style.merge(new_diagram.style)
-                if self.style is not None
-                else new_diagram.style
-            ),
-            self.transform,
-            self.order,
+        style = (
+            self.style.merge(new_diagram.style)
+            if self.style is not None
+            else new_diagram.style
         )
+        return diag_prim(self.prim_shape, self.transform, style, self.order)
 
     def _accept(self, visitor: DiagramVisitor[A, Any], args: Any) -> A:
         return visitor.visit_primitive(self, args)
@@ -295,10 +308,14 @@ class Empty(BaseDiagram):
         return visitor.visit_empty(self, args)
 
     def apply_transform(self, t: Affine) -> Empty:
-        return Empty()
+        from chalk.diag import diag_empty
+
+        return diag_empty()
 
     def apply_style(self, style: StyleHolder) -> Empty:
-        return Empty()
+        from chalk.diag import diag_empty
+
+        return diag_empty()
 
 
 @dataclass(unsafe_hash=True, frozen=True)
@@ -327,9 +344,11 @@ class ApplyTransform(BaseDiagram):
         return visitor.visit_apply_transform(self, args)
 
     def apply_transform(self, t: Affine) -> ApplyTransform:
+        from chalk.diag import diag_xf
+
         new_diagram = ApplyTransform(t @ self.transform, Empty())
         new, other = broadcast_diagrams(new_diagram, self.diagram)
-        return ApplyTransform(new.transform, other)
+        return diag_xf(other, new.transform)
 
 
 @dataclass(frozen=True)
@@ -341,10 +360,12 @@ class ApplyStyle(BaseDiagram):
         return visitor.visit_apply_style(self, args)
 
     def apply_style(self, style: StyleHolder) -> ApplyStyle:
+        from chalk.diag import diag_style
+
         new_style = ApplyStyle(style, Empty())
         new_style, self = broadcast_diagrams(new_style, self)
         app_style = new_style.style.merge(self.style)
-        return ApplyStyle(app_style, self.diagram)
+        return diag_style(self.diagram, app_style)
 
 
 @dataclass(frozen=True)
