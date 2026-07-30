@@ -1,7 +1,7 @@
 from typing import Iterable, List, Optional, Tuple
 
 import chalk.transform as tx
-from chalk.monoid import associative_reduce
+from chalk.monoid import reduce_associative
 from chalk.path import Path
 from chalk.transform import Floating, V2_t
 from chalk.types import (
@@ -110,7 +110,7 @@ def cat(diagram: Iterable[Diagram], v: V2_t, sep: Optional[Floating] = None) -> 
     def fn(a: Diagram, b: Diagram) -> Diagram:
         return a.beside(sep_dia, v).beside(b, v)
 
-    return fn(start, associative_reduce(fn, diagrams, empty()))
+    return fn(start, reduce_associative(fn, diagrams, empty()))
 
 
 def batch_concat(self: ExtraDiagram) -> BatchDiagram:
@@ -127,7 +127,10 @@ def concat(diagrams: Iterable[BatchDiagram]) -> BroadDiagram:
         diagrams, BaseDiagram
     ), "Use diagram.concat() for batched diagrams"
 
-    return BaseDiagram.concat2(diagrams)  # type: ignore
+    diagrams = list(diagrams)
+    if not diagrams:
+        return empty()
+    return reduce_associative(lambda a, b: a + b, diagrams[1:], diagrams[0])
 
 
 def empty() -> EmptyDiagram:

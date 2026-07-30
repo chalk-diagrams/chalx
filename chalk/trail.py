@@ -16,7 +16,7 @@ from jax.experimental.hijax import (
 
 import chalk.segment as arc
 import chalk.transform as tx
-from chalk.monoid import Monoid
+from chalk.monoid import reduce_associative
 from chalk.segment import (
     SegSpec,
     Segment,
@@ -163,7 +163,7 @@ class Located(Transformable):
 
 
 @dataclass(frozen=True)
-class Trail(Monoid, Transformable, TrailLike):
+class Trail(Transformable, TrailLike):
     """Opaque hijax trail."""
 
     segments: Segment
@@ -184,6 +184,10 @@ class Trail(Monoid, Transformable, TrailLike):
 
     def __add__(self, other: Trail) -> Trail:
         return concat_trails(self, other)
+
+    @classmethod
+    def concat(cls, elems):
+        return reduce_associative(concat_trails, elems, cls.empty())
 
     def apply_transform(self, t: Affine) -> Trail:
         return transform_trail(self, t)

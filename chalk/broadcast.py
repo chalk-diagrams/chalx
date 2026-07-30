@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, TypeVar
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
 from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
@@ -116,7 +115,7 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
 
 
 @dataclass
-class Size(Monoid):
+class Size:
     d: Tuple[int, ...]
 
     @classmethod

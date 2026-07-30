@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 import chalk.transform as tx
 from chalk.backend.patch import Patch, patch_from_prim
-from chalk.monoid import Monoid
 from chalk.style import StyleHolder
 from chalk.transform import Affine
 from chalk.types import BatchDiagram, SingleDiagram
@@ -72,7 +71,7 @@ def layout(
 
 
 @dataclass
-class OrderList(Monoid):
+class OrderList:
     ls: List[Primitive]
     counter: tx.IntLike
 

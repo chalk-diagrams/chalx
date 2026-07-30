@@ -152,6 +152,12 @@ class Path(Transformable):
     def __add__(self, other: Path) -> Path:
         return concat_paths(self, other)
 
+    @classmethod
+    def concat(cls, elems):
+        from chalk.monoid import reduce_associative
+
+        return reduce_associative(concat_paths, elems, cls.empty())
+
     def apply_transform(self, t: tx.Affine) -> Path:
         return transform_path(self, t)
 

@@ -14,7 +14,6 @@ from jax.experimental.hijax import (
 )
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
 from chalk.segment import (
     SegSpec,
     Segment,
@@ -92,7 +91,7 @@ class TraceTy(HiType):
 
 
 @dataclass(frozen=True)
-class Trace(Monoid, Transformable):
+class Trace(Transformable):
     """Opaque hijax trace wrapping a segment."""
 
     segment: Segment

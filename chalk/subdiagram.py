@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import chalk.transform as tx
-from chalk.monoid import Maybe, Monoid
+from chalk.monoid import Maybe
 from chalk.trace import Trace
 from chalk.transform import Affine, P2_t, V2_t
 from chalk.types import Diagram
@@ -46,7 +46,7 @@ class Name:
 
 
 @dataclass
-class Subdiagram(Monoid):
+class Subdiagram:
     diagram: Diagram
     transform: Affine
     # style: Style
@@ -128,7 +128,7 @@ def with_names(
 
 
 @dataclass
-class SubMap(Monoid):
+class SubMap:
     data: Dict[Name, List[Subdiagram]]
 
     def __add__(self, other: SubMap) -> SubMap:
@@ -170,11 +170,11 @@ def qualify(self: Diagram, name: Any) -> Diagram:
 
 def named(self: Diagram, name: Any) -> Diagram:
     """Add a name (or a sequence of names) to a diagram."""
-    from chalk.core import ApplyName
+    from chalk.diag import diag_name
 
     if not isinstance(name, Name):
         name = Name(name)
-    return ApplyName(name, self)
+    return diag_name(self, name)
 
 
 class Qualify(DiagramVisitor[Diagram, None]):
@@ -187,33 +187,27 @@ class Qualify(DiagramVisitor[Diagram, None]):
         return diagram
 
     def visit_compose(self, diagram: Compose, args: None) -> Diagram:
-        from chalk.core import Compose
+        from chalk.diag import diag_compose
 
-        return Compose(
+        return diag_compose(
+            tuple(d._accept(self, None) for d in diagram.diagrams),
             diagram.envelope,
-            tuple([d._accept(self, None) for d in diagram.diagrams]),
         )
 
     def visit_apply_transform(self, diagram: ApplyTransform, args: None) -> Diagram:
-        from chalk.core import ApplyTransform
+        from chalk.diag import diag_xf
 
-        return ApplyTransform(
-            diagram.transform,
-            diagram.diagram._accept(self, None),
-        )
+        return diag_xf(diagram.diagram._accept(self, None), diagram.transform)
 
     def visit_apply_style(self, diagram: ApplyStyle, args: None) -> Diagram:
-        from chalk.core import ApplyStyle
+        from chalk.diag import diag_style
 
-        return ApplyStyle(
-            diagram.style,
-            diagram.diagram._accept(self, None),
-        )
+        return diag_style(diagram.diagram._accept(self, None), diagram.style)
 
     def visit_apply_name(self, diagram: ApplyName, args: None) -> Diagram:
-        from chalk.core import ApplyName
+        from chalk.diag import diag_name
 
-        return ApplyName(self.name + diagram.dname, diagram.diagram._accept(self, None))
+        return diag_name(diagram.diagram._accept(self, None), self.name + diagram.dname)
 
 
 __all__ = ["Subdiagram", "Name"]

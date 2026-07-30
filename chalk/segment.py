@@ -20,7 +20,7 @@ from jax.experimental.hijax import (
 )
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
+from chalk.monoid import reduce_associative
 from chalk.transform import Affine, Angles, P2_t, V2_t
 
 if TYPE_CHECKING:
@@ -91,7 +91,7 @@ class SegTy(HiType):
 
 
 @dataclass(frozen=True)
-class Segment(Monoid):
+class Segment:
     """Opaque hijax segment. Peek arrays only eagerly or in expand."""
 
     transform: Affine
@@ -141,6 +141,10 @@ class Segment(Monoid):
 
     def __add__(self, other: Segment) -> Segment:
         return concat_segments(self, other)
+
+    @classmethod
+    def concat(cls, elems):
+        return reduce_associative(concat_segments, elems, cls.empty())
 
     @property
     def q(self) -> P2_t:

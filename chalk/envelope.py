@@ -16,7 +16,7 @@ from jax.experimental.hijax import (
 from jaxtyping import Float
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
+from chalk.monoid import reduce_associative
 from chalk.segment import (
     SegSpec,
     Segment,
@@ -125,7 +125,7 @@ class EnvTy(HiType):
 
 
 @dataclass(frozen=True)
-class Envelope(Transformable, Monoid):
+class Envelope(Transformable):
     """Opaque hijax envelope wrapping a segment."""
 
     segment: Segment
@@ -138,6 +138,12 @@ class Envelope(Transformable, Monoid):
 
     def __add__(self, other: Envelope) -> Envelope:
         return concat_envelopes(self, other)
+
+    @classmethod
+    def concat(cls, elems):
+        from chalk.segment import Segment
+
+        return reduce_associative(concat_envelopes, elems, make_envelope(Segment.empty()))
 
     @property
     def center(self) -> P2_t:

@@ -17,7 +17,6 @@ from typing import (
 )
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
 from chalk.style import Stylable, StyleHolder
 from chalk.transform import P2_t, V2_t
 
@@ -50,7 +49,7 @@ class TrailLike(Protocol):
         return self.at(tx.P2(0, 0)).stroke()
 
 
-class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
+class Diagram(Stylable, tx.Transformable, tx.Batchable):
     # Standard diagram types
     def apply_transform(self: BatchDiagram, t: tx.Affine) -> BroadDiagram:
         """Apply an affine transformation to a batched diagram.

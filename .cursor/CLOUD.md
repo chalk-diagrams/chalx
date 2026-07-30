@@ -20,7 +20,8 @@ JAX is required (`jax.numpy` everywhere). The old `CHALK_JAX` numpy dual-path is
 ## Code Structure
 
 - `chalk/` - Main library source code
-  - `core.py` / `diag.py` - Diagram is an opaque hijax type (`diag[]` / `diag[B]`)
+  - `core.py` / `diag.py` - Diagram is an opaque hijax type (`diag[]` / `diag[B]`); built via constructor primitives
+  - `monoid.py` - `reduce_associative` over `__add__` (no Monoid base class)
   - `shapes.py` - Shape primitives (circle, square, rectangle, etc.)
   - `combinators.py` - Composition functions (hcat, vcat, beside, above)
   - `trail.py` - Trail / Located are hijax types (`trail[...]`, `located[...]`)
