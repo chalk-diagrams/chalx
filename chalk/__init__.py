@@ -52,7 +52,6 @@ if eval(os.environ.get("CHALK_CHECK", "0")):
 jax_type = [
     chalk.core.Primitive,
     chalk.core.Compose,
-    chalk.envelope.Envelope,
     chalk.core.ApplyTransform,
     chalk.core.Empty,
     chalk.core.ApplyStyle,

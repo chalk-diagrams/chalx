@@ -29,7 +29,7 @@ JAX is required (`jax.numpy` everywhere). The old `CHALK_JAX` numpy dual-path is
   - `hijax_path.py` - Standalone polyline HiPath mock
   - `transform.py` - Geometric transformations (V2, P2, Affine)
   - `style.py` - StyleHolder is a hijax type (`style[]` / `style[B]`)
-  - `envelope.py` / `trace.py` - not hijax yet
+  - `envelope.py` / `trace.py` - Envelope / Trace are hijax (`env[...]`, `trace[...]`)
   - `backend/` - Rendering backends (cairo.py, svg.py, matplotlib.py)
 - `examples/` - Example scripts demonstrating library usage
 - `tests/` - Unit tests (note: some tests have outdated imports)

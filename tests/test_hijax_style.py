@@ -30,14 +30,6 @@ def test_jit_merge():
     assert float(onp.asarray(out.line_opacity_).reshape(-1)[0]) == 1.0
 
 
-def test_expand_dims():
-    s = Style(fill_color=to_color(Color("blue")))
-    e = s.expand_dims(2)
-    assert str(jax.typeof(e)) == "style[1,1]"
-    assert e.fill_color_.shape[:2] == (1, 1)
-    assert e.line_width_.shape[:2] == (1, 1)
-
-
 def test_vmap_make_style():
     n = 4
     fc = jnp.zeros((n, 3)).at[:, 0].set(jnp.linspace(0, 1, n))

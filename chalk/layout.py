@@ -158,7 +158,15 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
 
 def add_dim(m: Any, size: int) -> Any:
     if isinstance(m, StyleHolder):
-        return m.expand_dims(size)
+        from chalk.style import make_style
+
+        parts = list(m.lo_parts())
+        for _ in range(size):
+            parts = [
+                p[..., None, :] if i in (0, 1, 5) else p[..., None]
+                for i, p in enumerate(parts)
+            ]
+        return make_style(*parts)
     m = tx.np.asarray(m)
     for _ in range(size):
         m = m[..., None]

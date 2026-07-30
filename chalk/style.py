@@ -243,9 +243,6 @@ class StyleHolder(Stylable):
     def size(self) -> Tuple[int, ...]:
         return self.shape
 
-    def expand_dims(self, n: int = 1) -> StyleHolder:
-        return expand_style(self, n)
-
     def map_prefix(self, fn: Callable[[Any], Any]) -> StyleHolder:
         parts = [fn(p) for p in self.lo_parts()]
         if all(p is None for p in parts):
@@ -400,29 +397,6 @@ class MergeStyles(VJPHiPrimitive):
         return merge_styles(a, b), StyleSpec()
 
 
-class ExpandStyle(VJPHiPrimitive):
-    def __init__(self, style_aval: StyleTy, n: int):
-        self.in_avals = (style_aval,)
-        self.out_aval = StyleTy(
-            style_aval.batch_shape + (1,) * int(n), style_aval.dtype_name
-        )
-        self.params = dict(n=int(n))
-        super().__init__()
-
-    def expand(self, style: StyleHolder):
-        parts = list(style.lo_parts())
-        for _ in range(self.n):
-            parts = [p[..., None, :] if i in (0, 1, 5) else p[..., None] for i, p in enumerate(parts)]
-        return StyleHolder(*parts)
-
-    def batch(self, axis_data, args, in_dims):
-        (style,) = args
-        (d,) = in_dims
-        if d is None:
-            return expand_style(style, self.n), None
-        return expand_style(style, self.n), StyleSpec()
-
-
 def make_style(
     fill_color, line_color, fill_opacity, line_opacity, line_width, flags
 ) -> StyleHolder:
@@ -439,12 +413,6 @@ def make_style(
 
 def merge_styles(a, b) -> StyleHolder:
     return MergeStyles(jax.typeof(a), jax.typeof(b))(a, b)
-
-
-def expand_style(style, n: int = 1) -> StyleHolder:
-    if n == 0:
-        return style
-    return ExpandStyle(jax.typeof(style), n)(style)
 
 
 class StyleToMpl(VJPHiPrimitive):
