@@ -1,6 +1,6 @@
-"""Fit ellipses to a photo with a learnable differentiable z-order.
+"""Fit triangles to a photo with a learnable differentiable z-order.
 
-Each ellipse keeps a scalar ``z`` (low = behind). Scanline and Cairo both
+Each triangle keeps a scalar ``z`` (low = behind). Scanline and Cairo both
 hard-sort by ``z`` and gate fill opacity with ``modulate_opacity(z)``.
 Coverage is the average of a left-to-right and top-to-bottom scan.
 Init is size-ordered so ``z`` starts as large-behind / small-in-front.
@@ -16,7 +16,7 @@ import jax.numpy as jnp
 import numpy as onp
 from PIL import Image, ImageDraw, ImageFont
 
-from chalk import circle, rectangle
+from chalk import rectangle, triangle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite_by_z, modulate_opacity
@@ -33,10 +33,10 @@ PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
-PREFIX = "cow7"
+PREFIX = "tri7"
 KERNELS = (7, 5, 3)
 
-_unit = circle(1.0).line_width(0)
+_unit = triangle(1.0).line_width(0)
 _px = scanline_origins(H, axis="x")
 _py = scanline_origins(W, axis="y")
 _vx = jnp.array([[1.0], [0.0], [0.0]])
@@ -107,15 +107,15 @@ def make_raster(kernel: int):
         opac = jax.nn.sigmoid(opacity)
         geom = (loc, radii, rots)
 
-        def ellipse(xs):
+        def prim(xs):
             (lx, ly), (rx, ry), (rot,) = xs
             return _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
 
         def cover_x(_, xs):
-            return None, trace_measure(ellipse(xs), _px, _vx, W, kernel=kernel)
+            return None, trace_measure(prim(xs), _px, _vx, W, kernel=kernel)
 
         def cover_y(_, xs):
-            return None, trace_measure(ellipse(xs), _py, _vy, H, kernel=kernel)
+            return None, trace_measure(prim(xs), _py, _vy, H, kernel=kernel)
 
         # Two scans: a single scan body cannot call trace_measure twice under grad.
         _, ax = jax.lax.scan(cover_x, None, geom)
@@ -232,7 +232,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
 
 def main():
     print(
-        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} z-order+α(z) xy-scan + video "
+        f"{PREFIX} triangles N={N} STEPS={STEPS} {W}x{H} z+α(z) xy-scan + video "
         f"LR/kernel 7→5→3 after {DECAY_START}",
         flush=True,
     )
@@ -379,7 +379,7 @@ def main():
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title(f"{N} ellipses · cow · z+α(z) · xy scan · 7→5→3")
+        ax.set_title(f"{N} triangles · cow · z+α(z) · xy scan · 7→5→3")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
