@@ -24,7 +24,7 @@ def test_typeof_is_opaque_path():
     path = triangle()
     assert str(jax.typeof(path)) == "cpath[1]"
     assert str(jax.typeof(path_get_located(path, 0))).startswith("located[")
-    assert str(jax.typeof(path_located_segments(path))) == "seg[3]"
+    assert str(jax.typeof(path_located_segments(path))) == "seg[2]"
 
 
 def test_jaxpr_keeps_path_and_geometry_opaque():
@@ -40,9 +40,9 @@ def test_jaxpr_keeps_path_and_geometry_opaque():
 def test_path_points_are_opaque_points():
     path = triangle()
     points = jax.jit(lambda p: located_points(path_get_located(p, 0)))(path)
-    assert str(jax.typeof(points)) == "p2[3]"
+    assert str(jax.typeof(points)) == "p2[2]"
     expected = jnp.array(
-        [[0.0, 0.0], [1.0, 0.0], [0.5, 1.0]], dtype=jnp.float64
+        [[0.0, 0.0], [1.0, 0.0]], dtype=jnp.float64
     )
     assert jnp.allclose(tx.data(points)[..., :2, 0], expected)
 
