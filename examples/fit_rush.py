@@ -1,8 +1,9 @@
-"""Fit ellipses to Sasha's portrait: one diagram, trace raster, Cairo PNG."""
+"""Fit triangles to Sasha's portrait: one diagram, trace raster, Cairo + video."""
 
 from __future__ import annotations
 
 import random
+import subprocess
 import urllib.request
 
 import jax
@@ -10,13 +11,13 @@ import jax.numpy as jnp
 import numpy as onp
 from PIL import Image, ImageDraw, ImageFont
 
-from chalk import circle, concat, rectangle
+from chalk import concat, rectangle, triangle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite
 
 H = W = 80
-KERNEL = 5  # narrower 1D AA than the original 11
+KERNEL = 5
 N = 500
 STEPS = 300
 MIN_SIZE = 1.0
@@ -25,8 +26,9 @@ LOSS_EVERY = 10
 GIF_EVERY = 10
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 LIB_HEIGHT = 400
+OUT = "/opt/cursor/artifacts"
 
-_unit = circle(1.0).line_width(0)
+_unit = triangle(1.0).line_width(0)
 _px = scanline_origins(H, axis="x")
 _vx = jnp.array([[1.0], [0.0], [0.0]])
 
@@ -43,31 +45,28 @@ def reduce_color(y):
 
 
 def sort_params(params):
-    loc, radii, rots, color, opacity = params
-    order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
-    return loc[order], radii[order], rots[order], color[order], opacity[order]
+    loc, sizes, rots, color, opacity = params
+    order = jnp.argsort(-sizes)
+    return loc[order], sizes[order], rots[order], color[order], opacity[order]
 
 
 def diagram(params):
-    """One batched diagram: unit circle, scaled/rotated/translated/filled."""
-    loc, radii, rots, color, opacity = sort_params(params)
+    loc, sizes, rots, color, opacity = sort_params(params)
     paints = jax.nn.sigmoid(color)
     opac = jax.nn.sigmoid(opacity)
     return (
         _unit.fill_color(paints)
         .fill_opacity(opac)
-        .scale_x(radii[:, 0])
-        .scale_y(radii[:, 1])
         .rotate_rad(rots[:, 0])
+        .scale(sizes)
         .translate(loc[:, 0], loc[:, 1])
     )
 
 
 def diagram_stacked(params):
-    """Same ellipses as ``diagram``, stacked back-to-front like the scanline over-composite."""
     from colour import Color
 
-    loc, radii, rots, color, opacity = (onp.asarray(x) for x in sort_params(params))
+    loc, sizes, rots, color, opacity = (onp.asarray(x) for x in sort_params(params))
     paints = 1.0 / (1.0 + onp.exp(-color))
     opac = 1.0 / (1.0 + onp.exp(-opacity))
     dias = []
@@ -76,39 +75,37 @@ def diagram_stacked(params):
         dias.append(
             _unit.fill_color(Color(rgb=rgb))
             .fill_opacity(float(opac[i]))
-            .scale_x(float(radii[i, 0]))
-            .scale_y(float(radii[i, 1]))
             .rotate_rad(float(rots[i, 0]))
+            .scale(float(sizes[i]))
             .translate(float(loc[i, 0]), float(loc[i, 1]))
         )
-    frame = rectangle(float(W), float(H)).line_width(0).fill_opacity(0).translate(
-        float(W) / 2.0, float(H) / 2.0
+    frame = (
+        rectangle(float(W), float(H))
+        .line_width(0)
+        .fill_opacity(0)
+        .translate(float(W) / 2.0, float(H) / 2.0)
     )
-    # Painter: first behind, last on top (same as lax.scan composite).
-    # No scale_y(-1): Cairo's image surface is already y-down, like the fit.
     return concat(dias).with_envelope(frame)
 
 
 def raster(params):
-    loc, radii, rots, color, opacity = sort_params(params)
+    loc, sizes, rots, color, opacity = sort_params(params)
     paints = jax.nn.sigmoid(color)
     opac = jax.nn.sigmoid(opacity)
 
     def cover(_, xs):
-        (lx, ly), (rx, ry), (rot,) = xs
-        d = _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
+        (lx, ly), size, (rot,) = xs
+        d = _unit.rotate_rad(rot).scale(size).translate(lx, ly)
         α = trace_measure(d, _px, _vx, W, kernel=KERNEL, boundary=False)
         return None, α
 
-    _, alphas = jax.lax.scan(cover, None, (loc, radii, rots))
+    _, alphas = jax.lax.scan(cover, None, (loc, sizes, rots))
 
     def paint_over(img, xs):
         coverage, paint, a = xs
         return composite(img, coverage, (paint, a)), None
 
-    img, _ = jax.lax.scan(
-        paint_over, jnp.ones((H, W, 3)), (alphas, paints, opac)
-    )
+    img, _ = jax.lax.scan(paint_over, jnp.ones((H, W, 3)), (alphas, paints, opac))
     return img
 
 
@@ -130,24 +127,53 @@ def write_gif(imgs, path, duration=0.08):
     imageio.mimsave(path, [to_uint8(im) for im in imgs], loop=0, duration=duration)
 
 
+def write_video(frames_uint8, path, fps=12):
+    """Encode RGB uint8 frames to mp4 via ffmpeg."""
+    h, w = frames_uint8[0].shape[:2]
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-vcodec",
+        "rawvideo",
+        "-s",
+        f"{w}x{h}",
+        "-pix_fmt",
+        "rgb24",
+        "-r",
+        str(fps),
+        "-i",
+        "-",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        path,
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    assert proc.stdin is not None
+    for fr in frames_uint8:
+        proc.stdin.write(onp.ascontiguousarray(fr).tobytes())
+    proc.stdin.close()
+    _, err = proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(err.decode("utf-8", errors="replace")[-2000:])
+
+
 def init_params(seed=42):
     random.seed(seed)
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    radii = []
-    for _ in range(N):
-        size = MIN_SIZE + 12.0 * random.random() ** 1.7
-        aspect = 0.35 + 0.65 * random.random()
-        if random.random() < 0.5:
-            radii.append([size, max(MIN_SIZE, size * aspect)])
-        else:
-            radii.append([max(MIN_SIZE, size * aspect), size])
-    radii = jnp.array(radii)
+    sizes = jnp.array([MIN_SIZE + 12.0 * random.random() ** 1.7 for _ in range(N)])
     rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
     opacity = jnp.array([random.uniform(-0.5, 1.5) for _ in range(N)])
-    return (loc, radii, rots, color, opacity)
+    return (loc, sizes, rots, color, opacity)
 
 
 def _letterbox(im: Image.Image, size: int) -> Image.Image:
@@ -179,7 +205,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
     except TypeError:
         font = ImageFont.load_default()
     labels = [
-        f"scanline (kernel={KERNEL})",
+        f"scanline triangles (kernel={KERNEL})",
         "cairo of the same diagram",
         "target photo (not composited)",
     ]
@@ -188,10 +214,16 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
     strip.save(out_path)
 
 
+def cairo_frame(params, height=LIB_HEIGHT):
+    path = "/tmp/rush_tri_frame.png"
+    diagram_stacked(params).render(path, height=height)
+    return onp.asarray(Image.open(path).convert("RGB"))
+
+
 def main():
-    print(f"N={N} STEPS={STEPS} MIN_SIZE={MIN_SIZE} KERNEL={KERNEL} {H}x{W}", flush=True)
+    print(f"N={N} STEPS={STEPS} MIN_SIZE={MIN_SIZE} KERNEL={KERNEL} triangles {H}x{W}", flush=True)
     goal = reduce_color(load_goal())
-    to_png(goal, "/opt/cursor/artifacts/fit_rush_target.png")
+    to_png(goal, f"{OUT}/fit_rush_target.png")
     params = init_params()
 
     print("jit compile…", flush=True)
@@ -203,7 +235,7 @@ def main():
     t0 = _time.perf_counter()
     start_img = raster_jit(params).block_until_ready()
     print(f"  raster compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
-    to_png(start_img, "/opt/cursor/artifacts/fit_rush_start.png")
+    to_png(start_img, f"{OUT}/fit_rush_start.png")
     t0 = _time.perf_counter()
     jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal))
     print(f"  grad compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
@@ -230,12 +262,12 @@ def main():
             new_m.append(mo)
             new_v.append(vo)
         params, m, v = tuple(new), tuple(new_m), tuple(new_v)
-        loc, radii, rots, color, opacity = params
-        radii = jnp.clip(jnp.abs(radii), MIN_SIZE, float(H) * 0.4)
+        loc, sizes, rots, color, opacity = params
+        sizes = jnp.clip(jnp.abs(sizes), MIN_SIZE, float(H) * 0.4)
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
         opacity = jnp.clip(opacity, -6.0, 6.0)
-        params = (loc, radii, rots, color, opacity)
+        params = (loc, sizes, rots, color, opacity)
         if i % GIF_EVERY == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
@@ -246,43 +278,54 @@ def main():
 
     params = best
     onp.savez(
-        "/opt/cursor/artifacts/fit_rush_best.npz",
+        f"{OUT}/fit_rush_best.npz",
         loc=onp.asarray(params[0]),
-        radii=onp.asarray(params[1]),
+        sizes=onp.asarray(params[1]),
         rots=onp.asarray(params[2]),
         color=onp.asarray(params[3]),
         opacity=onp.asarray(params[4]),
     )
     final = raster_jit(params)
-    to_png(final, "/opt/cursor/artifacts/fit_rush_final.png")
+    to_png(final, f"{OUT}/fit_rush_final.png")
     to_png(
         jnp.concatenate([goal, start_img, final], axis=1),
-        "/opt/cursor/artifacts/fit_rush_compare.png",
+        f"{OUT}/fit_rush_compare.png",
     )
-    frames = [jnp.concatenate([goal, raster_jit(p)], axis=1) for p in history]
-    write_gif(frames, "/opt/cursor/artifacts/rush_500.gif", duration=0.08)
-    print(f"wrote /opt/cursor/artifacts/rush_500.gif ({len(frames)} frames)")
+
+    scan_side = [jnp.concatenate([goal, raster_jit(p)], axis=1) for p in history]
+    write_gif(scan_side, f"{OUT}/rush_tri500.gif", duration=0.08)
+    scan_u8 = [
+        onp.asarray(
+            Image.fromarray(to_uint8(fr)).resize((480, 240), Image.Resampling.NEAREST)
+        )
+        for fr in scan_side
+    ]
+    write_video(scan_u8, f"{OUT}/rush_tri500_scan.mp4", fps=10)
+    print(f"wrote scan video ({len(scan_u8)} frames)", flush=True)
+
+    print("cairo video…", flush=True)
+    cairo_u8 = []
+    for i, p in enumerate(history):
+        frame = cairo_frame(p, height=LIB_HEIGHT)
+        cairo_u8.append(frame)
+        if i % 5 == 0 or i == len(history) - 1:
+            print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
+    write_video(cairo_u8, f"{OUT}/rush_tri500_cairo.mp4", fps=10)
+    print(f"wrote cairo video ({len(cairo_u8)} frames)", flush=True)
 
     dia = diagram_stacked(params)
-    lib_path = "/opt/cursor/artifacts/rush_500_cairo.png"
+    lib_path = f"{OUT}/rush_tri500_cairo.png"
     dia.render(lib_path, height=LIB_HEIGHT)
-    svg_path = "/opt/cursor/artifacts/rush_500.svg"
-    dia.render_svg(svg_path, height=LIB_HEIGHT)
-    print(f"wrote cairo+svg {lib_path} {svg_path}")
-    write_compare_strip(
-        final,
-        lib_path,
-        goal,
-        "/opt/cursor/artifacts/rush_500_strip.png",
-    )
-    to_png(start_img, "/opt/cursor/artifacts/rush_500_start.png")
-    to_png(final, "/opt/cursor/artifacts/rush_500_scan.png")
-    to_png(goal, "/opt/cursor/artifacts/rush_500_target.png")
+    dia.render_svg(f"{OUT}/rush_tri500.svg", height=LIB_HEIGHT)
+    write_compare_strip(final, lib_path, goal, f"{OUT}/rush_tri500_strip.png")
+    to_png(start_img, f"{OUT}/rush_tri500_start.png")
+    to_png(final, f"{OUT}/rush_tri500_scan.png")
+    to_png(goal, f"{OUT}/rush_tri500_target.png")
     to_png(
         jnp.concatenate([goal, start_img, final], axis=1),
-        "/opt/cursor/artifacts/rush_500_compare.png",
+        f"{OUT}/rush_tri500_compare.png",
     )
-    print("wrote /opt/cursor/artifacts/rush_500_strip.png")
+    print(f"wrote {OUT}/rush_tri500_strip.png", flush=True)
 
 
 if __name__ == "__main__":
