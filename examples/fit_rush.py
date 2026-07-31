@@ -1,7 +1,8 @@
-"""Fit ellipses to a photo: trace raster + Cairo, with LR/kernel decay.
+"""Fit ellipses to a photo with a learnable differentiable z-order.
 
-Draw order is the ellipse index (0 behind, N-1 in front) — the same
-order ``diagram.concat()`` uses. No per-step size sort.
+Each ellipse keeps a scalar ``z`` (low = behind). Scanline compositing
+soft-sorts by ``z`` then Porter-Duff overs. Cairo hard-sorts by ``z``.
+Init is size-ordered so ``z`` starts as large-behind / small-in-front.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 from chalk import circle, rectangle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
-from chalk.style import composite
+from chalk.style import composite_by_z
 
 W, H = 96, 72  # 4:3, matches the highland-cow photo
 N = 100
@@ -29,8 +30,10 @@ PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
-PREFIX = "cow3"
+PREFIX = "cow4"
 KERNELS = (7, 5, 3)
+TAU0 = 0.7
+TAU1 = 0.15
 
 _unit = circle(1.0).line_width(0)
 _px = scanline_origins(H, axis="x")
@@ -61,8 +64,18 @@ def kernel_at(step: int) -> int:
     return 3
 
 
+def tau_at(step: int) -> float:
+    t = (step - 1) / max(STEPS - 1, 1)
+    return TAU0 * (1.0 - t) + TAU1 * t
+
+
+def split_geom(params):
+    loc, radii, rots, color, opacity, _z = params
+    return loc, radii, rots, color, opacity
+
+
 def diagram(params):
-    loc, radii, rots, color, opacity = params
+    loc, radii, rots, color, opacity = split_geom(params)
     paints = jax.nn.sigmoid(color)
     opac = jax.nn.sigmoid(opacity)
     return (
@@ -76,18 +89,22 @@ def diagram(params):
 
 
 def diagram_stacked(params):
+    """Cairo: deterministic paint order = argsort(z), low z behind."""
+    loc, radii, rots, color, opacity, z = params
+    order = jnp.argsort(z)
+    ordered = (loc[order], radii[order], rots[order], color[order], opacity[order], z[order])
     frame = (
         rectangle(float(W), float(H))
         .line_width(0)
         .fill_opacity(0)
         .translate(float(W) / 2.0, float(H) / 2.0)
     )
-    return diagram(params).concat().with_envelope(frame)
+    return diagram(ordered).concat().with_envelope(frame)
 
 
 def make_raster(kernel: int):
-    def raster(params):
-        loc, radii, rots, color, opacity = params
+    def raster(params, tau):
+        loc, radii, rots, color, opacity, z = params
         paints = jax.nn.sigmoid(color)
         opac = jax.nn.sigmoid(opacity)
 
@@ -98,16 +115,12 @@ def make_raster(kernel: int):
             return None, α
 
         _, alphas = jax.lax.scan(cover, None, (loc, radii, rots))
+        return composite_by_z(
+            jnp.ones((H, W, 3)), alphas, (paints, opac), z, temperature=tau
+        )
 
-        def paint_over(img, xs):
-            coverage, paint, a = xs
-            return composite(img, coverage, (paint, a)), None
-
-        img, _ = jax.lax.scan(paint_over, jnp.ones((H, W, 3)), (alphas, paints, opac))
-        return img
-
-    def loss_fn(params, goal):
-        return jnp.sum((raster(params) - goal) ** 2)
+    def loss_fn(params, goal, tau):
+        return jnp.sum((raster(params, tau) - goal) ** 2)
 
     return raster, loss_fn
 
@@ -147,7 +160,17 @@ def init_params(seed=42):
     rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
     opacity = jnp.array([random.uniform(-0.2, 1.8) for _ in range(N)])
-    return (loc, radii, rots, color, opacity)
+    # Size-order once: slot 0 = largest = behind. Learnable z starts aligned.
+    order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
+    loc, radii, rots, color, opacity = (
+        loc[order],
+        radii[order],
+        rots[order],
+        color[order],
+        opacity[order],
+    )
+    z = jnp.linspace(-1.0, 1.0, N)
+    return (loc, radii, rots, color, opacity, z)
 
 
 def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
@@ -165,8 +188,8 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
     except TypeError:
         font = ImageFont.load_default()
     labels = [
-        f"scanline (final kernel={k_label})",
-        "cairo of the same diagram",
+        f"scanline soft-z (k={k_label})",
+        "cairo argsort(z)",
         "target photo",
     ]
     for i, label in enumerate(labels):
@@ -176,8 +199,8 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
 
 def main():
     print(
-        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} index z-order stills-only "
-        f"LR/kernel 7→5→3 after {DECAY_START}",
+        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} learnable z (soft-sort) stills-only "
+        f"LR/kernel 7→5→3 after {DECAY_START} tau {TAU0}→{TAU1}",
         flush=True,
     )
     goal = reduce_color(load_goal())
@@ -188,14 +211,15 @@ def main():
     fns = {}
     import time as _time
 
+    tau_warm = jnp.asarray(TAU0)
     for k in KERNELS:
         raster, loss_fn = make_raster(k)
         t0 = _time.perf_counter()
         raster_jit = jax.jit(raster)
         loss_jit = jax.jit(loss_fn)
         grad_jit = jax.jit(jax.grad(loss_fn))
-        start_img = raster_jit(params).block_until_ready()
-        jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal))
+        start_img = raster_jit(params, tau_warm).block_until_ready()
+        jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal, tau_warm))
         print(f"  kernel={k} compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
         fns[k] = (raster_jit, loss_jit, grad_jit)
         if k == KERNELS[0]:
@@ -211,8 +235,9 @@ def main():
     for i in range(1, STEPS + 1):
         lr = lr_at(i)
         kern = kernel_at(i)
+        tau = jnp.asarray(tau_at(i))
         raster_jit, loss_jit, grad_jit = fns[kern]
-        g = grad_jit(params, goal)
+        g = grad_jit(params, goal, tau)
 
         def adam(pi, gi, mi, vi):
             mi = b1 * mi + (1 - b1) * gi
@@ -228,7 +253,7 @@ def main():
             new_m.append(mo)
             new_v.append(vo)
         params, m, v = tuple(new), tuple(new_m), tuple(new_v)
-        loc, radii, rots, color, opacity = params
+        loc, radii, rots, color, opacity, z = params
         radii = jnp.clip(jnp.abs(radii), MIN_SIZE, float(min(H, W)) * 0.45)
         loc = jnp.stack(
             [
@@ -239,17 +264,19 @@ def main():
         )
         color = jnp.clip(color, -6.0, 6.0)
         opacity = jnp.clip(opacity, -6.0, 6.0)
-        params = (loc, radii, rots, color, opacity)
+        z = jnp.clip(z, -8.0, 8.0)
+        params = (loc, radii, rots, color, opacity, z)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             if kern != prev_kern:
                 best_loss = float("inf")
                 prev_kern = kern
-            cur_loss = float(loss_jit(params, goal))
+            cur_loss = float(loss_jit(params, goal, tau))
             if cur_loss < best_loss:
                 best_loss, best = cur_loss, params
-            curve.append((i, cur_loss, best_loss, lr, kern))
+            curve.append((i, cur_loss, best_loss, lr, kern, float(tau)))
             print(
-                f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}  lr={lr:.4f}  k={kern}",
+                f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}  "
+                f"lr={lr:.4f}  k={kern}  tau={float(tau):.3f}",
                 flush=True,
             )
 
@@ -261,11 +288,13 @@ def main():
         rots=onp.asarray(params[2]),
         color=onp.asarray(params[3]),
         opacity=onp.asarray(params[4]),
+        z=onp.asarray(params[5]),
         curve=onp.asarray(curve),
     )
     final_k = kernel_at(STEPS)
+    final_tau = jnp.asarray(tau_at(STEPS))
     raster_jit, loss_jit, _ = fns[final_k]
-    final = raster_jit(params)
+    final = raster_jit(params, final_tau)
     to_png(final, f"{OUT}/{PREFIX}_final.png")
     to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/{PREFIX}_compare.png")
 
@@ -276,21 +305,28 @@ def main():
     write_compare_strip(final, lib_path, goal, f"{OUT}/{PREFIX}_strip.png", final_k)
     to_png(start_img0, f"{OUT}/{PREFIX}_start.png")
     to_png(goal, f"{OUT}/{PREFIX}_target.png")
-    print(f"wrote {OUT}/{PREFIX}_strip.png best={best_loss:.1f}", flush=True)
+    z = onp.asarray(params[5])
+    area = onp.asarray(params[1][:, 0] * params[1][:, 1])
+    print(
+        f"wrote {OUT}/{PREFIX}_strip.png best={best_loss:.1f} "
+        f"zcorr(area)={float(onp.corrcoef(z, -onp.log(area + 1e-6))[0,1]):.3f}",
+        flush=True,
+    )
 
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
-        steps, losses, bests, lrs, ks = zip(*curve)
+        steps, losses, bests, lrs, ks, taus = zip(*curve)
         fig, ax = plt.subplots(figsize=(8, 4.2), dpi=140)
         ax.plot(steps, losses, color="#4c78a8", lw=1.5, marker="o", ms=3, label="loss")
         ax.plot(steps, bests, color="#f58518", lw=2, label="best")
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title("100 ellipses · cow · index z-order · 7→5→3")
+        ax.set_title("100 ellipses · cow · learnable z · 7→5→3")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)

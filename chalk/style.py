@@ -511,6 +511,60 @@ def composite(img, coverage, paint):
     return (1.0 - alpha[..., None]) * img + alpha[..., None] * rgb
 
 
+def soft_perm_ascending(scores, temperature: float = 0.25):
+    """Differentiable permutation: ``P[i, j] ≈ 1`` iff ``scores[j]`` is *i*-th smallest.
+
+    NeuralSort (Grover et al.) on ``-scores`` so small scores paint first
+    (behind). ``temperature → 0`` recovers a hard permutation matrix.
+    """
+    s = jnp.asarray(scores).reshape(-1)
+    n = s.shape[0]
+    tau = jnp.asarray(temperature, dtype=s.dtype)
+    inv = -s
+    abs_diff = jnp.abs(inv[:, None] - inv[None, :])
+    b = abs_diff.sum(axis=0)
+    scaling = (n + 1 - 2 * (jnp.arange(n, dtype=s.dtype) + 1))
+    logits = (scaling[:, None] * inv[None, :] - b[None, :]) / jnp.maximum(tau, 1e-6)
+    return jax.nn.softmax(logits, axis=-1)
+
+
+def composite_by_z(img, coverages, paints, z, *, temperature: float = 0.25, hard: bool = False):
+    """Porter-Duff over after sorting layers by ``z`` (low = behind).
+
+    ``coverages`` is ``[N, H, W]``, ``paints`` RGB ``[N, 3]`` or a pair
+    ``(rgb[N,3], opacity[N])``, ``z`` is ``[N]``.
+
+    Soft path (``hard=False``): NeuralSort mixes layers into paint slots,
+    then the same sequential over as :func:`composite`. Hard path: argsort
+    ``z`` and over in that order — this is what Cairo should do.
+    """
+    img = jnp.asarray(img)
+    coverages = jnp.asarray(coverages)
+    z = jnp.asarray(z).reshape(-1)
+    if isinstance(paints, (tuple, list)) and len(paints) == 2:
+        rgb, opacity = jnp.asarray(paints[0]), jnp.asarray(paints[1])
+    else:
+        rgb, opacity = _paint_rgba(paints)
+        rgb = jnp.asarray(rgb)
+        opacity = jnp.broadcast_to(jnp.asarray(opacity), z.shape)
+
+    if hard:
+        order = jnp.argsort(z)
+        cov_o, rgb_o, op_o = coverages[order], rgb[order], opacity[order]
+    else:
+        perm = soft_perm_ascending(z, temperature)
+        cov_o = jnp.einsum("ij,jhw->ihw", perm, coverages)
+        rgb_o = jnp.einsum("ij,jc->ic", perm, rgb)
+        op_o = jnp.einsum("ij,j->i", perm, opacity)
+
+    def paint_over(dst, xs):
+        coverage, color, a = xs
+        return composite(dst, coverage, (color, a)), None
+
+    out, _ = jax.lax.scan(paint_over, img, (cov_o, rgb_o, op_o))
+    return out
+
+
 __all__ = [
     "Style",
     "to_color",
@@ -520,4 +574,6 @@ __all__ = [
     "make_style",
     "style_to_mpl",
     "composite",
+    "soft_perm_ascending",
+    "composite_by_z",
 ]
