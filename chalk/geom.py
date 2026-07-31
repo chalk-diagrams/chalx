@@ -1296,6 +1296,30 @@ class XfRotationTangent(VJPHiPrimitive):
             .set(-s * dr)
         )
 
+    def vjp_fwd(self, nzs_in, r, dr):
+        return xf_rotation_tangent(r, dr), (jnp.asarray(r), jnp.asarray(dr))
+
+    def vjp_bwd_retval(self, res, g):
+        r, dr = res
+        if isinstance(g, Zero):
+            z = jnp.zeros_like(r)
+            return z, z
+        arr = xf_to_array(g)
+        s, c = jnp.sin(r), jnp.cos(r)
+        m00, m01 = arr[..., 0, 0], arr[..., 0, 1]
+        m10, m11 = arr[..., 1, 0], arr[..., 1, 1]
+        ddr_ct = -s * m00 + c * m01 - c * m10 - s * m11
+        r_ct = dr * (-c * m00 - s * m01 + s * m10 - c * m11)
+        return r_ct, ddr_ct
+
+    def transpose(self, cts, r, dr):
+        from jax._src.ad_util import Zero as AdZero
+
+        if isinstance(cts, (Zero, AdZero)):
+            return None
+        r_ct, dr_ct = self.vjp_bwd_retval((jnp.asarray(r), jnp.asarray(dr)), cts)
+        return _accum((r, dr), (r_ct, dr_ct))
+
     def batch(self, axis_data, args, in_dims):
         return xf_rotation_tangent(*args), _out_dim(in_dims)
 
