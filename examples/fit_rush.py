@@ -1,4 +1,4 @@
-"""Fit ellipses to Sasha's portrait from https://rush-nlp.com/."""
+"""Fit ellipses to Sasha's portrait: one diagram, trace raster, Cairo PNG."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from chalk import circle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite
-from chalk.trace import transform_trace
 
 H = W = 80
 KERNEL = 11
@@ -26,19 +25,9 @@ LOSS_EVERY = 25
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 LIB_HEIGHT = 400
 
-tr0 = circle(1.0).get_trace()
+_unit = circle(1.0).line_width(0)
 _px = scanline_origins(H, axis="x")
 _vx = jnp.array([[1.0], [0.0], [0.0]])
-
-
-def _ellipse_affine(lx, ly, rx, ry, rot):
-    # Scale unit circle, then rotate, then translate (rotation is a no-op if applied first).
-    ca, sa = jnp.cos(-rot), jnp.sin(-rot)
-    eye = jnp.eye(3)
-    R = eye.at[0, 0].set(ca).at[0, 1].set(-sa).at[1, 0].set(sa).at[1, 1].set(ca)
-    S = eye.at[0, 0].set(rx).at[1, 1].set(ry)
-    T = eye.at[0, 2].set(lx).at[1, 2].set(ly)
-    return T @ R @ S
 
 
 def load_goal():
@@ -52,21 +41,36 @@ def reduce_color(y):
     return jnp.floor(y * 40.0) / 40.0
 
 
-def render(params):
+def sort_params(params):
     loc, radii, rots, color = params
     order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
-    loc, radii, rots, color = loc[order], radii[order], rots[order], color[order]
-    As = jax.vmap(_ellipse_affine)(
-        loc[:, 0], loc[:, 1], radii[:, 0], radii[:, 1], rots[:, 0]
+    return loc[order], radii[order], rots[order], color[order]
+
+
+def diagram(params):
+    """One batched diagram: unit circle, scaled/rotated/translated/filled."""
+    loc, radii, rots, color = sort_params(params)
+    paints = jax.nn.sigmoid(color)
+    return (
+        _unit.fill_color(paints)
+        .scale_x(radii[:, 0])
+        .scale_y(radii[:, 1])
+        .rotate_rad(rots[:, 0])
+        .translate(loc[:, 0], loc[:, 1])
     )
+
+
+def raster(params):
+    loc, radii, rots, color = sort_params(params)
     paints = jax.nn.sigmoid(color)
 
-    def cover(_carry, A):
-        tr = transform_trace(tr0, A)
-        alpha = trace_measure(tr, _px, _vx, W, kernel=KERNEL, boundary=False)
-        return None, alpha
+    def cover(_, xs):
+        (lx, ly), (rx, ry), (rot,) = xs
+        d = _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
+        α = trace_measure(d, _px, _vx, W, kernel=KERNEL, boundary=False)
+        return None, α
 
-    _, alphas = jax.lax.scan(cover, None, As)
+    _, alphas = jax.lax.scan(cover, None, (loc, radii, rots))
 
     def paint_over(img, xs):
         alpha, paint = xs
@@ -77,7 +81,7 @@ def render(params):
 
 
 def loss_fn(params, goal):
-    return jnp.sum((render(params) - goal) ** 2)
+    return jnp.sum((raster(params) - goal) ** 2)
 
 
 def to_uint8(img):
@@ -92,30 +96,6 @@ def write_gif(imgs, path, duration=0.08):
     import imageio
 
     imageio.mimsave(path, [to_uint8(im) for im in imgs], loop=0, duration=duration)
-
-
-def diagram_from_params(params):
-    from colour import Color
-
-    from chalk import concat, circle as chalk_circle
-
-    loc, radii, rots, color = (onp.asarray(x) for x in params)
-    order = onp.argsort(-(radii[:, 0] * radii[:, 1]))
-    dias = []
-    for i in order:
-        rgb = tuple(float(c) for c in (1.0 / (1.0 + onp.exp(-color[i]))))
-        d = (
-            chalk_circle(1.0)
-            .line_width(0)
-            .fill_color(Color(rgb=rgb))
-            .scale_x(float(radii[i, 0]))
-            .scale_y(float(radii[i, 1]))
-            .rotate_rad(float(rots[i, 0]))
-            .translate(float(loc[i, 0]), float(loc[i, 1]))
-        )
-        dias.append(d)
-    # Fit used image y-down; Chalk is y-up.
-    return concat(dias).scale_y(-1).center_xy()
 
 
 def init_params(seed=42):
@@ -146,10 +126,10 @@ def _letterbox(im: Image.Image, size: int) -> Image.Image:
     return canvas
 
 
-def write_compare_strip(raster, library_path, goal, out_path):
+def write_compare_strip(raster_img, library_path, goal, out_path):
     lib = Image.open(library_path).convert("RGB")
     size = max(lib.height, LIB_HEIGHT)
-    raster_im = Image.fromarray(to_uint8(raster)).resize(
+    raster_im = Image.fromarray(to_uint8(raster_img)).resize(
         (size, size), Image.Resampling.NEAREST
     )
     goal_im = Image.fromarray(to_uint8(goal)).resize(
@@ -167,7 +147,7 @@ def write_compare_strip(raster, library_path, goal, out_path):
         font = ImageFont.load_default()
     labels = [
         "scanline (optimizer saw this)",
-        "cairo library (same ellipses)",
+        "cairo of the same diagram",
         "target photo (not composited)",
     ]
     for i, label in enumerate(labels):
@@ -176,20 +156,20 @@ def write_compare_strip(raster, library_path, goal, out_path):
 
 
 def main():
-    print(f"N={N} STEPS={STEPS} {H}x{W} ellipses", flush=True)
+    print(f"N={N} STEPS={STEPS} {H}x{W} ellipses (one diagram)", flush=True)
     goal = reduce_color(load_goal())
     to_png(goal, "/opt/cursor/artifacts/fit_rush_target.png")
     params = init_params()
 
     print("jit compile…", flush=True)
-    render_jit = jax.jit(render)
+    raster_jit = jax.jit(raster)
     loss_jit = jax.jit(loss_fn)
     grad_jit = jax.jit(jax.grad(loss_fn))
     import time as _time
 
     t0 = _time.perf_counter()
-    start_img = render_jit(params).block_until_ready()
-    print(f"  render compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
+    start_img = raster_jit(params).block_until_ready()
+    print(f"  raster compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
     to_png(start_img, "/opt/cursor/artifacts/fit_rush_start.png")
     t0 = _time.perf_counter()
     jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal))
@@ -238,20 +218,20 @@ def main():
         rots=onp.asarray(params[2]),
         color=onp.asarray(params[3]),
     )
-    final = render_jit(params)
+    final = raster_jit(params)
     to_png(final, "/opt/cursor/artifacts/fit_rush_final.png")
     to_png(
         jnp.concatenate([goal, start_img, final], axis=1),
         "/opt/cursor/artifacts/fit_rush_compare.png",
     )
-    frames = [jnp.concatenate([goal, render_jit(p)], axis=1) for p in history]
+    frames = [jnp.concatenate([goal, raster_jit(p)], axis=1) for p in history]
     write_gif(frames, "/opt/cursor/artifacts/fit_rush.gif", duration=0.08)
     print("wrote /opt/cursor/artifacts/fit_rush.gif")
 
-    dia = diagram_from_params(params)
+    dia = diagram(params).concat().scale_y(-1).center_xy()
     lib_path = "/opt/cursor/artifacts/rush_ell_library.png"
     dia.render(lib_path, height=LIB_HEIGHT)
-    print(f"wrote library render {lib_path}")
+    print(f"wrote cairo of the fitted diagram {lib_path}")
     write_compare_strip(
         final,
         lib_path,
