@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, TypeVar
 
+import jax.numpy as jnp
+
 import chalk.transform as tx
 from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
@@ -13,7 +15,7 @@ if TYPE_CHECKING:
 
 def add_axis(self: Diagram, size: int) -> Diagram:
     return tx.tree_map(  # type: ignore
-        lambda x: tx.np.repeat(x[None], size, axis=0), self
+        lambda x: jnp.repeat(x[None], size, axis=0), self
     )
 
 
@@ -39,12 +41,12 @@ def swapaxes(self: Diagram, a: int, b: int) -> Diagram:
 
 
 def repeat_axis(self: Diagram, size: int, axis: int) -> Diagram:
-    return tx.tree_map(lambda x: tx.np.repeat(x, size, axis=axis), self)  # type: ignore
+    return tx.tree_map(lambda x: jnp.repeat(x, size, axis=axis), self)  # type: ignore
 
 
 def check(a: Tuple[int, ...], b: Tuple[int, ...], s1: str, s2: str) -> None:
     try:
-        tx.np.broadcast_shapes(a, b)
+        jnp.broadcast_shapes(a, b)
     except ValueError:
         assert False, f"Broadcast error: {s1} Shape: {a} {s2} Shape: {b}"
 
@@ -71,13 +73,13 @@ def broadcast_to(
     def reshape(x: tx.Array) -> tx.Array:
         shape = tuple(x.shape)
         if not old_shape:
-            return tx.np.broadcast_to(x, tuple(new_shape) + shape)
+            return jnp.broadcast_to(x, tuple(new_shape) + shape)
         prefix = shape[: len(old_shape)]
         compatible = len(shape) >= len(old_shape) and all(
             p == o or p == 1 for p, o in zip(prefix, old_shape)
         )
         if compatible:
-            return tx.np.broadcast_to(x, tuple(new_shape) + shape[len(old_shape) :])
+            return jnp.broadcast_to(x, tuple(new_shape) + shape[len(old_shape) :])
         return x
 
     return tx.tree_map(reshape, tree)
@@ -91,7 +93,7 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
     other_size = other.size()
     if size == other_size:
         return self, other
-    new_shape = tx.np.broadcast_shapes(size, other_size)
+    new_shape = jnp.broadcast_shapes(size, other_size)
     self = broadcast_to(self, size, new_shape)
     other = broadcast_to(other, other_size, new_shape)
 
@@ -123,7 +125,7 @@ class Size:
         return Size(())
 
     def __add__(self, other: Size) -> Size:
-        return Size(tx.np.broadcast_shapes(self.d, other.d))
+        return Size(jnp.broadcast_shapes(self.d, other.d))
 
     def remove_axis(self, axis: int) -> Size:
         return Size(self.d[:-1])

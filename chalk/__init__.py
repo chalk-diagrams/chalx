@@ -43,6 +43,7 @@ from chalk.path import *  # noqa: F403
 from chalk.subdiagram import *  # noqa: F403
 from chalk.style import *  # noqa: F403
 from chalk.types import *  # noqa: F403
+from chalk.transform import origin  # noqa: F401
 from chalk.measure import trace_measure, measure_from_splits  # noqa: F401
 from chalk.raster import rasterize  # noqa: F401
 

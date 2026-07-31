@@ -18,6 +18,7 @@ from jax.experimental.hijax import (
     vjp_fwd_from_jvp,
 )
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.segment import (
     SegSpec,
@@ -39,7 +40,7 @@ if TYPE_CHECKING:
 def _trace(
     transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC
 ) -> Tuple[tx.Array, tx.Array]:
-    point, direction = tx.np.broadcast_arrays(point, d)
+    point, direction = jnp.broadcast_arrays(point, d)
     # Broadcast ray up to segment batch: (*ray_batch, *seg_batch, 3, 1)
     seg_batch = transform.shape[:-2]
     point = jnp.reshape(point, point.shape[:-2] + (1,) * len(seg_batch) + point.shape[-2:])
@@ -51,9 +52,9 @@ def _trace(
     d = d.reshape(d.shape[:-2] + (-1,))
     m = m.reshape(m.shape[:-2] + (-1,))
 
-    ad = tx.np.argsort(d + (1 - m) * 1e10, axis=-1)
-    d = tx.np.take_along_axis(d, ad, axis=-1)
-    m = tx.np.take_along_axis(m, ad, axis=-1)
+    ad = jnp.argsort(d + (1 - m) * 1e10, axis=-1)
+    d = jnp.take_along_axis(d, ad, axis=-1)
+    m = jnp.take_along_axis(m, ad, axis=-1)
     return (d, m)
 
 
@@ -130,9 +131,9 @@ class Trace(Transformable):
     def trace_v(self, p: P2_t, v: V2_t) -> Tuple[tx.V2_tC, tx.MaskC]:
         vn = tx.norm(v)
         dists, m = trace_ray(self, tx.data(p), tx.data(vn))
-        d = tx.np.sort(dists + (1 - m) * 1e10, axis=-1)
-        ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=-1)
-        m = tx.np.take_along_axis(m, ad, axis=-1)
+        d = jnp.sort(dists + (1 - m) * 1e10, axis=-1)
+        ad = jnp.argsort(dists + (1 - m) * 1e10, axis=-1)
+        m = jnp.take_along_axis(m, ad, axis=-1)
         s = d[..., 0]
         return (tx.scale_vec(vn, s), m[..., 0])
 
@@ -193,7 +194,7 @@ class TransformTrace(VJPHiPrimitive):
 
     def vjp_fwd(self, nzs_in, tr, t):
         xf, ang = segment_parts(trace_segment(tr))
-        t_arr = jnp.asarray(t)
+        t_arr = tx.data(t)
 
         def f(xf_, ang_, t_):
             return t_ @ xf_, ang_
@@ -209,10 +210,10 @@ class TransformTrace(VJPHiPrimitive):
                     jnp.zeros(self.out_aval.seg_ty.batch_shape + (self.out_aval.seg_ty.n_segs, 2)),
                 )
             )
-            return make_trace(make_segment(dxf, dang)), dt
+            return make_trace(make_segment(dxf, dang)), geom.make_xf(dt)
         gxf, gang = segment_parts(trace_segment(g))
         dxf, dang, dt = vjp((gxf, gang))
-        return make_trace(make_segment(dxf, dang)), dt
+        return make_trace(make_segment(dxf, dang)), geom.make_xf(dt)
 
     def batch(self, axis_data, args, in_dims):
         tr, t = args
@@ -227,7 +228,7 @@ class TraceRay(VJPHiPrimitive):
         # Output shapes follow _trace: dists/mask after flatten of hit axis.
         # Conservative: leave as leading-dir/point batch + trailing hits.
         seg = tr_aval.seg_ty
-        p_batch = tuple(p_aval.shape[:-2])
+        p_batch = p_aval.batch
         # _trace returns sorted hits; width is 2 * n_segs after reshape
         n_hits = max(seg.n_segs * 2, 1)
         out = ShapedArray(p_batch + (n_hits,), jnp.dtype(seg.dtype_name))
@@ -238,13 +239,13 @@ class TraceRay(VJPHiPrimitive):
 
     def expand(self, tr: Trace, point, direction):
         xf, ang = segment_parts(trace_segment(tr))
-        dist, mask = _trace(xf, ang, jnp.asarray(point), jnp.asarray(direction))
+        dist, mask = _trace(xf, ang, tx.data(point), tx.data(direction))
         return dist, jnp.asarray(mask, dtype=dist.dtype)
 
     def vjp_fwd(self, nzs_in, tr, point, direction):
         xf, ang = segment_parts(trace_segment(tr))
-        point = jnp.asarray(point)
-        direction = jnp.asarray(direction)
+        point = tx.data(point)
+        direction = tx.data(direction)
         dist, mask = _trace(xf, ang, point, direction)
 
         def dist_fn(xf_, ang_, p_, d_):
@@ -260,11 +261,15 @@ class TraceRay(VJPHiPrimitive):
             dt = jnp.dtype(seg_ty.dtype_name)
             z_xf = jnp.zeros(seg_ty.batch_shape + (seg_ty.n_segs, 3, 3), dt)
             z_ang = jnp.zeros(seg_ty.batch_shape + (seg_ty.n_segs, 2), dt)
-            z_p = jnp.zeros(self.in_avals[1].shape, self.in_avals[1].dtype)
-            z_d = jnp.zeros(self.in_avals[2].shape, self.in_avals[2].dtype)
+            z_p = self.in_avals[1].to_tangent_aval().vspace_zero()
+            z_d = self.in_avals[2].vspace_zero()
             return make_trace(make_segment(z_xf, z_ang)), z_p, z_d
         dxf, dang, dp, dd = vjp(jnp.asarray(g_dist))
-        return make_trace(make_segment(dxf, dang)), dp, dd
+        return (
+            make_trace(make_segment(dxf, dang)),
+            geom.make_v2_from_data(dp),
+            geom.make_v2_from_data(dd),
+        )
 
     def batch(self, axis_data, args, in_dims):
         tr, p, d = args
@@ -308,12 +313,13 @@ def make_trace(segment) -> Trace:
 
 
 def transform_trace(tr, t) -> Trace:
+    t = tx._as_xf(t)
     return TransformTrace(jax.typeof(tr), jax.typeof(t))(tr, t)
 
 
 def trace_ray(tr, point, direction) -> Tuple[jax.Array, jax.Array]:
-    point = tx.data(point)
-    direction = tx.data(direction)
+    point = tx.to_point(point)
+    direction = tx._as_v2(direction)
     return TraceRay(jax.typeof(tr), jax.typeof(point), jax.typeof(direction))(
         tr, point, direction
     )
@@ -328,7 +334,9 @@ class _GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
-        return transform_segment(segment, (t @ diagram.transform)[..., None, :, :])
+        transform = t @ diagram.transform
+        transform = geom.make_xf(tx.data(transform)[..., None, :, :])
+        return transform_segment(segment, transform)
 
     def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> Segment:
         return diagram.diagram._accept(self, t @ diagram.transform)
@@ -341,7 +349,7 @@ def get_trace(self: Diagram) -> Trace:
 
     ty = jax.typeof(self)
     if not isinstance(ty, DiagTy) or not isinstance(self, Tracer):
-        return make_trace(self._accept(_GetLocatedSegments(), tx._ident_arr))
+        return make_trace(self._accept(_GetLocatedSegments(), tx.ident))
     return _get_trace_traced(self, ty)
 
 

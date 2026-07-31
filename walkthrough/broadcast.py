@@ -15,19 +15,18 @@
 
 # %% tags=["hide_inp"]
 from chalk import *
-import numpy as np
+import jax.numpy as jnp
 
 # %% [markdown]
 # Diagrams are set-up so that they can take
-# numpy arguments. They work like standard
-# numpy arrays to support broadcasting.
+# JAX arguments support standard array broadcasting.
 
 # %%
-cs1 = circle(np.arange(1, 5)) + circle(np.arange(1, 5))
+cs1 = circle(jnp.arange(1, 5)) + circle(jnp.arange(1, 5))
 
 
 # %%
-cs1 = circle(1).translate(np.arange(5), np.arange(5))
+cs1 = circle(1).translate(jnp.arange(5), jnp.arange(5))
 print(cs1.size())
 cs1.concat()
 cs1.concat().render_svg("/tmp/x.svg")
@@ -43,7 +42,7 @@ cs1.fill_color("orange").concat()
 # Alteratively you can apply array styles.
 
 # %%
-cs1.fill_color(np.ones(3) * np.linspace(0, 1, 5)[:, None]).concat()
+cs1.fill_color(jnp.ones(3) * jnp.linspace(0, 1, 5)[:, None]).concat()
 
 
 # %% [markdown]
@@ -51,13 +50,13 @@ cs1.fill_color(np.ones(3) * np.linspace(0, 1, 5)[:, None]).concat()
 # elements.
 
 # %%
-circle(np.arange(1, 4)).hcat()
+circle(jnp.arange(1, 4)).hcat()
 
 # %% [markdown]
 # Diagrams can have arbitrary prefix sizes.
 
 # %%
-cs2 = circle(1).translate(np.arange(2)[:, None], np.arange(2)[:, None])
+cs2 = circle(1).translate(jnp.arange(2)[:, None], jnp.arange(2)[:, None])
 print(cs2.size())
 cs2.concat().concat()
 
@@ -68,7 +67,7 @@ cs2.concat().concat()
 # where we build a grid of clock faces.
 
 # %%
-r = circle(1) + seg(unit_x).stroke().rotate(np.linspace(0, 360, 12))
+r = circle(1) + seg(unit_x).stroke().rotate(jnp.linspace(0, 360, 12))
 r.reshape((4, 3)).hcat(sep=1).vcat(sep=1)
 
 
@@ -86,11 +85,11 @@ r[4]
 
 
 # %%
-grid = square(np.ones((5, 5))).named("grid").hcat().vcat()
+grid = square(jnp.ones((5, 5))).named("grid").hcat().vcat()
 grid
 
 # %%
-f = np.array([[1, 1], [2, 3]])
+f = jnp.array([[1, 1], [2, 3]])
 sub = grid.get_subdiagram("grid")
 assert sub is not None
 env = sub.get_envelope()

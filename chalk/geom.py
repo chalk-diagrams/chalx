@@ -130,11 +130,12 @@ class Affine:
 
     def __matmul__(self, other):
         other = _coerce_any(other)
-        if isinstance(other, Affine):
+        other_ty = jax.typeof(other)
+        if isinstance(other, Affine) or isinstance(other_ty, XfTy):
             return xf_compose(self, other)
-        if isinstance(other, Pt):
+        if isinstance(other, Pt) or isinstance(other_ty, P2Ty):
             return xf_apply_pt(self, other)
-        if isinstance(other, Vec):
+        if isinstance(other, Vec) or isinstance(other_ty, V2Ty):
             return xf_apply_vec(self, other)
         arr = jnp.asarray(other)
         if arr.shape[-2:] == (3, 3):
@@ -586,7 +587,7 @@ class GeomToArray(VJPHiPrimitive):
             out = p2_to_array(val)
         else:
             out = v2_to_array(val)
-        return out, _out_dim(in_dims)
+        return out, (None if all(d is None for d in in_dims) else 0)
 
 
 def v2_to_array(v) -> jax.Array:
@@ -1419,7 +1420,22 @@ def length(v: Vec):
     return Length(jax.typeof(v))(v)
 
 
-# Clean up leftover junk in MakeV2 first version - already deleted.
+def _xf_matmul(t, other):
+    other_ty = jax.typeof(other)
+    if isinstance(other_ty, XfTy):
+        return xf_compose(t, other)
+    if isinstance(other_ty, P2Ty):
+        return xf_apply_pt(t, other)
+    if isinstance(other_ty, V2Ty):
+        return xf_apply_vec(t, other)
+    return xf_apply_hom(t, other)
+
+
+def _xf_aval_matmul(_aval, t, other):
+    return _xf_matmul(t, other)
+
+
+XfTy._matmul = _xf_aval_matmul
 
 # Constant unit values as hijax (eager).
 unit_x = Vec(jnp.asarray([1.0, 0.0, 0.0], dtype=_DT).reshape(3, 1))

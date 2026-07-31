@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+import jax.numpy as jnp
+
 import chalk.transform as tx
 
 if TYPE_CHECKING:
@@ -59,7 +61,7 @@ class DiagramVisitor(Generic[A, B]):
         for k in range(int(size[-1])):
             d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
             ds.append(fn(d))
-        ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
+        ed = tx.tree_map(lambda *x: jnp.stack(x, axis), *ds)
         return self.A_type.reduce(ed, axis)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:

@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Callable, List, Tuple, TypeVar, Union
 
 import jax
 import jax.numpy as np
-import numpy as onp
 from jax import config
 from jaxtyping import Array, Bool, Float, Int
 from typing_extensions import Self
@@ -30,13 +29,13 @@ else:
 Batched
 
 Scalars = Float[Array, "*#B"]
-IntLike = Union[Int[Array, "*#B"], int, onp.int64]
+IntLike = Union[Int[Array, "*#B"], int]
 BoolLike = Union[bool]
 Ints = Int[Array, "*#B"]
-Floating = Union[Scalars, IntLike, float, int, onp.int64, onp.float64]
+Floating = Union[Scalars, IntLike, float, int]
 Mask = Bool[Array, "*#B"]
 MaskC = Bool[Array, "*#C"]
-IntLikeC = Union[Int[Array, "*#C"], int, onp.int64]
+IntLikeC = Union[Int[Array, "*#C"], int]
 ScalarsC = Float[Array, "*#C"]
 
 
@@ -82,11 +81,21 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
             return x.map_prefix(fn)
         if isinstance(x, Segment):
             if xs:
+                transform = fn(
+                    data(x.transform), *[data(s.transform) for s in xs]
+                )
                 return make_segment(
-                    fn(x.transform, *[s.transform for s in xs]),
+                    make_xf(transform),
                     fn(x.angles, *[s.angles for s in xs]),
                 )
-            return x.map_prefix(fn)
+            transform = fn(data(x.transform))
+            angles = fn(x.angles)
+            if transform is None and angles is None:
+                return x
+            return make_segment(
+                x.transform if transform is None else make_xf(transform),
+                x.angles if angles is None else angles,
+            )
         if isinstance(x, BaseDiagram):
             return map_diag_prefix(x, fn)
         if isinstance(x, Vec):

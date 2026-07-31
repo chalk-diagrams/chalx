@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-import numpy as onp
 import pytest
 
 from chalk.segment import (
@@ -16,7 +15,7 @@ import chalk.transform as tx
 
 
 def _unit_seg():
-    return Segment.make(tx.np.eye(3)[None, ...], tx.np.array([[0.0, -90.0]]))
+    return Segment.make(jnp.eye(3)[None, ...], jnp.array([[0.0, -90.0]]))
 
 
 def test_typeof_is_opaque_seg():
@@ -36,8 +35,8 @@ def test_jit_transform():
     s = _unit_seg()
     t = translation(tx.V2(1.0, 2.0))
     out = jax.jit(lambda seg: transform_segment(seg, t))(s)
-    c = onp.asarray(out.center).reshape(-1)
-    onp.testing.assert_allclose(c[:2], [1.0, 2.0], rtol=1e-5, atol=1e-5)
+    c = tx.data(out.center).reshape(-1)
+    assert jnp.allclose(c[:2], jnp.asarray([1.0, 2.0]), rtol=1e-5, atol=1e-5)
 
 
 def test_concat_changes_n():
@@ -56,7 +55,7 @@ def test_jit_segment_q():
     s = _unit_seg()
     q = jax.jit(segment_q)(s)
     assert tuple(q.shape[-2:]) == (3, 1)
-    onp.testing.assert_allclose(onp.asarray(s.q), onp.asarray(q), rtol=1e-5)
+    assert jnp.allclose(tx.data(s.q), tx.data(q), rtol=1e-5)
     text = str(jax.jit(segment_q).trace(s).jaxpr)
     assert "call_hi_primitive" in text
     t, a = jax.jit(segment_parts)(s)

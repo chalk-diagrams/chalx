@@ -1,5 +1,7 @@
 from typing import Iterable, List, Optional, Tuple
 
+import jax.numpy as jnp
+
 import chalk.transform as tx
 from chalk.monoid import reduce_associative
 from chalk.path import Path
@@ -84,9 +86,9 @@ def batch_cat(
         env = diagram.get_envelope()
         right = env(v)
         left = env(-v)
-        off = tx.np.roll(right, 1, axis=axis) + left + sep
+        off = jnp.roll(right, 1, axis=axis) + left + sep
         off = tx.index_update(off, (Ellipsis, 0), 0)
-        off = tx.np.cumsum(off, axis=axis)
+        off = jnp.cumsum(off, axis=axis)
         t = v * off[..., None, None]
         return diagram.translate_by(t)
 

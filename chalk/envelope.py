@@ -15,6 +15,7 @@ from jax.experimental.hijax import (
 )
 from jaxtyping import Float
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.monoid import reduce_associative
 from chalk.segment import (
@@ -43,39 +44,39 @@ if TYPE_CHECKING:
     from chalk.types import Diagram
 
 
-@tx.jit  # type: ignore
-@partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")  # type: ignore
+@jax.jit  # type: ignore
+@partial(jnp.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")  # type: ignore
 def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
     rt = tx._remove_translation_arr(t)
     inv_t = tx._inv_arr(rt)
     trans_t = tx._transpose_linear_arr(rt)
-    u = tx.np.zeros_like(v)
+    u = jnp.zeros_like(v)
     u = u.at[..., 0, 0].set(-t[..., 0, 2]).at[..., 1, 0].set(-t[..., 1, 2])
     vi = inv_t @ v
     inp = trans_t @ v
     n2 = (inp * inp)[..., :2, 0].sum(-1, keepdims=True)[..., None]
-    v_prim = inp / tx.np.sqrt(n2)
+    v_prim = inp / jnp.sqrt(n2)
     d = (v_prim * vi).sum((-2, -1))
-    return v_prim, u, v, tx.np.asarray(d)
+    return v_prim, u, v, jnp.asarray(d)
 
 
-@tx.jit
-@partial(tx.vectorize, signature="(3,1),(3,1),(),()->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,1),(3,1),(),()->()")
 def post_transform(u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating) -> Scalars:
     after_linear = inner / d
     vv = (v * v).sum((-2, -1))
     scaled = u * (1.0 / vv)[..., None, None]
     diff = (scaled * v).sum((-2, -1))
-    return tx.np.asarray(after_linear - diff)
+    return jnp.asarray(after_linear - diff)
 
 
-@tx.jit
+@jax.jit
 def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
     batch_shape = d.shape[:-2]
     segments_shape = transform.shape[:-2]
     return_shape = batch_shape + segments_shape[:-1]
     if segments_shape[-1] == 0:
-        return tx.np.zeros(return_shape)
+        return jnp.zeros(return_shape)
     for _ in range(len(segments_shape)):
         d = d[..., None, :, :]
 
@@ -83,10 +84,10 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
     trans = arc_envelope(transform, angles, pre[0])
     v = post_transform(pre[1], pre[2], pre[3], trans).max(-1)  # type: ignore
     assert v.shape == return_shape, f"{v.shape} {return_shape}"
-    return tx.np.asarray(v)
+    return jnp.asarray(v)
 
 
-ALL_DIR = tx.np.stack(
+ALL_DIR = jnp.stack(
     [tx._unit_x_arr, -tx._unit_x_arr, tx._unit_y_arr, -tx._unit_y_arr], axis=0
 )
 
@@ -159,16 +160,16 @@ class Envelope(Transformable):
     @property
     def width(self) -> Scalars:
         d1 = envelope_measure(self, ALL_DIR[:2])
-        return tx.np.asarray(d1[0] + d1[1])
+        return jnp.asarray(d1[0] + d1[1])
 
     @property
     def height(self) -> Scalars:
         d1 = envelope_measure(self, ALL_DIR[2:])
-        return tx.np.asarray(d1[0] + d1[1])
+        return jnp.asarray(d1[0] + d1[1])
 
     def size(self) -> Tuple[Scalars, Scalars]:
         d = envelope_measure(self, ALL_DIR)
-        return tx.np.asarray(d[0] + d[1]), tx.np.asarray(d[2] + d[3])
+        return jnp.asarray(d[0] + d[1]), jnp.asarray(d[2] + d[3])
 
     def envelope_v(self, v: V2_t) -> V2_t:
         v = tx.norm(v)
@@ -192,7 +193,7 @@ class Envelope(Transformable):
         return pts
 
     def to_segments(self, angle: int = 45) -> V2_t:
-        v = tx.polar(tx.np.arange(0, 361, angle) * 1.0)
+        v = tx.polar(jnp.arange(0, 361, angle) * 1.0)
         return tx.scale_vec(v, envelope_measure(self, v))
 
     def apply_transform(self, t: Affine) -> Envelope:
@@ -330,8 +331,8 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
         t = t @ diagram.transform
-        if len(t.shape) >= 3:
-            t = t[..., None, :, :]
+        if jax.typeof(t).batch:
+            t = geom.make_xf(tx.data(t)[..., None, :, :])
         return transform_segment(segment, t)
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:
@@ -345,7 +346,7 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     if t is None:
-        t = tx._ident_arr
+        t = tx.ident
     segment = self._accept(GetLocatedSegments(), t)
     transform, _ = segment_parts(segment)
     seg_shape = transform.shape[:-2]

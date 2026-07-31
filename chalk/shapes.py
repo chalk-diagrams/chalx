@@ -1,5 +1,7 @@
 from typing import List, Optional, Tuple, Union
 
+import jax.numpy as jnp
+
 # Todo: fix this export
 from chalk.trail import Trail  # noqa: N812
 import chalk.transform as tx
@@ -157,7 +159,7 @@ def arc_between(
 
 def Spacer(width: tx.Floating, height: tx.Floating) -> Diagram:
     return (
-        rectangle(tx.np.maximum(width, 1e-5), tx.np.maximum(height, 1e-5))
+        rectangle(jnp.maximum(width, 1e-5), jnp.maximum(height, 1e-5))
         .fill_opacity(0)
         .line_width(0)
     )

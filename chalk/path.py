@@ -5,7 +5,6 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
-import numpy as onp
 from jax.experimental.hijax import (
     HiType,
     MappingSpec,
@@ -14,6 +13,7 @@ from jax.experimental.hijax import (
     register_hitype,
 )
 
+import chalk.geom as geom
 from chalk import transform as tx
 from chalk.segment import Segment, concat_segments
 from chalk.trail import (
@@ -34,7 +34,7 @@ class Text:
     text: tx.Array
 
     def to_str(self) -> str:
-        return onp.asarray(self.text).tobytes().decode("utf-8")
+        return bytes(jax.device_get(self.text)).decode("utf-8")
 
 
 @dataclass(frozen=True)
@@ -133,7 +133,7 @@ class Path(Transformable):
 
     def map_prefix(self, fn):
         locs = tuple(loc.map_prefix(fn) for loc in self.loc_trails)
-        return make_path(locs, self.text, self.scale_invariant)
+        return _make_path(locs, self.text, self.scale_invariant)
 
     @property
     def shape(self) -> Tuple[int, ...]:
@@ -174,20 +174,22 @@ class Path(Transformable):
 
     @staticmethod
     def from_array(points: P2_t, closed: bool = False) -> Path:
-        l = points.shape[-3]
+        point_data = tx.data(points)
+        l = point_data.shape[-3]
         if l == 0:
             return Path.empty()
         offsets = (
-            points[..., tx.np.arange(1, l), :, :]
-            - points[..., tx.np.arange(0, l - 1), :, :]
+            point_data[..., jnp.arange(1, l), :, :]
+            - point_data[..., jnp.arange(0, l - 1), :, :]
         )
-        trail = Trail.from_array(offsets, closed)
-        return make_path((trail.at(points[..., 0, :, :]),))
+        trail = Trail.from_array(geom.make_v2_from_data(offsets), closed)
+        start = geom.make_p2_from_data(point_data[..., 0, :, :])
+        return _make_path((trail.at(start),))
 
     @staticmethod
     def from_points(points: List[P2_t], closed: bool = False) -> Path:
-        ls_points = tx.np.broadcast_arrays(*[tx.data(p) for p in points])
-        return Path.from_array(tx.np.stack(ls_points, axis=-3), closed)
+        ls_points = jnp.broadcast_arrays(*[tx.data(p) for p in points])
+        return Path.from_array(jnp.stack(ls_points, axis=-3), closed)
 
     @staticmethod
     def from_point(point: P2_t) -> Path:
@@ -195,7 +197,7 @@ class Path(Transformable):
 
     @staticmethod
     def from_text(s: str) -> Path:
-        return make_path(
+        return _make_path(
             (),
             Text(jnp.frombuffer(bytes(s, "utf-8"), dtype=jnp.uint8)),
             None,
@@ -261,13 +263,13 @@ class MakePath(VJPHiPrimitive):
         rest = list(args[n:])
         text = Text(rest[0]) if self.text_len else None
         si = rest[-1] if self.has_si else None
-        out = make_path(locs, text, si)
+        out = _make_path(locs, text, si)
         if all(d is None for d in in_dims):
             return out, None
         return out, PathSpec()
 
 
-def make_path(
+def _make_path(
     locs: Sequence[Located],
     text: Optional[Text] = None,
     scale_invariant=None,
@@ -287,7 +289,7 @@ def make_path(
 
 
 def empty_path() -> Path:
-    return make_path(())
+    return _make_path(())
 
 
 class ConcatPaths(VJPHiPrimitive):
@@ -339,7 +341,7 @@ class TransformPath(VJPHiPrimitive):
 
 
 def transform_path(path, t) -> Path:
-    t = tx.data(t)
+    t = tx._as_xf(t)
     return TransformPath(jax.typeof(path), jax.typeof(t))(path, t)
 
 
@@ -498,7 +500,6 @@ def path_text_bytes(path):
 __all__ = [
     "Path",
     "Text",
-    "make_path",
     "empty_path",
     "concat_paths",
     "transform_path",

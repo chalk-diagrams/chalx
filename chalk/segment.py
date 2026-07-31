@@ -18,12 +18,14 @@ from jax.experimental.hijax import (
     VJPHiPrimitive,
     Zero,
     apply_derived_linearization,
+    aval_method,
     linearize_from_jvp,
     register_hitype,
     transpose_jvp,
     vjp_fwd_from_jvp,
 )
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.monoid import reduce_associative
 from chalk.transform import Affine, Angles, P2_t, V2_t
@@ -71,10 +73,10 @@ class SegTy(HiType):
         ]
 
     def lower_val(self, seg: Segment):
-        return [seg.transform, seg.angles]
+        return [tx.data(seg.transform), seg.angles]
 
     def raise_val(self, transform, angles) -> Segment:
-        return Segment(transform, angles)
+        return Segment(geom.make_xf(transform), angles)
 
     def to_tangent_aval(self):
         return SegTy(self.batch_shape, self.n_segs, self.dtype_name)
@@ -82,7 +84,9 @@ class SegTy(HiType):
     def vspace_zero(self):
         dt = jnp.dtype(self.dtype_name)
         return Segment(
-            jnp.zeros(self.batch_shape + (self.n_segs, 3, 3), dt),
+            geom.make_xf(
+                jnp.zeros(self.batch_shape + (self.n_segs, 3, 3), dt)
+            ),
             jnp.zeros(self.batch_shape + (self.n_segs, 2), dt),
         )
 
@@ -131,13 +135,13 @@ class Segment:
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
-        transform = tx.data(transform)
         assert angles.shape[-1] == 2
-        angles = tx.prefix_broadcast(angles, transform.shape[:-2], 1)  # type: ignore
+        transform = tx._as_xf(transform)
+        angles = tx.prefix_broadcast(angles, jax.typeof(transform).batch, 1)
         return make_segment(transform, angles.astype(float))
 
     def promote(self) -> Segment:
-        return make_segment(_ensure_3d(self.transform), _ensure_2d(self.angles))
+        return make_segment(_ensure_3d(tx.data(self.transform)), _ensure_2d(self.angles))
 
     def map_prefix(self, fn: Callable[[Any], Any]) -> Segment:
         t, a = fn(self.transform), fn(self.angles)
@@ -154,7 +158,7 @@ class Segment:
     def reduce(self, axis: int = 0) -> Segment:
         shape = self.shape
         return make_segment(
-            self.transform.reshape(*shape[:-2], -1, 3, 3),
+            tx.data(self.transform).reshape(*shape[:-2], -1, 3, 3),
             self.angles.reshape(*shape[:-2], -1, 2),
         )
 
@@ -186,38 +190,40 @@ class Segment:
 def _is_in_mod_360(angles: Angles, d: V2_t) -> tx.Mask:
     angle0_deg = angles[..., 0]
     angle1_deg = angles.sum(-1)
-    low = tx.np.minimum(angle0_deg, angle1_deg)
-    high = tx.np.maximum(angle0_deg, angle1_deg)
+    low = jnp.minimum(angle0_deg, angle1_deg)
+    high = jnp.maximum(angle0_deg, angle1_deg)
     check = (high - low) % 360
-    return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
+    return jnp.asarray(((tx.angle(d) - low) % 360) <= check)
 
 
-register_hitype(
-    Segment,
-    lambda s: SegTy(
-        tuple(s.transform.shape[:-3]) if s.transform.ndim >= 3 else (),
-        int(s.transform.shape[-3]) if s.transform.ndim >= 3 else int(s.transform.shape[0]),
-        jnp.asarray(s.transform).dtype.name,
-    ),
-)
+def _segment_typeof(segment: Segment) -> SegTy:
+    transform_ty = jax.typeof(segment.transform)
+    return SegTy(
+        transform_ty.batch[:-1],
+        transform_ty.batch[-1],
+        transform_ty.dtype_name,
+    )
+
+
+register_hitype(Segment, _segment_typeof)
 
 
 def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
-    p, q = tx.np.broadcast_arrays(tx.data(p), tx.data(q))
+    p, q = tx.to_point(p), tx.to_point(q)
     h = abs(height)
-    d = tx.length(q - p)
+    diff = geom.p2_sub_p2(q, p)
+    d = tx.length(diff)
     # Determine the arc's angle θ and its radius r
-    θ = tx.np.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
-    r = d / (2 * tx.np.sin(θ))
+    θ = jnp.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
+    r = d / (2 * jnp.sin(θ))
 
     # bend left
     bl = height > 0
-    φ = tx.np.where(bl, +tx.np.pi / 2, -tx.np.pi / 2)
-    dy = tx.np.where(bl, r - h, h - r)
-    flip = tx.np.where(bl, 1, -1)
+    φ = jnp.where(bl, +jnp.pi / 2, -jnp.pi / 2)
+    dy = jnp.where(bl, r - h, h - r)
+    flip = jnp.where(bl, 1, -1)
 
-    diff = q - p
-    angles = tx.np.stack(
+    angles = jnp.stack(
         [flip * -tx.from_radians(θ), flip * 2 * tx.from_radians(θ)], -1
     )
     ret = (
@@ -230,8 +236,8 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     return Segment.make(ret, angles)
 
 
-@tx.jit
-@partial(tx.vectorize, signature="(3,3),(2),(3,1)->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,3),(2),(3,1)->()")
 def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     """Compute the envelope for a batch of segments."""
     angle0_deg = angles[..., 0]
@@ -241,14 +247,14 @@ def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     v1 = tx._polar_arr(angle0_deg)
     v2 = tx._polar_arr(angle1_deg)
     d2 = (d * d)[..., :2, 0].sum(-1)
-    return tx.np.where(  # type: ignore
+    return jnp.where(  # type: ignore
         (is_circle | _is_in_mod_360(angles, d)),
-        1 / tx.np.sqrt(d2),
-        tx.np.maximum(tx._dot_arr(d, v1), tx._dot_arr(d, v2)),
+        1 / jnp.sqrt(d2),
+        jnp.maximum(tx._dot_arr(d, v1), tx._dot_arr(d, v2)),
     )
 
 
-@partial(tx.vectorize, signature="(3,3),(2),(3,1),(3,1)->(2),(2)")
+@partial(jnp.vectorize, signature="(3,3),(2),(3,1),(3,1)->(2),(2)")
 def arc_trace(
     trans: Affine, angles: Angles, p: tx.P2_tC, v: tx.V2_tC
 ) -> Tuple[tx.Array, tx.Array]:
@@ -258,8 +264,8 @@ def arc_trace(
     mask1 = mask1 & _is_in_mod_360(angles, ray.point(d1))
     mask2 = mask2 & _is_in_mod_360(angles, ray.point(d2))
 
-    d = tx.np.stack([d1, d2], -1)
-    mask = tx.np.stack([mask1, mask2], -1)
+    d = jnp.stack([d1, d2], -1)
+    mask = jnp.stack([mask1, mask2], -1)
     return d, mask
 
 
@@ -273,32 +279,34 @@ def _seg_typeof(transform, angles) -> SegTy:
 
 
 class MakeSegment(VJPHiPrimitive):
-    def __init__(self, t_aval, a_aval):
+    def __init__(self, t_aval, a_aval, out_aval=None):
         self.in_avals = (t_aval, a_aval)
-        t_shape = t_aval.shape
-        if len(t_shape) == 2:
-            batch, n = (), 1
-        else:
-            batch, n = tuple(t_shape[:-3]), int(t_shape[-3])
-        self.out_aval = SegTy(batch, n, t_aval.dtype.name)
+        if out_aval is None:
+            a_shape = a_aval.shape
+            if len(a_shape) == 1:
+                batch, n = (), 1
+            else:
+                batch, n = tuple(a_shape[:-2]), int(a_shape[-2])
+            out_aval = SegTy(batch, n, t_aval.dtype_name)
+        self.out_aval = out_aval
         self.params = {}
         super().__init__()
 
     def expand(self, transform, angles):
-        t = jnp.asarray(transform)
+        t = tx.data(transform)
         a = jnp.asarray(angles)
         if t.ndim == 2:
             t = t[None, ...]
         if a.ndim == 1:
             a = a[None, ...]
-        return Segment(t, a)
+        return Segment(geom.make_xf(t), a)
 
     def jvp(self, primals, tangents):
         xf, ang = primals
         dxf, dang = tangents
         prim = make_segment(xf, ang)
         if isinstance(dxf, Zero):
-            dxf = jnp.zeros_like(jnp.asarray(xf))
+            dxf = jax.typeof(xf).vspace_zero()
         if isinstance(dang, Zero):
             dang = jnp.zeros_like(jnp.asarray(ang))
         return prim, make_segment(dxf, dang)
@@ -313,7 +321,15 @@ class MakeSegment(VJPHiPrimitive):
         dt, da = in_dims
         if dt is None and da is None:
             return make_segment(t, a), None
-        return make_segment(t, a), SegSpec()
+        size = axis_data.size
+        if dt is not None and self.out_aval.n_segs == 1:
+            t = geom.make_xf(tx.data(t)[..., None, :, :])
+        if da is not None:
+            a = jnp.moveaxis(a, da, 0)
+            if self.out_aval.n_segs == 1:
+                a = a[..., None, :]
+        out_aval = self.out_aval.inc_rank(size, SegSpec())
+        return MakeSegment(jax.typeof(t), jax.typeof(a), out_aval)(t, a), SegSpec()
 
 
 class ConcatSegments(VJPHiPrimitive):
@@ -325,11 +341,12 @@ class ConcatSegments(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, a: Segment, b: Segment):
-        if a.transform.shape[0] == 0:
+        ta_raw, tb_raw = tx.data(a.transform), tx.data(b.transform)
+        if ta_raw.shape[0] == 0:
             return b
-        if b.transform.shape[0] == 0:
+        if tb_raw.shape[0] == 0:
             return a
-        ta, tb = _ensure_3d(a.transform), _ensure_3d(b.transform)
+        ta, tb = _ensure_3d(ta_raw), _ensure_3d(tb_raw)
         aa, ab = _ensure_2d(a.angles), _ensure_2d(b.angles)
 
         def broadcast_ex(x, y, axis):
@@ -344,7 +361,7 @@ class ConcatSegments(VJPHiPrimitive):
 
         trans = broadcast_ex(jnp.asarray(ta), jnp.asarray(tb), -3)
         angs = broadcast_ex(jnp.asarray(aa), jnp.asarray(ab), -2)
-        return Segment(
+        return make_segment(
             jnp.concatenate(trans, axis=-3), jnp.concatenate(angs, axis=-2)
         )
 
@@ -368,7 +385,7 @@ class TransformSegment(VJPHiPrimitive):
     def expand(self, seg: Segment, t):
         from chalk.geom import data as geom_data
 
-        return Segment(geom_data(t) @ jnp.asarray(seg.transform), seg.angles)
+        return make_segment(geom_data(t) @ tx.data(seg.transform), seg.angles)
 
     def jvp(self, primals, tangents):
         from chalk.geom import data as geom_data
@@ -399,7 +416,7 @@ class TransformSegment(VJPHiPrimitive):
 
 
 def make_segment(transform, angles) -> Segment:
-    transform = tx.data(transform)
+    transform = tx._as_xf(transform)
     angles = jnp.asarray(angles)
     return MakeSegment(jax.typeof(transform), jax.typeof(angles))(
         transform, angles
@@ -426,15 +443,15 @@ class SegmentParts(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, seg: Segment):
-        return jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        return tx.data(seg.transform), jnp.asarray(seg.angles)
 
     def jvp(self, primals, tangents):
         (seg,), (dseg,) = primals, tangents
-        xf, ang = jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        xf, ang = tx.data(seg.transform), jnp.asarray(seg.angles)
         if isinstance(dseg, Zero):
             return (xf, ang), (Zero(jax.typeof(xf)), Zero(jax.typeof(ang)))
         return (xf, ang), (
-            jnp.asarray(dseg.transform),
+            tx.data(dseg.transform),
             jnp.asarray(dseg.angles),
         )
 
@@ -452,71 +469,81 @@ class SegmentParts(VJPHiPrimitive):
 
 
 class SegmentQ(VJPHiPrimitive):
-    """Endpoint of each arc, as homogeneous points ``[..., 3, 1]``."""
+    """Endpoint of each arc as opaque ``p2`` values."""
 
     def __init__(self, seg_aval: SegTy):
         self.in_avals = (seg_aval,)
-        self.out_aval = ShapedArray(
-            seg_aval.batch_shape + (seg_aval.n_segs, 3, 1),
-            jnp.dtype(seg_aval.dtype_name),
+        self.out_aval = geom.P2Ty(
+            seg_aval.batch_shape + (seg_aval.n_segs,),
+            seg_aval.dtype_name,
         )
         self.params = {}
         super().__init__()
 
     def expand(self, seg: Segment):
         angles = jnp.asarray(seg.angles)
-        transform = jnp.asarray(seg.transform)
+        transform = tx.data(seg.transform)
         ang = angles.sum(-1)
         rad = jnp.deg2rad(ang)
         x, y = jnp.cos(rad), jnp.sin(rad)
         ones = jnp.ones_like(x)
         q = jnp.stack([x, y, ones], axis=-1)[..., None]
-        return transform @ q
+        return geom.make_p2_from_data(transform @ q)
 
     def batch(self, axis_data, args, in_dims):
         (seg,) = args
         (d,) = in_dims
         if d is None:
             return segment_q(seg), None
-        return segment_q(seg), 0
+        return segment_q(seg), geom.GeomSpec()
 
 
 class SegmentCenter(VJPHiPrimitive):
-    """Ellipse center of each arc, as homogeneous points."""
+    """Ellipse center of each arc as opaque ``p2`` values."""
 
     def __init__(self, seg_aval: SegTy):
         self.in_avals = (seg_aval,)
-        self.out_aval = ShapedArray(
-            seg_aval.batch_shape + (seg_aval.n_segs, 3, 1),
-            jnp.dtype(seg_aval.dtype_name),
+        self.out_aval = geom.P2Ty(
+            seg_aval.batch_shape + (seg_aval.n_segs,),
+            seg_aval.dtype_name,
         )
         self.params = {}
         super().__init__()
 
     def expand(self, seg: Segment):
-        transform = jnp.asarray(seg.transform)
+        transform = tx.data(seg.transform)
         origin = jnp.zeros(transform.shape[:-2] + (3, 1), dtype=transform.dtype)
         origin = origin.at[..., 2, 0].set(1.0)
-        return transform @ origin
+        return geom.make_p2_from_data(transform @ origin)
 
     def batch(self, axis_data, args, in_dims):
         (seg,) = args
         (d,) = in_dims
         if d is None:
             return segment_center(seg), None
-        return segment_center(seg), 0
+        return segment_center(seg), geom.GeomSpec()
 
 
 def segment_parts(seg) -> Tuple[jax.Array, jax.Array]:
     return SegmentParts(jax.typeof(seg))(seg)
 
 
-def segment_q(seg) -> jax.Array:
+def segment_q(seg) -> P2_t:
     return SegmentQ(jax.typeof(seg))(seg)
 
 
-def segment_center(seg) -> jax.Array:
+def segment_center(seg) -> P2_t:
     return SegmentCenter(jax.typeof(seg))(seg)
+
+
+def _aval_to_trail(seg):
+    from chalk.trail import make_trail
+
+    _, angles = segment_parts(seg)
+    return make_trail(seg, jnp.zeros(angles.shape[:-1], dtype=bool))
+
+
+SegTy.to_trail = aval_method(_aval_to_trail)
 
 
 __all__ = []

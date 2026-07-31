@@ -33,7 +33,6 @@ setup(
         "toolz",
         "colour",
         "imageio",
-        "numpy",
         "matplotlib",
         "jax",
         "chex",

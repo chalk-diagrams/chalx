@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
+import jax.numpy as jnp
+
 import chalk.backend.patch
 import chalk.transform as tx
 from chalk.backend.patch import Patch
@@ -156,8 +158,8 @@ def animate(
     assert len(shape) == 1, f"Must be one time dimension {shape}"
 
     patches, h, w = self._layout(height, width, draw_height)
-    h = tx.np.max(h)
-    w = tx.np.max(w)
+    h = jnp.max(h)
+    w = jnp.max(w)
     patches_to_file(patches, path, h, w, animate=True, time_steps=shape[0])
     return self
 

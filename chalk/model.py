@@ -1,7 +1,9 @@
 """A set of helper functions that help users debug diagram properties."""
 
+import jax
+import jax.numpy as jnp
+
 import chalk.transform as tx
-from chalk.combinators import concat
 from chalk.path import Path
 from chalk.shapes import circle, text
 from chalk.trail import seg
@@ -11,14 +13,17 @@ from chalk.types import Diagram
 
 def show_origin(self: Diagram) -> Diagram:
     envelope = self.get_envelope()
-    origin_size = tx.np.maximum(
-        0.1, tx.np.minimum(envelope.height, envelope.width) / 50
+    origin_size = jnp.maximum(
+        0.1, jnp.minimum(envelope.height, envelope.width) / 50
     )
     origin = circle(origin_size).line_color("red")
     return self + origin
 
 
 def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diagram:
+    from chalk.diag import DiagSpec
+    from chalk.geom import GeomSpec
+
     self.show_origin()
     envelope = self.get_envelope()
     outer: Diagram = (
@@ -28,9 +33,15 @@ def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diag
         .line_color("red")
     )
     segments = envelope.to_segments(angle)
+    segment_diagrams = jax.vmap(
+        lambda offset: seg(offset).stroke(),
+        in_axes=GeomSpec(),
+        out_axes=DiagSpec(),
+        axis_size=segments.shape[0],
+    )(segments)
 
     outer = outer + (
-        concat([seg(segments[i][None]).stroke() for i in range(segments.shape[0])])
+        segment_diagrams.concat()
         .line_color("blue")
         .dashing([0.01, 0.01], 0)
     )
@@ -77,7 +88,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
 
 
 def show_labels(self: Diagram, font_size: tx.Floating = 1) -> Diagram:
-    for name, subs in self.get_sub_map(tx._ident_arr).items():
+    for name, subs in self.get_sub_map(tx.ident).items():
         for sub in subs:
             n = str(name)
             p = sub.get_location()

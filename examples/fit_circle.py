@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import numpy as onp
 from PIL import Image
 
 from chalk import circle
@@ -45,8 +44,8 @@ grad_jit = jax.jit(jax.grad(loss_fn))
 
 
 def to_uint8(img):
-    arr = onp.clip(onp.asarray(img), 0.0, 1.0)
-    return (arr * 255).astype("uint8")
+    arr = jnp.clip(jnp.asarray(img), 0.0, 1.0)
+    return jax.device_get((arr * 255).astype("uint8"))
 
 
 def to_png(img, path):
@@ -86,7 +85,7 @@ def main():
         if i == 1 or i % 20 == 0 or i == STEPS:
             print(
                 f"step {i:3d}  loss={float(loss_jit(params, goal)):.3f}  "
-                f"params={onp.asarray(params)}"
+                f"params={jax.device_get(params)}"
             )
 
     frames = []
@@ -98,7 +97,7 @@ def main():
     final = frames[-1][:, W:, :]
     to_png(final, "/opt/cursor/artifacts/fit_circle_final.png")
     to_png(jnp.concatenate([goal, start_img, final], axis=1), "/opt/cursor/artifacts/fit_circle_compare.png")
-    print("target", onp.asarray(target), "final", onp.asarray(params))
+    print("target", jax.device_get(target), "final", jax.device_get(params))
     print("wrote /opt/cursor/artifacts/fit_circle.gif")
 
 

@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
+import jax
+import jax.numpy as jnp
+
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.backend.patch import Patch, patch_from_prim
 from chalk.style import StyleHolder
@@ -15,7 +19,7 @@ if TYPE_CHECKING:
 
 
 def get_primitives(self: SingleDiagram) -> List[Primitive]:
-    return self._accept(ToListOrder(), tx._ident_arr).ls
+    return self._accept(ToListOrder(), tx.ident).ls
 
 
 def animate(
@@ -41,18 +45,18 @@ def layout(
     envelope = self.get_envelope()
     assert envelope is not None
 
-    pad = tx.np.array(0.05)
+    pad = jnp.array(0.05)
 
     envelope_width, envelope_height = envelope.size()
 
     # infer width to preserve aspect ratio
     if width is None:
-        width = tx.np.round(height * envelope_width / envelope_height).astype(int)
+        width = jnp.round(height * envelope_width / envelope_height).astype(int)
     else:
         width = width
     assert width is not None
     # determine scale to fit the largest axis in the target frame size
-    α = tx.np.where(
+    α = jnp.where(
         envelope_width - width <= envelope_height - height,
         height / ((1 + pad) * envelope_height),
         width / ((1 + pad) * envelope_width),
@@ -77,11 +81,11 @@ class OrderList:
 
     @staticmethod
     def empty() -> OrderList:
-        return OrderList([], tx.np.asarray(0))
+        return OrderList([], jnp.asarray(0))
 
     def __add__(self, other: OrderList) -> OrderList:
         sc = self.counter
-        sc = tx.np.asarray(sc)
+        sc = jnp.asarray(sc)
         ls = []
         for prim in other.ls:
             assert prim.order is not None
@@ -109,12 +113,12 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     def visit_primitive(self, diagram: Primitive, t: Affine) -> OrderList:
         from chalk.core import Primitive as Prim
 
-        xf = tx.np.asarray(t) @ tx.np.asarray(diagram.transform)
-        size = tuple(tx.np.asarray(xf).shape[:-2])
+        xf = t @ diagram.transform
+        size = jax.typeof(xf).batch
         prim = Prim(diagram.prim_shape, diagram.style, xf, diagram.order)
         return OrderList(
-            [prim.set_order(tx.np.zeros(size))],
-            tx.np.ones(size),
+            [prim.set_order(jnp.zeros(size))],
+            jnp.ones(size),
         )
 
     def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> OrderList:
@@ -136,15 +140,16 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> OrderList:
         s = diagram.diagrams.size()
         stride = s[-1]
-        internal = diagram.diagrams._accept(self, t[..., None, :, :])
+        expanded = geom.make_xf(tx.data(t)[..., None, :, :])
+        internal = diagram.diagrams._accept(self, expanded)
 
-        last_counter = tx.np.where(
-            tx.np.arange(stride) == 0,
+        last_counter = jnp.where(
+            jnp.arange(stride) == 0,
             0,
-            tx.np.roll(tx.np.cumsum(internal.counter, axis=-1), 1, axis=-1),
+            jnp.roll(jnp.cumsum(internal.counter, axis=-1), 1, axis=-1),
         )
 
-        # ls = [prim.set_order(tx.np.cumsum(prim.order, len(s)- 1))
+        # ls = [prim.set_order(jnp.cumsum(prim.order, len(s)- 1))
         #       for prim in internal.ls]
         ls = [
             prim.set_order(
@@ -154,7 +159,7 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
             for prim in internal.ls
         ]
 
-        counter = tx.np.sum(internal.counter, axis=-1)
+        counter = jnp.sum(internal.counter, axis=-1)
         assert counter.shape == diagram.size()
         return OrderList(ls, counter)
 
@@ -170,7 +175,7 @@ def add_dim(m: Any, size: int) -> Any:
                 for i, p in enumerate(parts)
             ]
         return make_style(*parts)
-    m = tx.np.asarray(m)
+    m = jnp.asarray(m)
     for _ in range(size):
         m = m[..., None]
     return m

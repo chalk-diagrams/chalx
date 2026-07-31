@@ -26,6 +26,8 @@ from jax.experimental.hijax import (
 )
 
 import chalk.core as C
+import chalk.geom as geom
+import chalk.transform as tx
 from chalk.path import Path, PathTy
 from chalk.style import StyleHolder, StyleTy
 from chalk.subdiagram import Name
@@ -114,14 +116,14 @@ class DiagTy(HiType):
         if self.tag == "prim":
             assert self.path_ty is not None
             los = list(self.path_ty.lower_val(d.prim_shape))
-            los.append(jnp.asarray(d.transform, dtype=_DT))
+            los.append(geom.data(d.transform))
             if self.style_ty is not None:
                 los.extend(self.style_ty.lower_val(d.style))
             if self.has_order:
                 los.append(jnp.asarray(d.order, dtype=jnp.int32))
             return los
         if self.tag == "xf":
-            return [jnp.asarray(d.transform, dtype=_DT)] + list(
+            return [geom.data(d.transform)] + list(
                 self.child_tys[0].lower_val(d.diagram)
             )
         if self.tag == "style":
@@ -195,11 +197,11 @@ def _raise(ty: DiagTy, it):
         if ty.style_ty is not None:
             style = ty.style_ty.raise_val(*_take(it, len(ty.style_ty.lo_ty())))
         order = next(it) if ty.has_order else None
-        return C.Primitive(path, style, xf, order)
+        return C.Primitive(path, style, geom.make_xf(xf), order)
     if ty.tag == "xf":
         xf = next(it)
         child = _raise(ty.child_tys[0], it)
-        return C.ApplyTransform(xf, child)
+        return C.ApplyTransform(geom.make_xf(xf), child)
     if ty.tag == "style":
         assert ty.style_ty is not None
         style = ty.style_ty.raise_val(*_take(it, len(ty.style_ty.lo_ty())))
@@ -222,7 +224,7 @@ def typeof_diagram(d) -> DiagTy:
     if isinstance(d, C.Empty):
         return DiagTy("empty")
     if isinstance(d, C.Primitive):
-        xf = tuple(jnp.asarray(d.transform).shape[:-2])
+        xf = jax.typeof(d.transform).batch
         return DiagTy(
             "prim",
             xf,
@@ -235,7 +237,7 @@ def typeof_diagram(d) -> DiagTy:
             None,
         )
     if isinstance(d, C.ApplyTransform):
-        xf = tuple(jnp.asarray(d.transform).shape[:-2])
+        xf = jax.typeof(d.transform).batch
         child = typeof_diagram(d.diagram)
         return DiagTy("xf", xf, None, None, xf, False, (child,), None, None)
     if isinstance(d, C.ApplyStyle):
@@ -314,7 +316,7 @@ class DiagPrim(VJPHiPrimitive):
             ins.append(style_aval)
         if order_aval is not None:
             ins.append(order_aval)
-        xf_shape = tuple(xf_aval.shape[:-2])
+        xf_shape = xf_aval.batch
         self.in_avals = tuple(ins)
         self.out_aval = DiagTy(
             "prim",
@@ -336,6 +338,13 @@ class DiagPrim(VJPHiPrimitive):
 
     def batch(self, axis_data, args, in_dims):
         path, xf, *rest = args
+        _, xf_dim, *_ = in_dims
+        if xf_dim is None:
+            xf = geom.make_xf(
+                jnp.broadcast_to(
+                    geom.data(xf), (axis_data.size, *geom.data(xf).shape)
+                )
+            )
         style = rest[0] if self.has_style else None
         order = rest[-1] if self.has_order else None
         out = diag_prim(path, xf, style, order)
@@ -343,9 +352,7 @@ class DiagPrim(VJPHiPrimitive):
 
 
 def diag_prim(path, xf, style=None, order=None):
-    from chalk.geom import data as geom_data
-
-    xf = geom_data(xf)
+    xf = tx._as_xf(xf)
     args = [path, xf]
     sav = jax.typeof(style) if style is not None else None
     oav = jax.typeof(order) if order is not None else None
@@ -359,7 +366,7 @@ def diag_prim(path, xf, style=None, order=None):
 class DiagXf(VJPHiPrimitive):
     def __init__(self, child_aval: DiagTy, xf_aval):
         self.in_avals = (child_aval, xf_aval)
-        xf_shape = tuple(xf_aval.shape[:-2])
+        xf_shape = xf_aval.batch
         self.out_aval = DiagTy("xf", xf_shape, None, None, xf_shape, False, (child_aval,))
         self.params = {}
         super().__init__()
@@ -372,7 +379,7 @@ class DiagXf(VJPHiPrimitive):
         dchild, dxf = tangents
         prim = diag_xf(child, xf)
         if isinstance(dxf, Zero):
-            dxf = jnp.zeros_like(xf)
+            dxf = jax.typeof(xf).vspace_zero()
         if isinstance(dchild, Zero):
             dchild = jax.typeof(child).vspace_zero()
         return prim, diag_xf(dchild, dxf)
@@ -398,14 +405,19 @@ class DiagXf(VJPHiPrimitive):
 
     def batch(self, axis_data, args, in_dims):
         child, xf = args
+        _, xf_dim = in_dims
+        if xf_dim is None:
+            xf = geom.make_xf(
+                jnp.broadcast_to(
+                    geom.data(xf), (axis_data.size, *geom.data(xf).shape)
+                )
+            )
         out = diag_xf(child, xf)
         return out, (None if all(d is None for d in in_dims) else DiagSpec())
 
 
 def diag_xf(diagram, xf):
-    from chalk.geom import data as geom_data
-
-    xf = geom_data(xf)
+    xf = tx._as_xf(xf)
     return DiagXf(jax.typeof(diagram), jax.typeof(xf))(diagram, xf)
 
 
@@ -543,13 +555,15 @@ def map_diag_prefix(d, fn: Callable):
     if isinstance(d, C.Primitive):
         path = d.prim_shape.map_prefix(fn)
         style = d.style.map_prefix(fn) if d.style is not None else None
-        xf = fn(d.transform)
+        xf_data = fn(geom.data(d.transform))
+        xf = None if xf_data is None else geom.make_xf(xf_data)
         order = fn(d.order) if d.order is not None else None
         if xf is None:
             return d
         return diag_prim(path, xf, style, order)
     if isinstance(d, C.ApplyTransform):
-        xf = fn(d.transform)
+        xf_data = fn(geom.data(d.transform))
+        xf = None if xf_data is None else geom.make_xf(xf_data)
         child = map_diag_prefix(d.diagram, fn)
         if xf is None:
             return diag_xf(child, d.transform)
@@ -609,13 +623,13 @@ class DiagUnconsXf(VJPHiPrimitive):
         self.in_avals = (dty,)
         self.out_aval = (
             dty.child_tys[0],
-            ShapedArray(dty.xf_shape + (3, 3), _DT),
+            geom.XfTy(dty.xf_shape, _DT.name),
         )
         self.params = dict(dty=dty)
         super().__init__()
 
     def expand(self, d):
-        return d.diagram, jnp.asarray(d.transform, dtype=_DT)
+        return d.diagram, d.transform
 
     def jvp(self, primals, tangents):
         (d,), (dd,) = primals, tangents
@@ -623,7 +637,7 @@ class DiagUnconsXf(VJPHiPrimitive):
         if isinstance(dd, Zero):
             return (child, xf), (
                 jax.typeof(child).vspace_zero(),
-                jnp.zeros_like(xf),
+                jax.typeof(xf).vspace_zero(),
             )
         dchild, dxf = diag_uncons_xf(dd)
         return (child, xf), (dchild, dxf)
@@ -641,7 +655,7 @@ class DiagUnconsXf(VJPHiPrimitive):
         if isinstance(child_ct, (Zero, AdZero)):
             child_ct = self.out_aval[0].vspace_zero()
         if isinstance(xf_ct, (Zero, AdZero)):
-            xf_ct = jnp.zeros(self.out_aval[1].shape, dtype=self.out_aval[1].dtype)
+            xf_ct = self.out_aval[1].vspace_zero()
         d_ct = diag_xf(child_ct, xf_ct)
         if isinstance(d, GradAccum):
             d.accum(d_ct)
@@ -650,7 +664,9 @@ class DiagUnconsXf(VJPHiPrimitive):
     def batch(self, axis_data, args, in_dims):
         (d,) = args
         out = diag_uncons_xf(d)
-        return out, (None if in_dims[0] is None else (DiagSpec(), 0))
+        return out, (
+            None if in_dims[0] is None else (DiagSpec(), geom.GeomSpec())
+        )
 
 
 def diag_uncons_xf(d):
@@ -725,7 +741,7 @@ class DiagPrimTrace(VJPHiPrimitive):
         from chalk.trace import _GetLocatedSegments, make_trace
         import chalk.transform as tx
 
-        return make_trace(d._accept(_GetLocatedSegments(), tx._ident_arr))
+        return make_trace(d._accept(_GetLocatedSegments(), tx.ident))
 
     def jvp(self, primals, tangents):
         (d,), _dd = primals, tangents
@@ -788,9 +804,7 @@ def _trace_ty_from_diag(dty: DiagTy):
 
 
 def _aval_apply_transform(d, t):
-    from chalk.geom import data as geom_data
-
-    return diag_xf(d, geom_data(t))
+    return diag_xf(d, t)
 
 
 def _aval_apply_style(d, style):

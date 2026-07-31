@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 from colour import Color
+import jax.numpy as jnp
 
 import chalk.transform as tx
 from chalk.arrowheads import dart
@@ -121,7 +122,7 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
         q = segment_q(seg)
         c = segment_center(seg)
         tan = -tx.perpendicular(q - tx.scale(tx.V2(1, -1)) @ c)  # type: ignore
-        φ = tx.np.asarray(tx.angle(tan)).reshape(-1)[-1]
+        φ = jnp.asarray(tx.angle(tan)).reshape(-1)[-1]
         arrow = arrow.rotate(φ)
         if style.arc_height < 0:
             arrow = arrow.rotate(180)
@@ -131,7 +132,7 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
 
         shaft = style.trail.stroke().scale_uniform_to_x(l_adj).fill_opacity(0)
         _, angles = segment_parts(trail_segment(style.trail))
-        arrow = arrow.rotate(-tx.np.asarray(angles).reshape(-1, 2)[-1, 0])
+        arrow = arrow.rotate(-jnp.asarray(angles).reshape(-1, 2)[-1, 0])
     return shaft.apply_style(style.shaft_style).translate_by(
         t * tx.unit_x
     ) + arrow.translate_by((l_adj + t) * tx.unit_x)

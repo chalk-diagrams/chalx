@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
+from itertools import product
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-import numpy as onp
+import jax
+import jax.numpy as jnp
 from matplotlib.text import TextPath
 
 import chalk.transform as tx
@@ -25,7 +27,7 @@ class Command(Enum):
     SKIP = 0
 
 
-@partial(tx.vectorize, signature="(3,3),(2)->(a,3,1)")
+@partial(jnp.vectorize, signature="(3,3),(2)->(a,3,1)")
 def segment_to_curve(transform: tx.Affine, angles: tx.Angles) -> tx.V2_tC:
     angle = angles[..., 0]
     end = angle + angles[..., 1]
@@ -33,29 +35,31 @@ def segment_to_curve(transform: tx.Affine, angles: tx.Angles) -> tx.V2_tC:
     return transform[..., None, :, :] @ path  # type: ignore
 
 
-@partial(tx.np.vectorize, signature="(3,1),(a,c,3,1),(3,3)->(b,3,1),(b)")
-def close(p: tx.P2_t, vert: tx.V2_t, trans: tx.Affine) -> Tuple[tx.V2_tC, tx.IntLikeC]:
+@partial(jnp.vectorize, signature="(3,1),(a,c,3,1),(3,3)->(b,3,1),(b)")
+def _close_array(p, vert, trans) -> Tuple[tx.V2_tC, tx.IntLikeC]:
     # vert = vert.reshape(*vert.shape[:-4], vert.shape[-4] * vert.shape[-3],
     #                 vert.shape[-2], vert.shape[-1])
     vert = vert.reshape(-1, 3, 1)
-    command = tx.np.full(vert.shape[0] + 1, Command.CURVE4.value)
+    command = jnp.full(vert.shape[0] + 1, Command.CURVE4.value)
     command = tx.index_update(command, (Ellipsis, 0), Command.MOVETO.value)
-    vert = tx.np.concatenate([p[None], vert], axis=0)
+    vert = jnp.concatenate([p[None], vert], axis=0)
     vert = trans @ vert
     return vert, command
+
+
+def close(p: tx.P2_t, vert, trans: tx.Affine) -> Tuple[tx.V2_tC, tx.IntLikeC]:
+    return _close_array(tx.data(p), vert, tx.data(trans))
 
 
 def order_patches(
     patches: List[Patch], time: Tuple[int, ...] = ()
 ) -> List[Tuple[Tuple[int, ...], Patch, Dict[str, Any]]]:
-    import numpy as onp
-
-    if tx.JAX_MODE:
-        patches = tx.tree_map(onp.asarray, patches)
-
     d = {}
     for patch in patches:
-        for ind, i in tx.onp.ndenumerate(patch.order[time]):  # type: ignore
+        order = jax.device_get(patch.order[time])
+        indices = product(*(range(size) for size in order.shape))
+        for ind in indices:
+            i = int(order[ind])
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, time + ind)
     return [(d[k][1], d[k][0], d[k][0].get_style(d[k][1])) for k in sorted(d.keys())]
@@ -89,15 +93,12 @@ class Patch:
         order: tx.Array,
         height: tx.IntLike,
     ) -> Patch:
-        np = tx.np
-        vert = np.empty((0, 3, 1))
-        command = np.empty((0))
+        vert = jnp.empty((0, 3, 1))
+        command = jnp.empty((0))
         closed = True
         from chalk.path import path_get_located, path_is_scale_invariant, path_text_bytes
         from chalk.segment import segment_parts
         from chalk.trail import located_location, located_segments, located_trail, trail_closed
-        import jax
-
         path_ty = jax.typeof(path)
         for i in range(path_ty.n_locs):
             loc_trail = path_get_located(path, i)
@@ -105,11 +106,11 @@ class Patch:
             segments = located_segments(loc_trail)
             seg_t, seg_a = segment_parts(segments)
             vert = segment_to_curve(seg_t, seg_a)
-            if bool(onp.asarray(path_is_scale_invariant(path))):
+            if bool(jax.device_get(path_is_scale_invariant(path))):
                 scale = height / 20
                 import chalk.geom as geom
 
-                xf = tx.remove_scale(geom.make_xf(tx.np.asarray(transform))) @ tx.scale(
+                xf = tx.remove_scale(tx._as_xf(transform)) @ tx.scale(
                     tx.V2(scale, scale)
                 )
                 transform = tx.data(xf)
@@ -118,34 +119,34 @@ class Patch:
             closed = trail_closed(located_trail(loc_trail)).all()
 
             # Closing
-            extra = tx.np.zeros(vert.shape)
-            vert = np.concatenate([vert, extra[..., -1:, :, :]], axis=-3)
-            extra = tx.np.full(
+            extra = jnp.zeros(vert.shape)
+            vert = jnp.concatenate([vert, extra[..., -1:, :, :]], axis=-3)
+            extra = jnp.full(
                 command.shape,
-                np.where(closed, Command.CLOSEPOLY.value, Command.SKIP.value),
+                jnp.where(closed, Command.CLOSEPOLY.value, Command.SKIP.value),
             )
-            command = np.concatenate([command, extra[..., -1:]], -1)
+            command = jnp.concatenate([command, extra[..., -1:]], -1)
 
         vert = vert[..., :2, 0]
         # Text rendering
         if path_ty.text_len:
             text_path = TextPath(
-                (0, 0), Text(path_text_bytes(path)).to_str(), size=1, usetex=True
+                (0, 0), Text(path_text_bytes(path)).to_str(), size=1, usetex=False
             )
-            command = np.concatenate([command, text_path.codes], -1)
+            command = jnp.concatenate([command, text_path.codes], -1)
             v = text_path.vertices
             # Center
-            t1 = np.max(v[..., 0]) / 2
-            t2 = np.max(v[..., 1]) / 2
+            t1 = jnp.max(v[..., 0]) / 2
+            t2 = jnp.max(v[..., 1]) / 2
             import chalk.geom as geom
 
             new_pts = (
-                geom.make_xf(tx.np.asarray(transform))
+                tx._as_xf(transform)
                 @ tx.translation(tx.V2(-t1, -t2))
                 @ tx.P2(v[..., 0], v[..., 1])
             )
             new_verts = tx.data(new_pts)
-            vert = np.concatenate([vert, new_verts[..., :2, 0]], -2)
+            vert = jnp.concatenate([vert, new_verts[..., :2, 0]], -2)
 
         return Patch(vert, command, style, order, height, closed)
 
