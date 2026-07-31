@@ -3,7 +3,7 @@
 Each triangle keeps a scalar ``z`` (low = behind). Scanline and Cairo both
 hard-sort by ``z`` and gate fill opacity with ``modulate_opacity(z)``.
 Coverage is the average of a left-to-right and top-to-bottom scan.
-Init is size-ordered so ``z`` starts as large-behind / small-in-front.
+Init is small triangles clustered near the image center.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
-PREFIX = "tri7"
+PREFIX = "tri8"
 KERNELS = (7, 5, 3)
 
 _unit = triangle(1.0).line_width(0)
@@ -171,20 +171,16 @@ def init_params(seed=42):
     cx, cy = W / 2.0, H / 2.0
     locs = []
     for _ in range(N):
-        if random.random() < 0.72:
-            x = cx + random.gauss(0.0, W * 0.16)
-            y = cy + random.gauss(0.0, H * 0.16)
-            x = min(max(x, 4.0), float(W - 4))
-            y = min(max(y, 4.0), float(H - 4))
-        else:
-            x = 6.0 + (W - 12.0) * random.random()
-            y = 6.0 + (H - 12.0) * random.random()
+        x = cx + random.gauss(0.0, W * 0.06)
+        y = cy + random.gauss(0.0, H * 0.06)
+        x = min(max(x, cx - W * 0.18), cx + W * 0.18)
+        y = min(max(y, cy - H * 0.18), cy + H * 0.18)
         locs.append([x, y])
     loc = jnp.array(locs)
     radii = []
     for _ in range(N):
-        size = MIN_SIZE + 14.0 * random.random() ** 1.6
-        aspect = 0.35 + 0.65 * random.random()
+        size = MIN_SIZE + 2.2 * random.random() ** 1.4
+        aspect = 0.45 + 0.55 * random.random()
         if random.random() < 0.5:
             radii.append([size, max(MIN_SIZE, size * aspect)])
         else:
@@ -193,7 +189,6 @@ def init_params(seed=42):
     rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
     opacity = jnp.array([random.uniform(-0.2, 1.8) for _ in range(N)])
-    # Size-order once: slot 0 = largest = behind. Learnable z starts aligned.
     order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
     loc, radii, rots, color, opacity = (
         loc[order],
@@ -379,7 +374,7 @@ def main():
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title(f"{N} triangles · cow · z+α(z) · xy scan · 7→5→3")
+        ax.set_title(f"{N} triangles · cow · center-small init · z+α(z)")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
