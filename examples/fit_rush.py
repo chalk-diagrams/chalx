@@ -17,11 +17,11 @@ from chalk.style import composite
 
 H = W = 80
 KERNEL = 11
-N = 300
-STEPS = 500
-MIN_SIZE = 2.5
+N = 1000
+STEPS = 2000
+MIN_SIZE = 1.0
 LR = 0.03
-LOSS_EVERY = 25
+LOSS_EVERY = 50
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 LIB_HEIGHT = 400
 
@@ -188,7 +188,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
 
 
 def main():
-    print(f"N={N} STEPS={STEPS} {H}x{W} ellipses (one diagram)", flush=True)
+    print(f"N={N} STEPS={STEPS} MIN_SIZE={MIN_SIZE} {H}x{W} ellipses", flush=True)
     goal = reduce_color(load_goal())
     to_png(goal, "/opt/cursor/artifacts/fit_rush_target.png")
     params = init_params()
@@ -235,7 +235,7 @@ def main():
         color = jnp.clip(color, -6.0, 6.0)
         opacity = jnp.clip(opacity, -6.0, 6.0)
         params = (loc, radii, rots, color, opacity)
-        if i % 25 == 0 or i == 1:
+        if i % 50 == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             cur_loss = float(loss_jit(params, goal))
@@ -263,21 +263,25 @@ def main():
     print("wrote /opt/cursor/artifacts/fit_rush.gif")
 
     dia = diagram_stacked(params)
-    lib_path = "/opt/cursor/artifacts/rush_ell_library.png"
+    lib_path = "/opt/cursor/artifacts/rush_1k_cairo.png"
     dia.render(lib_path, height=LIB_HEIGHT)
-    svg_path = "/opt/cursor/artifacts/rush_ell_library.svg"
+    svg_path = "/opt/cursor/artifacts/rush_1k.svg"
     dia.render_svg(svg_path, height=LIB_HEIGHT)
-    print(f"wrote cairo+svg of the fitted diagram {lib_path} {svg_path}")
+    print(f"wrote cairo+svg {lib_path} {svg_path}")
     write_compare_strip(
         final,
         lib_path,
         goal,
-        "/opt/cursor/artifacts/rush_ell_strip.png",
+        "/opt/cursor/artifacts/rush_1k_strip.png",
     )
-    to_png(start_img, "/opt/cursor/artifacts/rush_ell_start.png")
-    to_png(final, "/opt/cursor/artifacts/rush_ell_final.png")
-    to_png(goal, "/opt/cursor/artifacts/rush_ell_target.png")
-    print("wrote /opt/cursor/artifacts/rush_ell_strip.png")
+    to_png(start_img, "/opt/cursor/artifacts/rush_1k_start.png")
+    to_png(final, "/opt/cursor/artifacts/rush_1k_scan.png")
+    to_png(goal, "/opt/cursor/artifacts/rush_1k_target.png")
+    to_png(
+        jnp.concatenate([goal, start_img, final], axis=1),
+        "/opt/cursor/artifacts/rush_1k_compare.png",
+    )
+    print("wrote /opt/cursor/artifacts/rush_1k_strip.png")
 
 
 if __name__ == "__main__":
