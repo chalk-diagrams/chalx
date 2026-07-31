@@ -186,8 +186,10 @@ inner_circle
 
 u45 = tx.rotation_angle(-45) @ unit_x
 u60 = tx.rotation_angle(60) @ unit_x
-diffy = abs(u45[1, 0] / u60[1, 0])
-diffx = diffy * abs(u60[0, 0] / u45[0, 0])
+u45_data = tx.data(u45)
+u60_data = tx.data(u60)
+diffy = abs(u45_data[1, 0] / u60_data[1, 0])
+diffx = diffy * abs(u60_data[0, 0] / u45_data[0, 0])
 
 # A `Trail` is a sequence of vectors drawn in order.
 # Once you are done drawing one you can use `stroke` to
