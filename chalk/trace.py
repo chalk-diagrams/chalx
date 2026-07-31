@@ -46,7 +46,7 @@ def _trace(
     direction = jnp.reshape(
         direction, direction.shape[:-2] + (1,) * len(seg_batch) + direction.shape[-2:]
     )
-    t1 = tx.inv(transform)
+    t1 = jnp.linalg.inv(jnp.asarray(transform))
     d, m = arc_trace(transform, angles, t1 @ point, t1 @ d)
     d = d.reshape(d.shape[:-2] + (-1,))
     m = m.reshape(m.shape[:-2] + (-1,))
@@ -190,10 +190,8 @@ class TransformTrace(VJPHiPrimitive):
         return Trace(transform_segment(tr.segment, t))
 
     def vjp_fwd(self, nzs_in, tr, t):
-        from chalk.geom import data as geom_data
-
         xf, ang = segment_parts(trace_segment(tr))
-        t_arr = geom_data(t)
+        t_arr = jnp.asarray(t)
 
         def f(xf_, ang_, t_):
             return t_ @ xf_, ang_
@@ -231,14 +229,15 @@ class TraceRay(VJPHiPrimitive):
         # _trace returns sorted hits; width is 2 * n_segs after reshape
         n_hits = max(seg.n_segs * 2, 1)
         out = ShapedArray(p_batch + (n_hits,), jnp.dtype(seg.dtype_name))
-        mask = ShapedArray(p_batch + (n_hits,), jnp.dtype("bool"))
+        mask = ShapedArray(p_batch + (n_hits,), jnp.dtype(seg.dtype_name))
         self.out_aval = (out, mask)
         self.params = {}
         super().__init__()
 
     def expand(self, tr: Trace, point, direction):
         xf, ang = segment_parts(trace_segment(tr))
-        return _trace(xf, ang, jnp.asarray(point), jnp.asarray(direction))
+        dist, mask = _trace(xf, ang, jnp.asarray(point), jnp.asarray(direction))
+        return dist, jnp.asarray(mask, dtype=dist.dtype)
 
     def vjp_fwd(self, nzs_in, tr, point, direction):
         xf, ang = segment_parts(trace_segment(tr))
@@ -250,7 +249,7 @@ class TraceRay(VJPHiPrimitive):
             return _trace(xf_, ang_, p_, d_)[0]
 
         _, vjp = jax.vjp(dist_fn, xf, ang, point, direction)
-        return (dist, mask), vjp
+        return (dist, jnp.asarray(mask, dtype=dist.dtype)), vjp
 
     def vjp_bwd_retval(self, vjp, g):
         g_dist, _g_mask = g

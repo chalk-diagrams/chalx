@@ -248,7 +248,6 @@ def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     )
 
 
-@tx.jit
 @partial(tx.vectorize, signature="(3,3),(2),(3,1),(3,1)->(2),(2)")
 def arc_trace(
     trans: Affine, angles: Angles, p: tx.P2_tC, v: tx.V2_tC

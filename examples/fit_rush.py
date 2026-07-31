@@ -11,11 +11,10 @@ import numpy as onp
 from PIL import Image
 
 from chalk import circle
-from chalk.measure import measure_from_splits, trace_splits_batched
+from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
-from chalk.segment import segment_parts
 from chalk.style import composite
-from chalk.trace import trace_segment
+from chalk.trace import transform_trace
 
 H = W = 80
 KERNEL = 11
@@ -25,9 +24,7 @@ LR = 0.02
 LOSS_EVERY = 50
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
-# Peel unit-circle geometry once; JIT path stays pure jnp (no hijax in the loop).
-_xf0, _ang0 = segment_parts(trace_segment(circle(1.0).get_trace()))
-_xf0, _ang0 = jnp.asarray(_xf0), jnp.asarray(_ang0)
+tr0 = circle(1.0).get_trace()
 _px = scanline_origins(H, axis="x")
 _vx = jnp.array([[1.0], [0.0], [0.0]])
 
@@ -59,9 +56,8 @@ def render(params):
     paints = jax.nn.sigmoid(color)
 
     def cover(_carry, A):
-        xf = jnp.einsum("ij,sjk->sik", A, _xf0)
-        dists, mask = trace_splits_batched(xf, _ang0, _px, _vx)
-        alpha = measure_from_splits(dists, mask, W, kernel=KERNEL, boundary=False)
+        tr = transform_trace(tr0, A)
+        alpha = trace_measure(tr, _px, _vx, W, kernel=KERNEL, boundary=False)
         return None, alpha
 
     _, alphas = jax.lax.scan(cover, None, As)
