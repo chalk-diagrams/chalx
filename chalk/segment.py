@@ -196,14 +196,16 @@ def _is_in_mod_360(angles: Angles, d: V2_t) -> tx.Mask:
     return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
 
 
-register_hitype(
-    Segment,
-    lambda s: SegTy(
-        tuple(tx.data(s.transform).shape[:-3]),
-        int(tx.data(s.transform).shape[-3]),
-        tx.data(s.transform).dtype.name,
-    ),
-)
+def _segment_typeof(segment: Segment) -> SegTy:
+    transform_ty = jax.typeof(segment.transform)
+    return SegTy(
+        transform_ty.batch[:-1],
+        transform_ty.batch[-1],
+        transform_ty.dtype_name,
+    )
+
+
+register_hitype(Segment, _segment_typeof)
 
 
 def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
