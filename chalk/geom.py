@@ -1098,6 +1098,16 @@ class XfTranslationTangent(VJPHiPrimitive):
     vjp_fwd = vjp_fwd_from_jvp
     vjp_bwd_retval = transpose_jvp
 
+    def transpose(self, cts, v):
+        from jax._src.ad_util import Zero as AdZero
+
+        xf_ct = cts
+        if isinstance(xf_ct, (Zero, AdZero)):
+            return None
+        arr = xf_to_array(xf_ct)
+        v_ct = make_v2(arr[..., 0, 2], arr[..., 1, 2])
+        return _accum((v,), (v_ct,))
+
     def batch(self, axis_data, args, in_dims):
         return xf_translation_tangent(args[0]), _out_dim(in_dims)
 
@@ -1177,6 +1187,16 @@ class XfScaleTangent(VJPHiPrimitive):
     linearized = apply_derived_linearization
     vjp_fwd = vjp_fwd_from_jvp
     vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, v):
+        from jax._src.ad_util import Zero as AdZero
+
+        xf_ct = cts
+        if isinstance(xf_ct, (Zero, AdZero)):
+            return None
+        arr = xf_to_array(xf_ct)
+        v_ct = make_v2(arr[..., 0, 0], arr[..., 1, 1])
+        return _accum((v,), (v_ct,))
 
     def batch(self, axis_data, args, in_dims):
         return xf_scale_tangent(args[0]), _out_dim(in_dims)

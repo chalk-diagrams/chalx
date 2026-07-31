@@ -46,14 +46,16 @@ if TYPE_CHECKING:
 @tx.jit  # type: ignore
 @partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")  # type: ignore
 def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
-    rt = tx.remove_translation(t)
-    inv_t = tx.inv(rt)
-    trans_t = tx.transpose_translation(rt)
-    u: V2_t = -tx.get_translation(t)
+    rt = tx._remove_translation_arr(t)
+    inv_t = tx._inv_arr(rt)
+    trans_t = tx._transpose_linear_arr(rt)
+    u = tx.np.zeros_like(v)
+    u = u.at[..., 0, 0].set(-t[..., 0, 2]).at[..., 1, 0].set(-t[..., 1, 2])
     vi = inv_t @ v
     inp = trans_t @ v
-    v_prim = tx.norm(inp)
-    d = tx.dot(v_prim, vi)
+    n2 = (inp * inp)[..., :2, 0].sum(-1, keepdims=True)[..., None]
+    v_prim = inp / tx.np.sqrt(n2)
+    d = (v_prim * vi).sum((-2, -1))
     return v_prim, u, v, tx.np.asarray(d)
 
 
@@ -61,7 +63,9 @@ def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
 @partial(tx.vectorize, signature="(3,1),(3,1),(),()->()")
 def post_transform(u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating) -> Scalars:
     after_linear = inner / d
-    diff = tx.dot(tx.scale_vec(u, 1 / tx.dot(v, v)), v)
+    vv = (v * v).sum((-2, -1))
+    scaled = u * (1.0 / vv)[..., None, None]
+    diff = (scaled * v).sum((-2, -1))
     return tx.np.asarray(after_linear - diff)
 
 

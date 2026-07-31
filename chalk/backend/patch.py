@@ -107,7 +107,12 @@ class Patch:
             vert = segment_to_curve(seg_t, seg_a)
             if bool(onp.asarray(path_is_scale_invariant(path))):
                 scale = height / 20
-                transform = tx.remove_scale(transform) @ tx.scale(tx.V2(scale, scale))
+                import chalk.geom as geom
+
+                xf = tx.remove_scale(geom.make_xf(tx.np.asarray(transform))) @ tx.scale(
+                    tx.V2(scale, scale)
+                )
+                transform = tx.data(xf)
 
             vert, command = close(p, vert, transform)
             closed = trail_closed(located_trail(loc_trail)).all()
@@ -132,11 +137,14 @@ class Patch:
             # Center
             t1 = np.max(v[..., 0]) / 2
             t2 = np.max(v[..., 1]) / 2
-            new_verts: tx.Array = (
-                transform
+            import chalk.geom as geom
+
+            new_pts = (
+                geom.make_xf(tx.np.asarray(transform))
                 @ tx.translation(tx.V2(-t1, -t2))
-                @ tx.P2(v[..., 0], v[..., 1])  # type: ignore
+                @ tx.P2(v[..., 0], v[..., 1])
             )
+            new_verts = tx.data(new_pts)
             vert = np.concatenate([vert, new_verts[..., :2, 0]], -2)
 
         return Patch(vert, command, style, order, height, closed)

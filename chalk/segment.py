@@ -238,13 +238,13 @@ def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     angle1_deg = angles.sum(-1)
 
     is_circle = abs(angle0_deg - angle1_deg) >= 360
-    v1 = tx.polar(angle0_deg)
-    v2 = tx.polar(angle1_deg)
-
+    v1 = tx._polar_arr(angle0_deg)
+    v2 = tx._polar_arr(angle1_deg)
+    d2 = (d * d)[..., :2, 0].sum(-1)
     return tx.np.where(  # type: ignore
         (is_circle | _is_in_mod_360(angles, d)),
-        1 / tx.length(d),
-        tx.np.maximum(tx.dot(d, v1), tx.dot(d, v2)),
+        1 / tx.np.sqrt(d2),
+        tx.np.maximum(tx._dot_arr(d, v1), tx._dot_arr(d, v2)),
     )
 
 

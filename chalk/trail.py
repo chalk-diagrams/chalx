@@ -14,6 +14,7 @@ from jax.experimental.hijax import (
     register_hitype,
 )
 
+import chalk.geom as geom
 import chalk.segment as arc
 import chalk.transform as tx
 from chalk.monoid import reduce_associative
@@ -329,8 +330,7 @@ class TransformTrail(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, trail: Trail, t):
-        t = tx.data(t)
-        t = tx.remove_translation(t)
+        t = tx._remove_translation_arr(tx.data(t))
         if t.ndim >= 3:
             t = t[:, None, :, :]
         return Trail(transform_segment(trail.segments, t), trail.closed)
@@ -485,7 +485,7 @@ class TransformLocated(VJPHiPrimitive):
             p = p[:, None]
         if p.ndim == 2:
             p = p[None]
-        trail = transform_trail(loc.trail, tx.remove_translation(t))
+        trail = transform_trail(loc.trail, tx._remove_translation_arr(t))
         return Located(trail, p)
 
     def batch(self, axis_data, args, in_dims):
@@ -526,7 +526,8 @@ class LocatedSegments(VJPHiPrimitive):
 
     def expand(self, loc: Located):
         pts = located_points(loc)
-        return transform_segment(loc.trail.segments, tx.translation(pts))
+        off = geom.make_v2_from_data(jnp.asarray(pts).at[..., 2, 0].set(0.0))
+        return transform_segment(loc.trail.segments, tx.translation(off))
 
     def batch(self, axis_data, args, in_dims):
         (loc,) = args

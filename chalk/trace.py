@@ -128,15 +128,13 @@ class Trace(Transformable):
         return transform_trace(self, t)
 
     def trace_v(self, p: P2_t, v: V2_t) -> Tuple[tx.V2_tC, tx.MaskC]:
-        v = tx.norm(tx.data(v) if not isinstance(v, tx.Vec) else v)
-        if isinstance(v, tx.Vec):
-            v = tx.data(v)
-        dists, m = trace_ray(self, tx.data(p), v)
+        vn = tx.norm(v)
+        dists, m = trace_ray(self, tx.data(p), tx.data(vn))
         d = tx.np.sort(dists + (1 - m) * 1e10, axis=-1)
         ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=-1)
         m = tx.np.take_along_axis(m, ad, axis=-1)
         s = d[..., 0]
-        return (tx.scale_vec(v, s), m[..., 0])
+        return (tx.scale_vec(vn, s), m[..., 0])
 
     def trace_p(self, p: P2_t, v: V2_t) -> Tuple[tx.P2_tC, tx.MaskC]:
         u, m = self.trace_v(p, v)
