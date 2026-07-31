@@ -88,22 +88,22 @@ class LocatedSpec(MappingSpec):
 @dataclass(frozen=True)
 class LocatedTy(HiType):
     trail_ty: TrailTy
-    loc_shape: Tuple[int, ...]
-    dtype_name: str = "float64"
+    loc_ty: geom.P2Ty
 
     def lo_ty(self):
-        return self.trail_ty.lo_ty() + [
-            ShapedArray(self.loc_shape, jnp.dtype(self.dtype_name))
-        ]
+        return self.trail_ty.lo_ty() + self.loc_ty.lo_ty()
 
     def lower_val(self, loc: Located):
-        return self.trail_ty.lower_val(loc.trail) + [loc.location]
+        return self.trail_ty.lower_val(loc.trail) + self.loc_ty.lower_val(loc.location)
 
     def raise_val(self, transform, angles, closed, location) -> Located:
-        return Located(self.trail_ty.raise_val(transform, angles, closed), location)
+        return Located(
+            self.trail_ty.raise_val(transform, angles, closed),
+            self.loc_ty.raise_val(location),
+        )
 
     def to_tangent_aval(self):
-        return LocatedTy(self.trail_ty, self.loc_shape, self.dtype_name)
+        return LocatedTy(self.trail_ty, self.loc_ty)
 
     def str_short(self, short_dtypes=False, mesh_axis_types=False):
         return f"located[{self.trail_ty.str_short(short_dtypes, mesh_axis_types)}]"
@@ -112,17 +112,16 @@ class LocatedTy(HiType):
 
     def dec_rank(self, size, spec):
         assert isinstance(spec, LocatedSpec)
-        loc_shape = self.loc_shape[1:] if self.loc_shape else ()
         return LocatedTy(
-            self.trail_ty.dec_rank(size, TrailSpec()), loc_shape, self.dtype_name
+            self.trail_ty.dec_rank(size, TrailSpec()),
+            self.loc_ty.dec_rank(size, geom.GeomSpec()),
         )
 
     def inc_rank(self, size, spec):
         assert isinstance(spec, LocatedSpec)
         return LocatedTy(
             self.trail_ty.inc_rank(size, TrailSpec()),
-            (size, *self.loc_shape),
-            self.dtype_name,
+            self.loc_ty.inc_rank(size, geom.GeomSpec()),
         )
 
     def leading_axis_spec(self):
@@ -138,10 +137,10 @@ class Located(Transformable):
 
     def map_prefix(self, fn: Callable[[Any], Any]) -> Located:
         trail = self.trail.map_prefix(fn)
-        loc = fn(self.location)
+        loc = fn(tx.data(self.location))
         if loc is None:
             return self
-        return make_located(trail, loc)
+        return make_located(trail, geom.make_p2_from_data(loc))
 
     def located_segments(self) -> Segment:
         return located_segments(self)
@@ -276,11 +275,7 @@ class Trail(Transformable, TrailLike):
 register_hitype(Trail, lambda t: TrailTy(jax.typeof(t.segments)))
 register_hitype(
     Located,
-    lambda loc: LocatedTy(
-        jax.typeof(loc.trail),
-        tuple(jnp.asarray(loc.location).shape),
-        jnp.asarray(loc.location).dtype.name,
-    ),
+    lambda loc: LocatedTy(jax.typeof(loc.trail), jax.typeof(loc.location)),
 )
 
 
@@ -458,24 +453,17 @@ class TrailSegment(VJPHiPrimitive):
 class MakeLocated(VJPHiPrimitive):
     def __init__(self, trail_aval: TrailTy, loc_aval):
         self.in_avals = (trail_aval, loc_aval)
-        self.out_aval = LocatedTy(
-            trail_aval, tuple(loc_aval.shape), loc_aval.dtype.name
-        )
+        self.out_aval = LocatedTy(trail_aval, loc_aval)
         self.params = {}
         super().__init__()
 
     def expand(self, trail, location):
-        return Located(trail, tx.data(location))
+        return Located(trail, location)
 
     def batch(self, axis_data, args, in_dims):
         trail, loc = args
         if all(d is None for d in in_dims):
             return make_located(trail, loc), None
-        _, loc_dim = in_dims
-        if loc_dim is None:
-            loc = jnp.broadcast_to(loc, (axis_data.size, *loc.shape))
-        elif loc_dim != 0:
-            loc = jnp.moveaxis(loc, loc_dim, 0)
         return make_located(trail, loc), LocatedSpec()
 
 
@@ -487,13 +475,8 @@ class TransformLocated(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, loc: Located, t):
-        t = tx.data(t)
-        p = t[..., None, :, :] @ loc.location
-        if p.ndim == 3:
-            p = p[:, None]
-        if p.ndim == 2:
-            p = p[None]
-        trail = transform_trail(loc.trail, tx._remove_translation_arr(t))
+        p = geom.xf_apply_pt(t, loc.location)
+        trail = transform_trail(loc.trail, tx.remove_translation(t))
         return Located(trail, p)
 
     def batch(self, axis_data, args, in_dims):
@@ -549,14 +532,12 @@ class LocatedSegments(VJPHiPrimitive):
 class LocatedLocation(VJPHiPrimitive):
     def __init__(self, loc_aval: LocatedTy):
         self.in_avals = (loc_aval,)
-        self.out_aval = geom.P2Ty(
-            loc_aval.loc_shape[:-2], loc_aval.dtype_name
-        )
+        self.out_aval = loc_aval.loc_ty
         self.params = {}
         super().__init__()
 
     def expand(self, loc: Located):
-        return geom.make_p2_from_data(tx.data(loc.location))
+        return loc.location
 
     def batch(self, axis_data, args, in_dims):
         (loc,) = args
@@ -619,12 +600,12 @@ def trail_segment(trail) -> Segment:
 
 
 def make_located(trail, location) -> Located:
-    location = tx.data(location)
+    location = tx.to_point(location)
     return MakeLocated(jax.typeof(trail), jax.typeof(location))(trail, location)
 
 
 def transform_located(loc, t) -> Located:
-    t = tx.data(t)
+    t = tx._as_xf(t)
     return TransformLocated(jax.typeof(loc), jax.typeof(t))(loc, t)
 
 
