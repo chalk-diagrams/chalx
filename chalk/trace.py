@@ -309,6 +309,7 @@ def make_trace(segment) -> Trace:
 
 
 def transform_trace(tr, t) -> Trace:
+    t = tx._as_xf(t)
     return TransformTrace(jax.typeof(tr), jax.typeof(t))(tr, t)
 
 
