@@ -319,6 +319,12 @@ class MakeSegment(VJPHiPrimitive):
         if dt is None and da is None:
             return make_segment(t, a), None
         size = axis_data.size
+        if dt is not None and self.out_aval.n_segs == 1:
+            t = geom.make_xf(tx.data(t)[..., None, :, :])
+        if da is not None:
+            a = jnp.moveaxis(a, da, 0)
+            if self.out_aval.n_segs == 1:
+                a = a[..., None, :]
         out_aval = self.out_aval.inc_rank(size, SegSpec())
         return MakeSegment(jax.typeof(t), jax.typeof(a), out_aval)(t, a), SegSpec()
 
