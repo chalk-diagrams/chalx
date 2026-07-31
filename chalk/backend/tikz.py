@@ -87,7 +87,7 @@
 #         q, rot, r_x, r_y = seg.q, seg.rot, seg.r_x, seg.r_y
 #         start = tx.angle(-seg.center)
 #         end = tx.angle(seg.q - seg.center)
-#         det: float = tx.np.linalg.det(seg.t)  # type: ignore
+#         det: float = jnp.linalg.det(seg.t)  # type: ignore
 #         minus = (det * seg.dangle < 0) & (end > start)
 #         plus = (det * seg.dangle > 0) & (end < start)
 #         end = end - 360 * minus + 360 * plus
@@ -219,7 +219,7 @@
 #     ).translate_by(envelope.center)
 #     diagram = diagram + padding
 #     with doc.create(pylatex.TikZ()) as pic:
-#         for x in to_tikz(diagram, pylatex, Style.root(tx.np.maximum(height, width))):
+#         for x in to_tikz(diagram, pylatex, Style.root(jnp.maximum(height, width))):
 #             pic.append(x)
 #     doc.generate_tex(path.replace(".pdf", "") + ".tex")
 #     doc.generate_pdf(path.replace(".pdf", ""), clean_tex=False)

@@ -15,7 +15,7 @@ import chalk.transform as tx
 
 
 def _unit_seg():
-    return Segment.make(tx.np.eye(3)[None, ...], tx.np.array([[0.0, -90.0]]))
+    return Segment.make(jnp.eye(3)[None, ...], jnp.array([[0.0, -90.0]]))
 
 
 def test_typeof_is_opaque_seg():
