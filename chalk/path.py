@@ -341,7 +341,7 @@ class TransformPath(VJPHiPrimitive):
 
 
 def transform_path(path, t) -> Path:
-    t = tx.data(t)
+    t = tx._as_xf(t)
     return TransformPath(jax.typeof(path), jax.typeof(t))(path, t)
 
 

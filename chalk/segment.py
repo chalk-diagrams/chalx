@@ -24,6 +24,7 @@ from jax.experimental.hijax import (
     vjp_fwd_from_jvp,
 )
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.monoid import reduce_associative
 from chalk.transform import Affine, Angles, P2_t, V2_t
