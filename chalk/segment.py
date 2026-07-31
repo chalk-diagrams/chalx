@@ -318,7 +318,7 @@ class MakeSegment(VJPHiPrimitive):
         dt, da = in_dims
         if dt is None and da is None:
             return make_segment(t, a), None
-        size = a.shape[0] if da is not None else tx.data(t).shape[0]
+        size = axis_data.size
         out_aval = self.out_aval.inc_rank(size, SegSpec())
         return MakeSegment(jax.typeof(t), jax.typeof(a), out_aval)(t, a), SegSpec()
 
