@@ -1237,7 +1237,21 @@ class XfFromRotation(VJPHiPrimitive):
         prim_out = xf_rotation(r)
         if isinstance(dr, Zero):
             return prim_out, jax.typeof(prim_out).vspace_zero()
-        return prim_out, xf_rotation_tangent(r, dr)
+        r = jnp.asarray(r, dtype=_DT)
+        dr = jnp.asarray(dr, dtype=_DT)
+        s, c = jnp.sin(r), jnp.cos(r)
+        z = jnp.zeros(jnp.broadcast_shapes(r.shape, dr.shape) + (3, 3), dtype=_DT)
+        tan = (
+            z.at[..., 0, 0]
+            .set(-s * dr)
+            .at[..., 0, 1]
+            .set(c * dr)
+            .at[..., 1, 0]
+            .set(-c * dr)
+            .at[..., 1, 1]
+            .set(-s * dr)
+        )
+        return prim_out, make_xf(tan)
 
     lin = linearize_from_jvp
     linearized = apply_derived_linearization
