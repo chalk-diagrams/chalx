@@ -366,17 +366,21 @@ def main():
         cairo_u8.append(cairo_frame(p))
         if i % 8 == 0 or i == len(history) - 1:
             print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
+    fh, fw = cairo_u8[0].shape[:2]
+    photo_hi = onp.asarray(
+        Image.fromarray(to_uint8(goal)).resize((fw, fh), Image.Resampling.BICUBIC).convert("RGB")
+    )
     raster_hi = onp.asarray(
-        Image.fromarray(to_uint8(final)).resize(
-            (cairo_u8[-1].shape[1], cairo_u8[-1].shape[0]),
-            Image.Resampling.NEAREST,
-        ).convert("RGB")
+        Image.fromarray(to_uint8(final)).resize((fw, fh), Image.Resampling.NEAREST).convert("RGB")
     )
-    cairo_u8.extend(
-        crossfade_to(cairo_u8[-1], raster_hi, n_fade=10, hold_src=5, hold_dst=10)
+    story = (
+        [photo_hi] * 10
+        + cairo_u8
+        + crossfade_to(cairo_u8[-1], raster_hi, n_fade=10, hold_src=5, hold_dst=10)
     )
-    write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
-    write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo_to_raster.mp4", fps=10)
+    write_video(story, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
+    write_video(story, f"{OUT}/{PREFIX}_cairo_to_raster.mp4", fps=10)
+    write_video(story, f"{OUT}/{PREFIX}_story.mp4", fps=10)
 
     dia = diagram_stacked(params)
     lib_path = f"{OUT}/{PREFIX}_cairo.png"
