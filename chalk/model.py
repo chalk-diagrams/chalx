@@ -34,6 +34,7 @@ def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diag
         lambda offset: seg(offset).stroke(),
         in_axes=GeomSpec(),
         out_axes=DiagSpec(),
+        axis_size=segments.shape[0],
     )(segments)
 
     outer = outer + (
