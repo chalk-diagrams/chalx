@@ -110,7 +110,7 @@ class Patch:
                 scale = height / 20
                 import chalk.geom as geom
 
-                xf = tx.remove_scale(geom.make_xf(tx.np.asarray(transform))) @ tx.scale(
+                xf = tx.remove_scale(tx._as_xf(transform)) @ tx.scale(
                     tx.V2(scale, scale)
                 )
                 transform = tx.data(xf)
@@ -141,7 +141,7 @@ class Patch:
             import chalk.geom as geom
 
             new_pts = (
-                geom.make_xf(tx.np.asarray(transform))
+                tx._as_xf(transform)
                 @ tx.translation(tx.V2(-t1, -t2))
                 @ tx.P2(v[..., 0], v[..., 1])
             )

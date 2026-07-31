@@ -15,6 +15,7 @@ from jax.experimental.hijax import (
 )
 from jaxtyping import Float
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.monoid import reduce_associative
 from chalk.segment import (
@@ -330,8 +331,8 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
         t = t @ diagram.transform
-        if len(t.shape) >= 3:
-            t = t[..., None, :, :]
+        if jax.typeof(t).batch:
+            t = geom.make_xf(tx.data(t)[..., None, :, :])
         return transform_segment(segment, t)
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:
@@ -345,7 +346,7 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
     if t is None:
-        t = tx._ident_arr
+        t = tx.ident
     segment = self._accept(GetLocatedSegments(), t)
     transform, _ = segment_parts(segment)
     seg_shape = transform.shape[:-2]

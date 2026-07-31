@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
+import jax
+
 import chalk.transform as tx
 from chalk.backend.patch import Patch, patch_from_prim
 from chalk.style import StyleHolder
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
 
 
 def get_primitives(self: SingleDiagram) -> List[Primitive]:
-    return self._accept(ToListOrder(), tx._ident_arr).ls
+    return self._accept(ToListOrder(), tx.ident).ls
 
 
 def animate(
@@ -109,8 +111,8 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     def visit_primitive(self, diagram: Primitive, t: Affine) -> OrderList:
         from chalk.core import Primitive as Prim
 
-        xf = tx.np.asarray(t) @ tx.np.asarray(diagram.transform)
-        size = tuple(tx.np.asarray(xf).shape[:-2])
+        xf = t @ diagram.transform
+        size = jax.typeof(xf).batch
         prim = Prim(diagram.prim_shape, diagram.style, xf, diagram.order)
         return OrderList(
             [prim.set_order(tx.np.zeros(size))],

@@ -83,7 +83,7 @@ class BaseDiagram(chalk.types.Diagram):
     def apply_transform(self: BatchDiagram, t: Affine) -> BroadDiagram:
         from chalk.diag import diag_xf
 
-        return diag_xf(self, tx.data(t))
+        return diag_xf(self, t)
 
     def _compose_axis(self: BatchDiagram) -> Diagram:
         from chalk.diag import diag_axis
@@ -269,7 +269,7 @@ class Primitive(BaseDiagram):
     def from_path(cls, shape: Path) -> BatchPrimitive:
         from chalk.diag import diag_prim
 
-        return diag_prim(shape, tx.data(tx.make_ident(shape.shape)))
+        return diag_prim(shape, tx.make_ident(shape.shape))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BroadDiagram:
         return BaseDiagram.apply_transform(self, t)

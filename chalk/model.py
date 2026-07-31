@@ -85,7 +85,7 @@ def show_beside(self: Diagram, other: Diagram, direction: V2_t) -> Diagram:
 
 
 def show_labels(self: Diagram, font_size: tx.Floating = 1) -> Diagram:
-    for name, subs in self.get_sub_map(tx._ident_arr).items():
+    for name, subs in self.get_sub_map(tx.ident).items():
         for sub in subs:
             n = str(name)
             p = sub.get_location()

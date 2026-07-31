@@ -52,8 +52,7 @@ class Subdiagram:
     # style: Style
 
     def get_location(self) -> P2_t:
-        r: P2_t = tx.data(self.transform) @ tx.data(tx.origin)
-        return r
+        return self.transform @ tx.origin
 
     def get_envelope(self) -> Envelope:
         return self.diagram.get_envelope().apply_transform(self.transform)
@@ -86,7 +85,8 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 
     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Maybe[Subdiagram]:
         size = diagram.diagrams.size()
-        return diagram.diagrams._accept(self, t[None].repeat(size[0], axis=0))
+        batched = tx.make_ident((size[0],)) @ t
+        return diagram.diagrams._accept(self, batched)
 
     def visit_apply_transform(
         self, diagram: ApplyTransform, t: Affine
@@ -103,7 +103,7 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 def get_subdiagram(self: Diagram, name: Any) -> Optional[Subdiagram]:
     if not isinstance(name, Name):
         name = Name(name)
-    return self._accept(GetSubdiagram(name), tx._ident_arr).data
+    return self._accept(GetSubdiagram(name), tx.ident).data
 
 
 def with_names(
@@ -145,7 +145,7 @@ class GetSubMap(DiagramVisitor[SubMap, Affine]):
     A_type = SubMap
 
     def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> SubMap:
-        return diagram.diagram._accept(self, t * diagram.transform)
+        return diagram.diagram._accept(self, t @ diagram.transform)
 
     def visit_apply_name(self, diagram: ApplyName, t: Affine) -> SubMap:
         d1 = SubMap({diagram.dname: [Subdiagram(diagram.diagram, t)]})

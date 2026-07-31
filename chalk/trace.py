@@ -18,6 +18,7 @@ from jax.experimental.hijax import (
     vjp_fwd_from_jvp,
 )
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.segment import (
     SegSpec,
@@ -328,7 +329,9 @@ class _GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
         segment = diagram.prim_shape.located_segments()
-        return transform_segment(segment, (t @ diagram.transform)[..., None, :, :])
+        transform = t @ diagram.transform
+        transform = geom.make_xf(tx.data(transform)[..., None, :, :])
+        return transform_segment(segment, transform)
 
     def visit_apply_transform(self, diagram: ApplyTransform, t: Affine) -> Segment:
         return diagram.diagram._accept(self, t @ diagram.transform)
@@ -341,7 +344,7 @@ def get_trace(self: Diagram) -> Trace:
 
     ty = jax.typeof(self)
     if not isinstance(ty, DiagTy) or not isinstance(self, Tracer):
-        return make_trace(self._accept(_GetLocatedSegments(), tx._ident_arr))
+        return make_trace(self._accept(_GetLocatedSegments(), tx.ident))
     return _get_trace_traced(self, ty)
 
 
