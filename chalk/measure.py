@@ -3,10 +3,13 @@
 ``trace_measure`` is the discrete analogue of ``trace``: occupancy along a
 ray after binning, with a 1D AA kernel. Leibniz boundary terms restore a
 nonzero ``d(coverage)/d(split)``.
+
+Fill and AA run on batched ``[B, K]`` / ``[B, W]`` arrays (no per-row Python).
 """
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 import jax
@@ -16,23 +19,25 @@ import chalk.transform as tx
 from chalk.trace import Trace, TraceTy, get_trace, trace_ray
 
 
-def _fill_row(splits, mask, n_bins: int):
+def _fill_rows(splits, mask, n_bins: int):
+    """Even-odd fill. ``splits, mask: [B, K]`` → coverage ``[B, n_bins]``."""
     splits = jnp.asarray(splits)
     mask = jnp.asarray(mask) > 0
-    k = splits.shape[-1]
+    b, k = splits.shape
     split_int = jnp.floor(splits).astype(jnp.int32)
     valid = mask & (split_int >= 0) & (split_int < n_bins)
     loc = jnp.arange(k) % 2
     inout = jnp.where(loc == 0, 1.0, -1.0)
     ind = jnp.where(valid, split_int, n_bins)
-    row = jnp.zeros((n_bins + 1,))
-    row = row.at[ind].add(jnp.where(valid, inout, 0.0))
-    scene = jnp.cumsum(row[:-1])
+    batch_ix = jnp.arange(b)[:, None]
+    row = jnp.zeros((b, n_bins + 1))
+    row = row.at[batch_ix, ind].add(jnp.where(valid, inout, 0.0))
+    scene = jnp.cumsum(row[:, :-1], axis=-1)
     frac = splits - split_int
     edge = jnp.where(loc == 0, 1.0, 0.0) - inout * frac
-    scene = scene.at[ind].set(jnp.where(valid, edge, 0.0), mode="drop")
-    ok = jnp.mod(jnp.sum(mask.astype(jnp.int32)), 2) == 0
-    return jnp.where(ok, scene, jnp.zeros((n_bins,)))
+    scene = scene.at[batch_ix, ind].set(jnp.where(valid, edge, 0.0), mode="drop")
+    ok = jnp.mod(jnp.sum(mask.astype(jnp.int32), axis=-1), 2) == 0
+    return jnp.where(ok[:, None], scene, jnp.zeros((b, n_bins)))
 
 
 def _kernel(offset, kern: int):
@@ -42,14 +47,16 @@ def _kernel(offset, kern: int):
     return jnp.maximum(0.0, k / denom)
 
 
-def _convolve_row(line, kern: int):
+def _convolve_rows(lines, kern: int):
+    """``lines: [B, W]``."""
     if kern <= 1:
-        return line
+        return lines
     k = _kernel(0.0, kern)
     pad = kern // 2
-    padded = jnp.pad(line, (pad, pad))
-    idx = jnp.arange(line.shape[0])[:, None] + jnp.arange(kern)[None, :]
-    return (padded[idx] * k[None, :]).sum(-1)
+    padded = jnp.pad(lines, ((0, 0), (pad, pad)))
+    w = lines.shape[-1]
+    idx = jnp.arange(w)[:, None] + jnp.arange(kern)[None, :]
+    return (padded[:, idx] * k).sum(-1)
 
 
 def _leibniz_row(g, f, splits, mask, kern: int):
@@ -74,7 +81,8 @@ def _leibniz_row(g, f, splits, mask, kern: int):
     return jnp.where(ok, r, jnp.zeros_like(splits))
 
 
-def _make_boundary(kern: int):
+@lru_cache(maxsize=8)
+def _boundary_fn(kern: int):
     @jax.custom_vjp
     def boundary(coverage, splits, mask):
         return coverage
@@ -95,20 +103,21 @@ def measure_from_splits(splits, mask, n_bins: int, kernel: int = 11):
     """Coverage from precomputed splits. ``splits`` is ``[..., K]``."""
     splits = jnp.asarray(splits)
     mask = jnp.asarray(mask)
-    boundary = _make_boundary(int(kernel))
-
-    def one(sp, m):
-        cov = _fill_row(sp, m, n_bins)
-        cov = _convolve_row(cov, kernel)
-        return boundary(cov, sp, m)
-
-    if splits.ndim == 1:
-        return one(splits, mask)
-    batch = splits.shape[:-1]
-    flat_s = splits.reshape(-1, splits.shape[-1])
-    flat_m = jnp.broadcast_to(mask, splits.shape).reshape(-1, splits.shape[-1])
-    out = jax.vmap(one)(flat_s, flat_m)
-    return out.reshape(batch + (n_bins,))
+    squeeze = splits.ndim == 1
+    if squeeze:
+        splits = splits[None, ...]
+        mask = jnp.reshape(jnp.broadcast_to(mask, splits.shape[-1]), (1, -1))
+    else:
+        batch = splits.shape[:-1]
+        mask = jnp.broadcast_to(mask, splits.shape)
+        splits = splits.reshape(-1, splits.shape[-1])
+        mask = mask.reshape(-1, mask.shape[-1])
+    cov = _convolve_rows(_fill_rows(splits, mask, n_bins), kernel)
+    boundary = _boundary_fn(int(kernel))
+    cov = jax.vmap(boundary)(cov, splits, mask)
+    if squeeze:
+        return cov[0]
+    return cov.reshape(batch + (n_bins,))
 
 
 def trace_measure(

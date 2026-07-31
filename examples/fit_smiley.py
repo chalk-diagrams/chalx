@@ -53,13 +53,21 @@ def reduce_color(y):
 
 def render(params):
     loc, radii, color, rot = params
-    img = jnp.ones((H, W, 3))
-    for i in range(N):
-        A = _ellipse_affine(loc[i, 0], loc[i, 1], radii[i, 0], radii[i, 1], rot[i, 0])
-        tr = transform_trace(tr0, A)
-        alpha = trace_measure(tr, _p, _v, W, kernel=KERNEL)
-        paint = jax.nn.sigmoid(color[i])
-        img = composite(img, alpha, paint)
+    As = jax.vmap(_ellipse_affine)(
+        loc[:, 0], loc[:, 1], radii[:, 0], radii[:, 1], rot[:, 0]
+    )
+    paints = jax.nn.sigmoid(color)
+
+    def cover(A):
+        return trace_measure(transform_trace(tr0, A), _p, _v, W, kernel=KERNEL)
+
+    alphas = jax.lax.map(cover, As)
+
+    def paint_over(img, xs):
+        alpha, paint = xs
+        return composite(img, alpha, paint), None
+
+    img, _ = jax.lax.scan(paint_over, jnp.ones((H, W, 3)), (alphas, paints))
     return img
 
 
