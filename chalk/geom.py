@@ -586,7 +586,7 @@ class GeomToArray(VJPHiPrimitive):
             out = p2_to_array(val)
         else:
             out = v2_to_array(val)
-        return out, _out_dim(in_dims)
+        return out, (None if all(d is None for d in in_dims) else 0)
 
 
 def v2_to_array(v) -> jax.Array:
