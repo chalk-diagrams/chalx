@@ -1,4 +1,4 @@
-"""Fit triangles to Sasha's portrait from https://rush-nlp.com/."""
+"""Fit ellipses to Sasha's portrait from https://rush-nlp.com/."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import urllib.request
 import jax
 import jax.numpy as jnp
 import numpy as onp
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
-from chalk import triangle
+from chalk import circle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite
@@ -24,19 +24,21 @@ MIN_SIZE = 2.5
 LR = 0.03
 LOSS_EVERY = 25
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
+LIB_HEIGHT = 400
 
-tr0 = triangle(1.0).get_trace()
+tr0 = circle(1.0).get_trace()
 _px = scanline_origins(H, axis="x")
 _vx = jnp.array([[1.0], [0.0], [0.0]])
 
 
-def _tri_affine(lx, ly, size, rot):
+def _ellipse_affine(lx, ly, rx, ry, rot):
+    # Scale unit circle, then rotate, then translate (rotation is a no-op if applied first).
     ca, sa = jnp.cos(-rot), jnp.sin(-rot)
     eye = jnp.eye(3)
     R = eye.at[0, 0].set(ca).at[0, 1].set(-sa).at[1, 0].set(sa).at[1, 1].set(ca)
-    S = eye.at[0, 0].set(size).at[1, 1].set(size)
+    S = eye.at[0, 0].set(rx).at[1, 1].set(ry)
     T = eye.at[0, 2].set(lx).at[1, 2].set(ly)
-    return T @ S @ R
+    return T @ R @ S
 
 
 def load_goal():
@@ -51,10 +53,12 @@ def reduce_color(y):
 
 
 def render(params):
-    loc, sizes, rots, color = params
-    order = jnp.argsort(-sizes)
-    loc, sizes, rots, color = loc[order], sizes[order], rots[order], color[order]
-    As = jax.vmap(_tri_affine)(loc[:, 0], loc[:, 1], sizes, rots[:, 0])
+    loc, radii, rots, color = params
+    order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
+    loc, radii, rots, color = loc[order], radii[order], rots[order], color[order]
+    As = jax.vmap(_ellipse_affine)(
+        loc[:, 0], loc[:, 1], radii[:, 0], radii[:, 1], rots[:, 0]
+    )
     paints = jax.nn.sigmoid(color)
 
     def cover(_carry, A):
@@ -93,19 +97,20 @@ def write_gif(imgs, path, duration=0.08):
 def diagram_from_params(params):
     from colour import Color
 
-    from chalk import concat, triangle
+    from chalk import concat, circle as chalk_circle
 
-    loc, sizes, rots, color = (onp.asarray(x) for x in params)
-    order = onp.argsort(-sizes)
+    loc, radii, rots, color = (onp.asarray(x) for x in params)
+    order = onp.argsort(-(radii[:, 0] * radii[:, 1]))
     dias = []
     for i in order:
         rgb = tuple(float(c) for c in (1.0 / (1.0 + onp.exp(-color[i]))))
         d = (
-            triangle(1.0)
+            chalk_circle(1.0)
             .line_width(0)
             .fill_color(Color(rgb=rgb))
+            .scale_x(float(radii[i, 0]))
+            .scale_y(float(radii[i, 1]))
             .rotate_rad(float(rots[i, 0]))
-            .scale(float(sizes[i]))
             .translate(float(loc[i, 0]), float(loc[i, 1]))
         )
         dias.append(d)
@@ -118,16 +123,60 @@ def init_params(seed=42):
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    sizes = jnp.array(
-        [MIN_SIZE + 12.0 * random.random() ** 1.7 for _ in range(N)]
-    )
+    radii = []
+    for _ in range(N):
+        size = MIN_SIZE + 12.0 * random.random() ** 1.7
+        aspect = 0.35 + 0.65 * random.random()
+        if random.random() < 0.5:
+            radii.append([size, max(MIN_SIZE, size * aspect)])
+        else:
+            radii.append([max(MIN_SIZE, size * aspect), size])
+    radii = jnp.array(radii)
     rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
-    return (loc, sizes, rots, color)
+    return (loc, radii, rots, color)
+
+
+def _letterbox(im: Image.Image, size: int) -> Image.Image:
+    im = im.convert("RGB")
+    im = im.copy()
+    im.thumbnail((size, size), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGB", (size, size), (255, 255, 255))
+    canvas.paste(im, ((size - im.width) // 2, (size - im.height) // 2))
+    return canvas
+
+
+def write_compare_strip(raster, library_path, goal, out_path):
+    lib = Image.open(library_path).convert("RGB")
+    size = max(lib.height, LIB_HEIGHT)
+    raster_im = Image.fromarray(to_uint8(raster)).resize(
+        (size, size), Image.Resampling.NEAREST
+    )
+    goal_im = Image.fromarray(to_uint8(goal)).resize(
+        (size, size), Image.Resampling.NEAREST
+    )
+    lib_im = _letterbox(lib, size)
+    label_h = 36
+    strip = Image.new("RGB", (size * 3, size + label_h), (20, 20, 20))
+    for i, im in enumerate([raster_im, lib_im, goal_im]):
+        strip.paste(im, (i * size, label_h))
+    draw = ImageDraw.Draw(strip)
+    try:
+        font = ImageFont.load_default(size=18)
+    except TypeError:
+        font = ImageFont.load_default()
+    labels = [
+        "scanline (optimizer saw this)",
+        "cairo library (same ellipses)",
+        "target photo (not composited)",
+    ]
+    for i, label in enumerate(labels):
+        draw.text((i * size + 10, 8), label, fill=(255, 255, 255), font=font)
+    strip.save(out_path)
 
 
 def main():
-    print(f"N={N} STEPS={STEPS} {H}x{W}", flush=True)
+    print(f"N={N} STEPS={STEPS} {H}x{W} ellipses", flush=True)
     goal = reduce_color(load_goal())
     to_png(goal, "/opt/cursor/artifacts/fit_rush_target.png")
     params = init_params()
@@ -168,11 +217,11 @@ def main():
             new_m.append(mo)
             new_v.append(vo)
         params, m, v = tuple(new), tuple(new_m), tuple(new_v)
-        loc, sizes, rots, color = params
-        sizes = jnp.clip(jnp.abs(sizes), MIN_SIZE, float(H) * 0.4)
+        loc, radii, rots, color = params
+        radii = jnp.clip(jnp.abs(radii), MIN_SIZE, float(H) * 0.4)
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
-        params = (loc, sizes, rots, color)
+        params = (loc, radii, rots, color)
         if i % 25 == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
@@ -185,7 +234,7 @@ def main():
     onp.savez(
         "/opt/cursor/artifacts/fit_rush_best.npz",
         loc=onp.asarray(params[0]),
-        sizes=onp.asarray(params[1]),
+        radii=onp.asarray(params[1]),
         rots=onp.asarray(params[2]),
         color=onp.asarray(params[3]),
     )
@@ -200,9 +249,19 @@ def main():
     print("wrote /opt/cursor/artifacts/fit_rush.gif")
 
     dia = diagram_from_params(params)
-    lib_path = "/opt/cursor/artifacts/rush_tri_library.png"
-    dia.render(lib_path, height=400)
+    lib_path = "/opt/cursor/artifacts/rush_ell_library.png"
+    dia.render(lib_path, height=LIB_HEIGHT)
     print(f"wrote library render {lib_path}")
+    write_compare_strip(
+        final,
+        lib_path,
+        goal,
+        "/opt/cursor/artifacts/rush_ell_strip.png",
+    )
+    to_png(start_img, "/opt/cursor/artifacts/rush_ell_start.png")
+    to_png(final, "/opt/cursor/artifacts/rush_ell_final.png")
+    to_png(goal, "/opt/cursor/artifacts/rush_ell_target.png")
+    print("wrote /opt/cursor/artifacts/rush_ell_strip.png")
 
 
 if __name__ == "__main__":
