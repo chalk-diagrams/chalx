@@ -336,6 +336,11 @@ class DiagPrim(VJPHiPrimitive):
 
     def batch(self, axis_data, args, in_dims):
         path, xf, *rest = args
+        _, xf_dim, *_ = in_dims
+        if xf_dim is None:
+            xf = jnp.broadcast_to(xf, (axis_data.size, *xf.shape))
+        elif xf_dim != 0:
+            xf = jnp.moveaxis(xf, xf_dim, 0)
         style = rest[0] if self.has_style else None
         order = rest[-1] if self.has_order else None
         out = diag_prim(path, xf, style, order)
