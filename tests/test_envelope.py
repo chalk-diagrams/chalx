@@ -47,7 +47,7 @@ def test_circle_trace() -> None:
         (unit_y, jnp.asarray([-1.0, 1.0])),
     ):
         distances, mask = trace(origin, direction)
-        assert jnp.allclose(jnp.unique(distances[mask]), expected)
+        assert jnp.allclose(jnp.unique(distances[mask.astype(bool)]), expected)
     trace(origin, (unit_x + unit_y))
 
 
