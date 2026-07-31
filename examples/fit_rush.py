@@ -82,7 +82,8 @@ def diagram_stacked(params):
         float(W) / 2.0, float(H) / 2.0
     )
     # Painter: first behind, last on top (same as lax.scan composite).
-    return concat(dias).with_envelope(frame).scale_y(-1)
+    # No scale_y(-1): Cairo's image surface is already y-down, like the fit.
+    return concat(dias).with_envelope(frame)
 
 
 def raster(params):
