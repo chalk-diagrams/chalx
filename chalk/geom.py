@@ -1312,14 +1312,6 @@ class XfRotationTangent(VJPHiPrimitive):
         r_ct = dr * (-c * m00 - s * m01 + s * m10 - c * m11)
         return r_ct, ddr_ct
 
-    def transpose(self, cts, r, dr):
-        from jax._src.ad_util import Zero as AdZero
-
-        if isinstance(cts, (Zero, AdZero)):
-            return None
-        r_ct, dr_ct = self.vjp_bwd_retval((jnp.asarray(r), jnp.asarray(dr)), cts)
-        return _accum((r, dr), (r_ct, dr_ct))
-
     def batch(self, axis_data, args, in_dims):
         return xf_rotation_tangent(*args), _out_dim(in_dims)
 
