@@ -18,6 +18,9 @@ def show_origin(self: Diagram) -> Diagram:
 
 
 def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diagram:
+    from chalk.diag import DiagSpec
+    from chalk.geom import GeomSpec
+
     self.show_origin()
     envelope = self.get_envelope()
     outer: Diagram = (
@@ -27,9 +30,14 @@ def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diag
         .line_color("red")
     )
     segments = envelope.to_segments(angle)
+    segment_diagrams = tx.vmap(
+        lambda offset: seg(offset).stroke(),
+        in_axes=GeomSpec(),
+        out_axes=DiagSpec(),
+    )(segments)
 
     outer = outer + (
-        seg(segments).stroke().concat()
+        segment_diagrams.concat()
         .line_color("blue")
         .dashing([0.01, 0.01], 0)
     )
