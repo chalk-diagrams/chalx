@@ -134,6 +134,26 @@ def to_png(img, path):
     Image.fromarray(to_uint8(img)).save(path)
 
 
+def crossfade_to(src_u8, dst_u8, *, n_fade: int = 10, hold: int = 5):
+    """Last-second blend ``src`` → ``dst``, then hold ``dst``."""
+    a = onp.asarray(src_u8, dtype="float32")
+    b = onp.asarray(dst_u8, dtype="float32")
+    if a.shape != b.shape:
+        b = onp.asarray(
+            Image.fromarray(b.clip(0, 255).astype("uint8")).resize(
+                (a.shape[1], a.shape[0]), Image.Resampling.NEAREST
+            ).convert("RGB"),
+            dtype="float32",
+        )
+    out = []
+    for i in range(1, n_fade + 1):
+        t = i / float(n_fade)
+        out.append(((1.0 - t) * a + t * b).clip(0, 255).astype("uint8"))
+    hold_fr = b.clip(0, 255).astype("uint8")
+    out.extend([hold_fr] * hold)
+    return out
+
+
 def write_video(frames_uint8, path, fps=12):
     h, w = frames_uint8[0].shape[:2]
     if h % 2:
@@ -345,6 +365,13 @@ def main():
         cairo_u8.append(cairo_frame(p))
         if i % 8 == 0 or i == len(history) - 1:
             print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
+    raster_hi = onp.asarray(
+        Image.fromarray(to_uint8(final)).resize(
+            (cairo_u8[-1].shape[1], cairo_u8[-1].shape[0]),
+            Image.Resampling.NEAREST,
+        ).convert("RGB")
+    )
+    cairo_u8.extend(crossfade_to(cairo_u8[-1], raster_hi, n_fade=10, hold=5))
     write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
 
     dia = diagram_stacked(params)
