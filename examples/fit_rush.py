@@ -22,6 +22,7 @@ STEPS = 2000
 MIN_SIZE = 1.0
 LR = 0.03
 LOSS_EVERY = 50
+GIF_EVERY = 10
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 LIB_HEIGHT = 400
 
