@@ -9,3 +9,4 @@ matplotlib
 numpy>=2.0.0
 pycairo
 typing-extensions
+# Chalk is JAX-only on this branch (no NumPy dual backend).

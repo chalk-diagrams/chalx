@@ -14,9 +14,7 @@ if TYPE_CHECKING:
         Empty,
         Primitive,
     )
-    from chalk.monoid import Monoid
-
-    A = TypeVar("A", bound=Monoid)
+    A = TypeVar("A")
 else:
     A = TypeVar("A")
 
@@ -28,7 +26,7 @@ class DiagramVisitor(Generic[A, B]):
     Can be thought of as a tree fold.
     Type B is passed up the tree.
     Type A is accumulated down the tree.
-    Type A needs to be a monoid type.
+    Type A needs ``empty()`` and ``__add__`` (monoid ops).
     """
 
     A_type: type[A]
@@ -43,7 +41,12 @@ class DiagramVisitor(Generic[A, B]):
 
     def visit_compose(self, diagram: Compose, arg: B) -> A:
         # Compose defaults to monoid over children
-        return self.A_type.concat([d._accept(self, arg) for d in diagram.diagrams])
+        from chalk.monoid import reduce_associative
+
+        elems = [d._accept(self, arg) for d in diagram.diagrams]
+        return reduce_associative(
+            lambda a, b: a + b, elems, self.A_type.empty()
+        )
 
     def visit_compose_axis(self, diagram: ComposeAxis, t: B) -> A:
         from functools import partial
@@ -52,18 +55,11 @@ class DiagramVisitor(Generic[A, B]):
         axis = len(diagram.diagrams.size()) - 1
         fn = diagram.diagrams._accept.__func__  # type: ignore
         fn = partial(fn, visitor=self, args=t)
-        ed: A
-        if not tx.JAX_MODE:
-            ds = []
-            for k in range(size[-1]):
-                # tx.tree_map(lambda x: print("shape", x.shape, k), diagram.diagrams)
-                d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
-                ds.append(fn(d))
-            ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
-        else:
-            import jax
-
-            ed = jax.vmap(fn, in_axes=axis, out_axes=axis)(diagram.diagrams)
+        ds = []
+        for k in range(int(size[-1])):
+            d = tx.tree_map(lambda x: x.take(k, axis), diagram.diagrams)
+            ds.append(fn(d))
+        ed = tx.tree_map(lambda *x: tx.np.stack(x, axis), *ds)
         return self.A_type.reduce(ed, axis)
 
     def visit_apply_transform(self, diagram: ApplyTransform, arg: B) -> A:

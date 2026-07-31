@@ -1,0 +1,424 @@
+"""Fit triangles to a photo with a learnable differentiable z-order.
+
+Each triangle keeps a scalar ``z`` (low = behind). Scanline and Cairo both
+hard-sort by ``z`` and gate fill opacity with ``modulate_opacity(z)``.
+Coverage is the average of a left-to-right and top-to-bottom scan.
+"""
+
+from __future__ import annotations
+
+import random
+import subprocess
+
+import jax
+import jax.numpy as jnp
+import numpy as onp
+from PIL import Image, ImageDraw, ImageFont
+
+from chalk import rectangle, triangle
+from chalk.measure import trace_measure
+from chalk.raster import scanline_origins
+from chalk.style import composite_by_z, modulate_opacity
+
+W, H = 120, 64  # ~wide alpine lake photo
+N = 1500
+STEPS = 500
+MIN_SIZE = 1.0
+LR0 = 0.03
+LOSS_EVERY = 10
+GIF_EVERY = 10
+DECAY_START = 333  # last third taper LR; kernel 3→1
+PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/c756b95f-2fba-4bcd-8cdb-4a635411becb.png"
+LIB_HEIGHT = 320
+LIB_WIDTH = 600
+OUT = "/opt/cursor/artifacts"
+PREFIX = "lake1"
+KERNELS = (3, 1)
+
+_unit = triangle(1.0).line_width(0)
+_px = scanline_origins(H, axis="x")
+_py = scanline_origins(W, axis="y")
+_vx = jnp.array([[1.0], [0.0], [0.0]])
+_vy = jnp.array([[0.0], [1.0], [0.0]])
+
+
+def load_goal():
+    im = Image.open(PHOTO).convert("RGB").resize((W, H), Image.Resampling.LANCZOS)
+    return jnp.asarray(onp.asarray(im).astype("float64") / 255.0)
+
+
+def reduce_color(y):
+    return jnp.floor(y * 40.0) / 40.0
+
+
+def lr_at(step: int) -> float:
+    if step <= DECAY_START:
+        return LR0
+    t = (step - DECAY_START) / max(STEPS - DECAY_START, 1)
+    return LR0 * (1.0 - 0.9 * t)
+
+
+def kernel_at(step: int) -> int:
+    if step <= DECAY_START:
+        return 3
+    return 1
+
+
+def split_geom(params):
+    loc, radii, rots, color, opacity, _z = params
+    return loc, radii, rots, color, opacity
+
+
+def diagram(params):
+    loc, radii, rots, color, opacity, z = params
+    paints = jax.nn.sigmoid(color)
+    opac = modulate_opacity(jax.nn.sigmoid(opacity), z)
+    return (
+        _unit.fill_color(paints)
+        .fill_opacity(opac)
+        .scale_x(radii[:, 0])
+        .scale_y(radii[:, 1])
+        .rotate_rad(rots[:, 0])
+        .translate(loc[:, 0], loc[:, 1])
+    )
+
+
+def diagram_stacked(params):
+    """Cairo: deterministic paint order = argsort(z), low z behind."""
+    loc, radii, rots, color, opacity, z = params
+    order = jnp.argsort(z)
+    ordered = (loc[order], radii[order], rots[order], color[order], opacity[order], z[order])
+    frame = (
+        rectangle(float(W), float(H))
+        .line_width(0)
+        .fill_opacity(0)
+        .translate(float(W) / 2.0, float(H) / 2.0)
+    )
+    return diagram(ordered).concat().with_envelope(frame)
+
+
+def make_raster(kernel: int):
+    def raster(params):
+        loc, radii, rots, color, opacity, z = params
+        paints = jax.nn.sigmoid(color)
+        opac = jax.nn.sigmoid(opacity)
+        geom = (loc, radii, rots)
+
+        def prim(xs):
+            (lx, ly), (rx, ry), (rot,) = xs
+            return _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
+
+        def cover_x(_, xs):
+            return None, trace_measure(prim(xs), _px, _vx, W, kernel=kernel)
+
+        def cover_y(_, xs):
+            return None, trace_measure(prim(xs), _py, _vy, H, kernel=kernel)
+
+        # Two scans: a single scan body cannot call trace_measure twice under grad.
+        _, ax = jax.lax.scan(cover_x, None, geom)
+        _, ay = jax.lax.scan(cover_y, None, geom)
+        alphas = 0.5 * (ax + jnp.transpose(ay, (0, 2, 1)))
+        return composite_by_z(jnp.ones((H, W, 3)), alphas, (paints, opac), z, hard=True)
+
+    def loss_fn(params, goal):
+        return jnp.sum((raster(params) - goal) ** 2)
+
+    return raster, loss_fn
+
+
+def to_uint8(img):
+    return (onp.clip(onp.asarray(img), 0.0, 1.0) * 255).astype("uint8")
+
+
+def to_png(img, path):
+    Image.fromarray(to_uint8(img)).save(path)
+
+
+def crossfade_to(src_u8, dst_u8, *, n_fade: int = 10, hold_src: int = 5, hold_dst: int = 10):
+    """Hold ``src``, blend to ``dst`` over ``n_fade`` frames, then hold ``dst``."""
+    a = onp.asarray(src_u8, dtype="float32")
+    b = onp.asarray(dst_u8, dtype="float32")
+    if a.shape != b.shape:
+        b = onp.asarray(
+            Image.fromarray(b.clip(0, 255).astype("uint8")).resize(
+                (a.shape[1], a.shape[0]), Image.Resampling.NEAREST
+            ).convert("RGB"),
+            dtype="float32",
+        )
+    src = a.clip(0, 255).astype("uint8")
+    dst = b.clip(0, 255).astype("uint8")
+    out = [src] * hold_src
+    for i in range(1, n_fade + 1):
+        t = i / float(n_fade)
+        out.append(((1.0 - t) * a + t * b).clip(0, 255).astype("uint8"))
+    out.extend([dst] * hold_dst)
+    return out
+
+
+def write_video(frames_uint8, path, fps=12):
+    h, w = frames_uint8[0].shape[:2]
+    if h % 2:
+        h -= 1
+    if w % 2:
+        w -= 1
+    cmd = [
+        "ffmpeg", "-y", "-f", "rawvideo", "-vcodec", "rawvideo",
+        "-s", f"{w}x{h}", "-pix_fmt", "rgb24", "-r", str(fps), "-i", "-",
+        "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path,
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    assert proc.stdin is not None and proc.stderr is not None
+    try:
+        for fr in frames_uint8:
+            proc.stdin.write(onp.ascontiguousarray(fr[:h, :w]).tobytes())
+    finally:
+        proc.stdin.close()
+    err = proc.stderr.read()
+    if proc.wait() != 0:
+        raise RuntimeError(err.decode("utf-8", errors="replace")[-2000:])
+
+
+def cairo_frame(params):
+    path = "/tmp/cow_ell_frame.png"
+    diagram_stacked(params).render(path, height=LIB_HEIGHT, width=LIB_WIDTH)
+    return onp.asarray(Image.open(path).convert("RGB"))
+
+
+def init_params(seed=42):
+    random.seed(seed)
+    cx, cy = W / 2.0, H / 2.0
+    locs = []
+    for _ in range(N):
+        if random.random() < 0.72:
+            x = cx + random.gauss(0.0, W * 0.16)
+            y = cy + random.gauss(0.0, H * 0.16)
+            x = min(max(x, 4.0), float(W - 4))
+            y = min(max(y, 4.0), float(H - 4))
+        else:
+            x = 6.0 + (W - 12.0) * random.random()
+            y = 6.0 + (H - 12.0) * random.random()
+        locs.append([x, y])
+    loc = jnp.array(locs)
+    radii = []
+    for _ in range(N):
+        size = MIN_SIZE + 14.0 * random.random() ** 1.6
+        aspect = 0.35 + 0.65 * random.random()
+        if random.random() < 0.5:
+            radii.append([size, max(MIN_SIZE, size * aspect)])
+        else:
+            radii.append([max(MIN_SIZE, size * aspect), size])
+    radii = jnp.array(radii)
+    rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
+    color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
+    opacity = jnp.array([random.uniform(-0.2, 1.8) for _ in range(N)])
+    order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
+    loc, radii, rots, color, opacity = (
+        loc[order],
+        radii[order],
+        rots[order],
+        color[order],
+        opacity[order],
+    )
+    z = jnp.linspace(-1.0, 1.0, N)
+    return (loc, radii, rots, color, opacity, z)
+
+
+def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
+    lib = Image.open(library_path).convert("RGB")
+    tw, th = lib.size
+    raster_im = Image.fromarray(to_uint8(raster_img)).resize((tw, th), Image.Resampling.NEAREST)
+    goal_im = Image.fromarray(to_uint8(goal)).resize((tw, th), Image.Resampling.NEAREST)
+    label_h = 36
+    strip = Image.new("RGB", (tw * 3, th + label_h), (20, 20, 20))
+    for i, im in enumerate([raster_im, lib, goal_im]):
+        strip.paste(im.convert("RGB"), (i * tw, label_h))
+    draw = ImageDraw.Draw(strip)
+    try:
+        font = ImageFont.load_default(size=18)
+    except TypeError:
+        font = ImageFont.load_default()
+    labels = [
+        f"scanline xy+z (k={k_label})",
+        "cairo argsort(z)+α(z)",
+        "target photo",
+    ]
+    for i, label in enumerate(labels):
+        draw.text((i * tw + 10, 8), label, fill=(255, 255, 255), font=font)
+    strip.save(out_path)
+
+
+def main():
+    print(
+        f"{PREFIX} triangles N={N} STEPS={STEPS} {W}x{H} z+α(z) kernel 3→1 + video "
+        f"LR/kernel 7→5→3 after {DECAY_START}",
+        flush=True,
+    )
+    goal = reduce_color(load_goal())
+    to_png(goal, f"{OUT}/{PREFIX}_target.png")
+    params = init_params()
+
+    print("jit compile kernels", KERNELS, "…", flush=True)
+    fns = {}
+    import time as _time
+
+    for k in KERNELS:
+        raster, loss_fn = make_raster(k)
+        t0 = _time.perf_counter()
+        raster_jit = jax.jit(raster)
+        loss_jit = jax.jit(loss_fn)
+        grad_jit = jax.jit(jax.grad(loss_fn))
+        start_img = raster_jit(params).block_until_ready()
+        jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal))
+        print(f"  kernel={k} compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
+        fns[k] = (raster_jit, loss_jit, grad_jit)
+        if k == KERNELS[0]:
+            to_png(start_img, f"{OUT}/{PREFIX}_start.png")
+            start_img0 = start_img
+
+    history = [(0, params)]
+    curve = []
+    best, best_loss = params, float("inf")
+    prev_kern = kernel_at(1)
+    m = jax.tree.map(jnp.zeros_like, params)
+    v = jax.tree.map(jnp.zeros_like, params)
+    b1, b2, eps = 0.9, 0.999, 1e-8
+    for i in range(1, STEPS + 1):
+        lr = lr_at(i)
+        kern = kernel_at(i)
+        raster_jit, loss_jit, grad_jit = fns[kern]
+        g = grad_jit(params, goal)
+
+        def adam(pi, gi, mi, vi):
+            mi = b1 * mi + (1 - b1) * gi
+            vi = b2 * vi + (1 - b2) * gi * gi
+            mh = mi / (1 - b1**i)
+            vh = vi / (1 - b2**i)
+            return pi - lr * mh / (jnp.sqrt(vh) + eps), mi, vi
+
+        new, new_m, new_v = [], [], []
+        for pi, gi, mi, vi in zip(params, g, m, v):
+            po, mo, vo = adam(pi, gi, mi, vi)
+            new.append(po)
+            new_m.append(mo)
+            new_v.append(vo)
+        params, m, v = tuple(new), tuple(new_m), tuple(new_v)
+        loc, radii, rots, color, opacity, z = params
+        radii = jnp.clip(jnp.abs(radii), MIN_SIZE, float(min(H, W)) * 0.45)
+        loc = jnp.stack(
+            [
+                jnp.clip(loc[:, 0], -8.0, float(W + 8)),
+                jnp.clip(loc[:, 1], -8.0, float(H + 8)),
+            ],
+            axis=1,
+        )
+        color = jnp.clip(color, -6.0, 6.0)
+        opacity = jnp.clip(opacity, -6.0, 6.0)
+        z = jnp.clip(z, -8.0, 8.0)
+        params = (loc, radii, rots, color, opacity, z)
+        if i % GIF_EVERY == 0 or i == 1:
+            history.append((i, params))
+        if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
+            if kern != prev_kern:
+                best_loss = float("inf")
+                prev_kern = kern
+            cur_loss = float(loss_jit(params, goal))
+            if cur_loss < best_loss:
+                best_loss, best = cur_loss, params
+            curve.append((i, cur_loss, best_loss, lr, kern))
+            print(
+                f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}  "
+                f"lr={lr:.4f}  k={kern}",
+                flush=True,
+            )
+
+    params = best
+    onp.savez(
+        f"{OUT}/{PREFIX}_best.npz",
+        loc=onp.asarray(params[0]),
+        radii=onp.asarray(params[1]),
+        rots=onp.asarray(params[2]),
+        color=onp.asarray(params[3]),
+        opacity=onp.asarray(params[4]),
+        z=onp.asarray(params[5]),
+        curve=onp.asarray(curve),
+    )
+    final_k = kernel_at(STEPS)
+    raster_jit, loss_jit, _ = fns[final_k]
+    final = raster_jit(params)
+    to_png(final, f"{OUT}/{PREFIX}_final.png")
+    to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/{PREFIX}_compare.png")
+
+    scan_side = [
+        jnp.concatenate([goal, fns[kernel_at(max(step, 1))][0](p)], axis=1)
+        for step, p in history
+    ]
+    gh, gw = int(goal.shape[0]), int(goal.shape[1])
+    scan_u8 = [
+        onp.asarray(Image.fromarray(to_uint8(fr)).resize((gw * 4, gh * 4), Image.Resampling.NEAREST))
+        for fr in scan_side
+    ]
+    write_video(scan_u8, f"{OUT}/{PREFIX}_scan.mp4", fps=10)
+    print(f"wrote scan video ({len(scan_u8)} frames)", flush=True)
+
+    print("cairo video…", flush=True)
+    cairo_u8 = []
+    for i, (_step, p) in enumerate(history):
+        cairo_u8.append(cairo_frame(p))
+        if i % 8 == 0 or i == len(history) - 1:
+            print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
+    fh, fw = cairo_u8[0].shape[:2]
+    photo_hi = onp.asarray(
+        Image.fromarray(to_uint8(goal)).resize((fw, fh), Image.Resampling.BICUBIC).convert("RGB")
+    )
+    raster_hi = onp.asarray(
+        Image.fromarray(to_uint8(final)).resize((fw, fh), Image.Resampling.NEAREST).convert("RGB")
+    )
+    story = (
+        [photo_hi] * 10
+        + cairo_u8
+        + crossfade_to(cairo_u8[-1], raster_hi, n_fade=10, hold_src=5, hold_dst=10)
+    )
+    write_video(story, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
+    write_video(story, f"{OUT}/{PREFIX}_cairo_to_raster.mp4", fps=10)
+    write_video(story, f"{OUT}/{PREFIX}_story.mp4", fps=10)
+
+    dia = diagram_stacked(params)
+    lib_path = f"{OUT}/{PREFIX}_cairo.png"
+    dia.render(lib_path, height=LIB_HEIGHT, width=LIB_WIDTH)
+    dia.render_svg(f"{OUT}/{PREFIX}.svg", height=LIB_HEIGHT)
+    write_compare_strip(final, lib_path, goal, f"{OUT}/{PREFIX}_strip.png", final_k)
+    to_png(start_img0, f"{OUT}/{PREFIX}_start.png")
+    to_png(goal, f"{OUT}/{PREFIX}_target.png")
+    z = onp.asarray(params[5])
+    area = onp.asarray(params[1][:, 0] * params[1][:, 1])
+    print(
+        f"wrote {OUT}/{PREFIX}_strip.png best={best_loss:.1f} "
+        f"zcorr(area)={float(onp.corrcoef(z, -onp.log(area + 1e-6))[0,1]):.3f}",
+        flush=True,
+    )
+
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        steps, losses, bests, lrs, ks = zip(*curve)
+        fig, ax = plt.subplots(figsize=(8, 4.2), dpi=140)
+        ax.plot(steps, losses, color="#4c78a8", lw=1.5, marker="o", ms=3, label="loss")
+        ax.plot(steps, bests, color="#f58518", lw=2, label="best")
+        ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
+        ax.set_xlabel("Adam step")
+        ax.set_ylabel("L2")
+        ax.set_title(f"{N} triangles · lake · z+α(z) · kernel 3→1")
+        ax.legend(frameon=False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        fig.tight_layout()
+        fig.savefig(f"{OUT}/{PREFIX}_curve.png")
+    except Exception as e:
+        print("curve skip", e, flush=True)
+
+
+if __name__ == "__main__":
+    main()

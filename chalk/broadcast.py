@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Tuple, TypeVar
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
 from chalk.types import Diagram
 from chalk.visitor import DiagramVisitor
 
@@ -70,8 +69,16 @@ def broadcast_to(
         return tree
 
     def reshape(x: tx.Array) -> tx.Array:
-        shape = x.shape
-        return tx.np.broadcast_to(x, new_shape + shape[len(old_shape) :])
+        shape = tuple(x.shape)
+        if not old_shape:
+            return tx.np.broadcast_to(x, tuple(new_shape) + shape)
+        prefix = shape[: len(old_shape)]
+        compatible = len(shape) >= len(old_shape) and all(
+            p == o or p == 1 for p, o in zip(prefix, old_shape)
+        )
+        if compatible:
+            return tx.np.broadcast_to(x, tuple(new_shape) + shape[len(old_shape) :])
+        return x
 
     return tx.tree_map(reshape, tree)
 
@@ -108,7 +115,7 @@ def broadcast_diagrams(self: V1, other: V2) -> Tuple[V1, V2]:
 
 
 @dataclass
-class Size(Monoid):
+class Size:
     d: Tuple[int, ...]
 
     @classmethod
@@ -139,9 +146,11 @@ class ToSize(DiagramVisitor[Size, Size]):
         return diagram.diagram._accept(self, t)
 
     def visit_apply_style(self, diagram: core.ApplyStyle, t: Size) -> Size:
+        import jax
+
         if diagram.style is None:  # type: ignore
             return diagram.diagram.accept(self, t)
-        return Size(diagram.style.size())
+        return Size(tuple(jax.typeof(diagram.style).batch_shape))
 
     def visit_compose_axis(self, diagram: core.ComposeAxis, t: Size) -> Size:
         return diagram.diagrams._accept(self, t).remove_axis(0)

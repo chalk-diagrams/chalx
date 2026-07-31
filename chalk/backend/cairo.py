@@ -11,13 +11,18 @@ PyCairoContext = Any
 
 
 def write_style(d: Dict[str, Any], ctx: PyCairoContext) -> None:
+    lw = float(d.get("linewidth", 0.0) or 0.0)
+    stroke = "edgecolor" in d and lw > 1e-8
     if "facecolor" in d:
-        ctx.set_source_rgba(*d["facecolor"], d.get("alpha", 1))
-        ctx.fill_preserve()
-    if "edgecolor" in d:
-        ctx.set_source_rgb(*d["edgecolor"])
-    if "linewidth" in d:
-        ctx.set_line_width(d["linewidth"])
+        ctx.set_source_rgba(*tuple(d["facecolor"]), float(d.get("alpha", 1)))
+        if stroke:
+            ctx.fill_preserve()
+        else:
+            ctx.fill()
+            return
+    if stroke:
+        ctx.set_source_rgb(*tuple(d["edgecolor"]))
+        ctx.set_line_width(lw)
 
 
 def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
@@ -36,7 +41,7 @@ def to_cairo(patch: Patch, ctx: PyCairoContext, ind: Tuple[int, ...]) -> None:
             c2 = v[i + 1] + 2 / 3 * (v[i] - v[i + 1])
             ctx.curve_to(
                 c1[0],
-                c1[0],
+                c1[1],
                 c2[0],
                 c2[1],
                 v[i + 1, 0],
@@ -67,7 +72,10 @@ def render_cairo_patches(
     for ind, patch, style in order_patches(patches, time):
         to_cairo(patch, ctx, ind)
         write_style(style, ctx)
-        ctx.stroke()
+        if float(style.get("linewidth", 0.0) or 0.0) > 1e-8:
+            ctx.stroke()
+        else:
+            ctx.new_path()
 
 
 def patches_to_file(
@@ -78,11 +86,19 @@ def patches_to_file(
     time: Tuple[int, ...] = (),
 ) -> None:
     import cairo
+    from PIL import Image
 
+    # Paint onto opaque white so Porter-Duff over matches scanline
+    # ``composite`` (white dest, coverage × fill-opacity). Drawing on a
+    # transparent dest and flattening afterwards is not equivalent for
+    # stacked semi-transparent fills once PNG unpremultiply is involved.
     surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(width), int(height))
     ctx = cairo.Context(surface)
+    ctx.set_source_rgb(1.0, 1.0, 1.0)
+    ctx.paint()
     render_cairo_patches(patches, ctx, time)
     surface.write_to_png(path)
+    Image.open(path).convert("RGB").save(path)
 
 
 def render(
@@ -130,17 +146,9 @@ def animate(
 
     with imageio.get_writer(path, loop=0, **kwargs) as writer:
         for i in range(shape[0]):
-            path = path_frame.format(i)
-            patches_to_file(patches, path, h, w, (i,))
-            from PIL import Image
-
-            png = Image.open(path).convert("RGBA")
-            background = Image.new("RGBA", png.size, (255, 255, 255))
-
-            alpha_composite = Image.alpha_composite(background, png)
-            alpha_composite.save(path, "PNG")
-
-            image = imageio.imread(path)
+            frame_path = path_frame.format(i)
+            patches_to_file(patches, frame_path, h, w, (i,))
+            image = imageio.imread(frame_path)
 
             writer.append_data(image)  # type: ignore
     return self

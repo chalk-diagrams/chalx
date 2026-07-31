@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 import chalk.transform as tx
 from chalk.backend.patch import Patch, patch_from_prim
-from chalk.monoid import Monoid
 from chalk.style import StyleHolder
 from chalk.transform import Affine
 from chalk.types import BatchDiagram, SingleDiagram
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
 
 
 def get_primitives(self: SingleDiagram) -> List[Primitive]:
-    return self._accept(ToListOrder(), tx.ident).ls
+    return self._accept(ToListOrder(), tx._ident_arr).ls
 
 
 def animate(
@@ -72,7 +71,7 @@ def layout(
 
 
 @dataclass
-class OrderList(Monoid):
+class OrderList:
     ls: List[Primitive]
     counter: tx.IntLike
 
@@ -108,9 +107,13 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     A_type = OrderList
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> OrderList:
-        size = diagram.size()
+        from chalk.core import Primitive as Prim
+
+        xf = tx.np.asarray(t) @ tx.np.asarray(diagram.transform)
+        size = tuple(tx.np.asarray(xf).shape[:-2])
+        prim = Prim(diagram.prim_shape, diagram.style, xf, diagram.order)
         return OrderList(
-            [diagram.apply_transform(t).set_order(tx.np.zeros(size))],
+            [prim.set_order(tx.np.zeros(size))],
             tx.np.ones(size),
         )
 
@@ -157,10 +160,19 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
 
 
 def add_dim(m: Any, size: int) -> Any:
-    if not isinstance(m, StyleHolder):
-        m = tx.np.asarray(m)
+    if isinstance(m, StyleHolder):
+        from chalk.style import make_style
+
+        parts = list(m.lo_parts())
+        for _ in range(size):
+            parts = [
+                p[..., None, :] if i in (0, 1, 5) else p[..., None]
+                for i, p in enumerate(parts)
+            ]
+        return make_style(*parts)
+    m = tx.np.asarray(m)
     for _ in range(size):
-        m = m[..., None]  # type: ignore
+        m = m[..., None]
     return m
 
 

@@ -17,17 +17,16 @@ from typing import (
 )
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
 from chalk.style import Stylable, StyleHolder
 from chalk.transform import P2_t, V2_t
 
 if TYPE_CHECKING:
     from chalk.arrow import ArrowOpts
     from chalk.backend.patch import Patch
-    from chalk.envelope import BatchEnvelope
+    from chalk.envelope import Envelope
     from chalk.path import Path
     from chalk.subdiagram import Name, Subdiagram
-    from chalk.trace import BatchTrace
+    from chalk.trace import Trace
     from chalk.trail import Located, Trail
     from chalk.visitor import A, DiagramVisitor
 
@@ -50,7 +49,7 @@ class TrailLike(Protocol):
         return self.at(tx.P2(0, 0)).stroke()
 
 
-class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
+class Diagram(Stylable, tx.Transformable, tx.Batchable):
     # Standard diagram types
     def apply_transform(self: BatchDiagram, t: tx.Affine) -> BroadDiagram:
         """Apply an affine transformation to a batched diagram.
@@ -159,11 +158,11 @@ class Diagram(Stylable, tx.Transformable, Monoid, tx.Batchable):
         """
         ...
 
-    def get_envelope(self: BatchDiagram) -> BatchEnvelope:
+    def get_envelope(self: BatchDiagram) -> Envelope:
         """Get the envelope of the diagram."""
         ...
 
-    def get_trace(self: BatchDiagram) -> BatchTrace:
+    def get_trace(self: BatchDiagram) -> Trace:
         """Get the trace of the diagram."""
         ...
 

@@ -62,7 +62,7 @@ def center_xy(self: Diagram) -> Diagram:
     envelope = self.get_envelope()
     # if envelope.is_empty:
     #     return self
-    t = tx.translation(-envelope.center)
+    t = tx.translation(-(envelope.center - tx.origin))
     return self.apply_transform(t)
 
 

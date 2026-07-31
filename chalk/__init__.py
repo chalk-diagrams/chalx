@@ -43,6 +43,8 @@ from chalk.path import *  # noqa: F403
 from chalk.subdiagram import *  # noqa: F403
 from chalk.style import *  # noqa: F403
 from chalk.types import *  # noqa: F403
+from chalk.measure import trace_measure, measure_from_splits  # noqa: F401
+from chalk.raster import rasterize  # noqa: F401
 
 if eval(os.environ.get("CHALK_CHECK", "0")):
     assert hook is not None
@@ -50,32 +52,15 @@ if eval(os.environ.get("CHALK_CHECK", "0")):
 
 
 jax_type = [
-    chalk.core.Primitive,
-    chalk.core.Compose,
-    chalk.envelope.Envelope,
-    chalk.core.ApplyTransform,
-    chalk.core.Empty,
-    chalk.core.ApplyStyle,
-    chalk.core.ComposeAxis,
-    chalk.style.StyleHolder,
-    chalk.path.Path,
-    chalk.trail.Located,
-    chalk.trail.Trail,
     chalk.shapes.Spacer,
     chalk.backend.patch.Patch,
     chalk.path.Text,
     chalk.subdiagram.Subdiagram,
-    chalk.segment.Segment,
 ]
 for t in jax_type:
     chex.register_dataclass_type_with_jax_tree_util(t)
 
-
-jax.tree_util.register_pytree_node(
-    chalk.core.ApplyName,
-    lambda tree: ((tree.diagram,), (tree.dname,)),
-    lambda extra, args: chalk.core.ApplyName(extra[0], args[0]),  # type: ignore
-)
+import chalk.diag  # noqa: F401  # register opaque diag[] hijax type
 
 
 if not TYPE_CHECKING:

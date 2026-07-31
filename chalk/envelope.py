@@ -4,11 +4,28 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Iterable, Optional, Tuple
 
+import jax
+import jax.numpy as jnp
+from jax.experimental.hijax import (
+    HiType,
+    MappingSpec,
+    ShapedArray,
+    VJPHiPrimitive,
+    register_hitype,
+)
 from jaxtyping import Float
 
 import chalk.transform as tx
-from chalk.monoid import Monoid
-from chalk.segment import BatchSegment, Segment, arc_envelope
+from chalk.monoid import reduce_associative
+from chalk.segment import (
+    SegSpec,
+    Segment,
+    SegTy,
+    concat_segments,
+    segment_parts,
+    transform_segment,
+    arc_envelope,
+)
 from chalk.transform import (
     P2,
     V2,
@@ -19,7 +36,6 @@ from chalk.transform import (
     Transformable,
     V2_t,
 )
-from chalk.transform import Batchable, Batched
 from chalk.visitor import DiagramVisitor
 
 if TYPE_CHECKING:
@@ -30,30 +46,31 @@ if TYPE_CHECKING:
 @tx.jit  # type: ignore
 @partial(tx.vectorize, signature="(3,3),(3,1)->(3,1),(3,1),(3,1),()")  # type: ignore
 def pre_transform(t: Affine, v: V2_t) -> Tuple[V2_t, V2_t, V2_t, Scalars]:
-    """Reshapes the input vector `v` to compute the correct envelope for the transformation."""
-    rt = tx.remove_translation(t)
-    inv_t = tx.inv(rt)
-    trans_t = tx.transpose_translation(rt)
-    u: V2_t = -tx.get_translation(t)
+    rt = tx._remove_translation_arr(t)
+    inv_t = tx._inv_arr(rt)
+    trans_t = tx._transpose_linear_arr(rt)
+    u = tx.np.zeros_like(v)
+    u = u.at[..., 0, 0].set(-t[..., 0, 2]).at[..., 1, 0].set(-t[..., 1, 2])
     vi = inv_t @ v
     inp = trans_t @ v
-    v_prim = tx.norm(inp)
-    d = tx.dot(v_prim, vi)
+    n2 = (inp * inp)[..., :2, 0].sum(-1, keepdims=True)[..., None]
+    v_prim = inp / tx.np.sqrt(n2)
+    d = (v_prim * vi).sum((-2, -1))
     return v_prim, u, v, tx.np.asarray(d)
 
 
 @tx.jit
 @partial(tx.vectorize, signature="(3,1),(3,1),(),()->()")
 def post_transform(u: V2_t, v: V2_t, d: tx.Floating, inner: tx.Floating) -> Scalars:
-    """Adjusts the envelope to take the affine transformation into account."""
     after_linear = inner / d
-    diff = tx.dot(tx.scale_vec(u, 1 / tx.dot(v, v)), v)
+    vv = (v * v).sum((-2, -1))
+    scaled = u * (1.0 / vv)[..., None, None]
+    diff = (scaled * v).sum((-2, -1))
     return tx.np.asarray(after_linear - diff)
 
 
 @tx.jit
 def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
-    # Push the user batch dimensions to the left.
     batch_shape = d.shape[:-2]
     segments_shape = transform.shape[:-2]
     return_shape = batch_shape + segments_shape[:-1]
@@ -69,100 +86,245 @@ def env(transform: tx.Affine, angles: tx.Angles, d: tx.V2_tC) -> tx.Array:
     return tx.np.asarray(v)
 
 
-@dataclass
-class Envelope(Transformable, Monoid, Batchable):
-    segment: BatchSegment
+ALL_DIR = tx.np.stack(
+    [tx._unit_x_arr, -tx._unit_x_arr, tx._unit_y_arr, -tx._unit_y_arr], axis=0
+)
 
-    def __call__(self: BatchEnvelope, direction: tx.V2_tC) -> Float[tx.Array, "..."]:
-        """Compute the shortest distance from the origin to the envelope boundary in the given
-        direction.
 
-        This function returns the distance to the envelope boundary for each batch of the envelope
-        and each batch of the input direction. The output shape will be "*C *B" where B represents
-        the batch dimensions of the envelope and C represents the batch dimensions of the direction.
+@dataclass(frozen=True)
+class EnvSpec(MappingSpec):
+    pass
 
-        Args:
-            direction: The direction vector to measure the distance.
 
-        Returns:
-            An array of distances with shape "*C *B".
+@dataclass(frozen=True)
+class EnvTy(HiType):
+    seg_ty: SegTy
 
-        """
-        return env(*self.segment.tuple(), direction)
-        return env(*self.segment.tuple(), direction)
+    def lo_ty(self):
+        return self.seg_ty.lo_ty()
 
-    def __add__(self: BatchEnvelope, other: BatchEnvelope) -> BatchEnvelope:
-        return Envelope(self.segment + other.segment)
+    def lower_val(self, envelope: Envelope):
+        return self.seg_ty.lower_val(envelope.segment)
 
-    all_dir = tx.np.stack([tx.unit_x, -tx.unit_x, tx.unit_y, -tx.unit_y], axis=0)
+    def raise_val(self, transform, angles) -> Envelope:
+        return Envelope(self.seg_ty.raise_val(transform, angles))
+
+    def to_tangent_aval(self):
+        return EnvTy(self.seg_ty)
+
+    def str_short(self, short_dtypes=False, mesh_axis_types=False):
+        inner = self.seg_ty.str_short(short_dtypes, mesh_axis_types)[4:-1]
+        return f"env[{inner}]"
+
+    __repr__ = str_short
+
+    def dec_rank(self, size, spec):
+        assert isinstance(spec, EnvSpec)
+        return EnvTy(self.seg_ty.dec_rank(size, SegSpec()))
+
+    def inc_rank(self, size, spec):
+        assert isinstance(spec, EnvSpec)
+        return EnvTy(self.seg_ty.inc_rank(size, SegSpec()))
+
+    def leading_axis_spec(self):
+        return EnvSpec()
+
+
+@dataclass(frozen=True)
+class Envelope(Transformable):
+    """Opaque hijax envelope wrapping a segment."""
+
+    segment: Segment
+
+    def map_prefix(self, fn):
+        return make_envelope(self.segment.map_prefix(fn))
+
+    def __call__(self, direction: tx.V2_tC) -> Float[tx.Array, "..."]:
+        return envelope_measure(self, tx.data(direction))
+
+    def __add__(self, other: Envelope) -> Envelope:
+        return concat_envelopes(self, other)
+
+    @classmethod
+    def concat(cls, elems):
+        from chalk.segment import Segment
+
+        return reduce_associative(concat_envelopes, elems, make_envelope(Segment.empty()))
 
     @property
-    def center(self: BatchEnvelope) -> P2_t:
-        """Calculate the center point based on left, right, top, and bottom distances from origin."""
-        d = self(Envelope.all_dir)
-        return P2(
-            (-d[1] + d[0]) / 2,
-            (-d[3] + d[2]) / 2,
-        )
+    def center(self) -> P2_t:
+        d = envelope_measure(self, ALL_DIR)
+        return P2((-d[1] + d[0]) / 2, (-d[3] + d[2]) / 2)
 
     @property
-    def width(self: BatchEnvelope) -> Scalars:
-        """Calculate the width based on left and right distances from origin."""
-        d1 = self(Envelope.all_dir[:2])
+    def width(self) -> Scalars:
+        d1 = envelope_measure(self, ALL_DIR[:2])
         return tx.np.asarray(d1[0] + d1[1])
 
     @property
-    def height(self: BatchEnvelope) -> Scalars:
-        """Calculate the height based on top and bottom distances from origin."""
-        d1 = self(Envelope.all_dir[2:])
+    def height(self) -> Scalars:
+        d1 = envelope_measure(self, ALL_DIR[2:])
         return tx.np.asarray(d1[0] + d1[1])
 
-    def size(self: BatchEnvelope) -> Tuple[Scalars, Scalars]:
-        """Calculate width and height based on left, right, top, and bottom distances from origin."""
-        d = self(Envelope.all_dir)
-        width = tx.np.asarray(d[0] + d[1])
-        height = tx.np.asarray(d[2] + d[3])
-        return width, height
+    def size(self) -> Tuple[Scalars, Scalars]:
+        d = envelope_measure(self, ALL_DIR)
+        return tx.np.asarray(d[0] + d[1]), tx.np.asarray(d[2] + d[3])
 
-    def envelope_v(self: BatchEnvelope, v: V2_t) -> V2_t:
-        """Calculate the envelope vector in a given direction from origin."""
+    def envelope_v(self, v: V2_t) -> V2_t:
         v = tx.norm(v)
-        d = self(v)
+        d = envelope_measure(self, v)
         return tx.scale_vec(v, d)
 
     @staticmethod
     def from_bounding_box(box: BoundingBox, d: V2_t) -> Scalars:
-        """Calculate envelope scalar from bounding box in a given direction from origin."""
         v = box.rotate_rad(tx.rad(d)).br[:, 0, 0]
-        v = v / tx.length(d)
-        return v
+        return v / tx.length(d)
 
-    def to_bounding_box(self: Envelope) -> BoundingBox:
-        """Convert envelope to bounding box."""
-        d = self(Envelope.all_dir)
+    def to_bounding_box(self) -> BoundingBox:
+        d = envelope_measure(self, ALL_DIR)
         return tx.BoundingBox(V2(-d[1], -d[3]), V2(d[0], d[2]))
 
     def to_path(self, angle: int = 45) -> Iterable[P2_t]:
-        """Draws an envelope by sampling every 10 degrees."""
         pts = []
         for i in range(0, 361, angle):
             v = tx.polar(i)
-            pts.append(tx.scale_vec(v, self(v)))
+            pts.append(tx.scale_vec(v, envelope_measure(self, v)))
         return pts
 
     def to_segments(self, angle: int = 45) -> V2_t:
-        """Draws an envelope by sampling every 10 degrees."""
         v = tx.polar(tx.np.arange(0, 361, angle) * 1.0)
-        return tx.scale_vec(v, self(v))
+        return tx.scale_vec(v, envelope_measure(self, v))
 
     def apply_transform(self, t: Affine) -> Envelope:
-        """Apply affine transformation to the envelope."""
-        return Envelope(self.segment.apply_transform(t[..., None, :, :]))
+        return transform_envelope(self, t)
+
+    all_dir = ALL_DIR
+
+
+register_hitype(Envelope, lambda e: EnvTy(jax.typeof(e.segment)))
+
+
+class MakeEnvelope(VJPHiPrimitive):
+    def __init__(self, seg_aval: SegTy):
+        self.in_avals = (seg_aval,)
+        self.out_aval = EnvTy(seg_aval)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, segment):
+        return Envelope(segment)
+
+    def batch(self, axis_data, args, in_dims):
+        (seg,) = args
+        (d,) = in_dims
+        if d is None:
+            return make_envelope(seg), None
+        return make_envelope(seg), EnvSpec()
+
+
+class ConcatEnvelopes(VJPHiPrimitive):
+    def __init__(self, a: EnvTy, b: EnvTy):
+        out_seg = SegTy(
+            tuple(jnp.broadcast_shapes(a.seg_ty.batch_shape, b.seg_ty.batch_shape)),
+            a.seg_ty.n_segs + b.seg_ty.n_segs,
+            a.seg_ty.dtype_name,
+        )
+        self.in_avals = (a, b)
+        self.out_aval = EnvTy(out_seg)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, a: Envelope, b: Envelope):
+        return Envelope(concat_segments(a.segment, b.segment))
+
+    def batch(self, axis_data, args, in_dims):
+        a, b = args
+        if all(d is None for d in in_dims):
+            return concat_envelopes(a, b), None
+        return concat_envelopes(a, b), EnvSpec()
+
+
+class TransformEnvelope(VJPHiPrimitive):
+    def __init__(self, env_aval: EnvTy, t_aval):
+        self.in_avals = (env_aval, t_aval)
+        self.out_aval = env_aval
+        self.params = {}
+        super().__init__()
+
+    def expand(self, envelope: Envelope, t):
+        return Envelope(transform_segment(envelope.segment, t[..., None, :, :]))
+
+    def batch(self, axis_data, args, in_dims):
+        env_, t = args
+        if all(d is None for d in in_dims):
+            return transform_envelope(env_, t), None
+        return transform_envelope(env_, t), EnvSpec()
+
+
+class EnvelopeMeasure(VJPHiPrimitive):
+    def __init__(self, env_aval: EnvTy, dir_aval):
+        self.in_avals = (env_aval, dir_aval)
+        dir_batch = tuple(dir_aval.shape[:-2])
+        out_shape = dir_batch + env_aval.seg_ty.batch_shape
+        self.out_aval = ShapedArray(out_shape, jnp.dtype(env_aval.seg_ty.dtype_name))
+        self.params = {}
+        super().__init__()
+
+    def expand(self, envelope: Envelope, direction):
+        return env(*segment_parts(envelope.segment), direction)
+
+    def batch(self, axis_data, args, in_dims):
+        env_, d = args
+        de, dd = in_dims
+        if de is None and dd is None:
+            return envelope_measure(env_, d), None
+        out_dim = 0 if de is not None else (0 if dd is not None else None)
+        return envelope_measure(env_, d), out_dim
+
+
+class EnvelopeSegment(VJPHiPrimitive):
+    def __init__(self, env_aval: EnvTy):
+        self.in_avals = (env_aval,)
+        self.out_aval = env_aval.seg_ty
+        self.params = {}
+        super().__init__()
+
+    def expand(self, envelope: Envelope):
+        return envelope.segment
+
+    def batch(self, axis_data, args, in_dims):
+        (env_,) = args
+        (d,) = in_dims
+        if d is None:
+            return envelope_segment(env_), None
+        return envelope_segment(env_), SegSpec()
+
+
+def make_envelope(segment) -> Envelope:
+    return MakeEnvelope(jax.typeof(segment))(segment)
+
+
+def concat_envelopes(a, b) -> Envelope:
+    return ConcatEnvelopes(jax.typeof(a), jax.typeof(b))(a, b)
+
+
+def transform_envelope(envelope, t) -> Envelope:
+    t = tx.data(t)
+    return TransformEnvelope(jax.typeof(envelope), jax.typeof(t))(envelope, t)
+
+
+def envelope_measure(envelope, direction) -> jax.Array:
+    direction = tx.data(direction)
+    return EnvelopeMeasure(jax.typeof(envelope), jax.typeof(direction))(
+        envelope, direction
+    )
+
+
+def envelope_segment(envelope) -> Segment:
+    return EnvelopeSegment(jax.typeof(envelope))(envelope)
 
 
 class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
-    """Collapse a diagram to its underlying segments."""
-
     A_type = Segment
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> Segment:
@@ -170,11 +332,9 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
         t = t @ diagram.transform
         if len(t.shape) >= 3:
             t = t[..., None, :, :]
-        segment = segment.apply_transform(t)
-        return segment
+        return transform_segment(segment, t)
 
     def visit_compose(self, diagram: Compose, t: Affine) -> Segment:
-        # Compose nodes can override the envelope.
         if diagram.envelope is not None:
             return diagram.envelope._accept(self, t)
         return self.A_type.concat([d._accept(self, t) for d in diagram.diagrams])
@@ -183,18 +343,23 @@ class GetLocatedSegments(DiagramVisitor[Segment, Affine]):
         return diagram.diagram._accept(self, t @ diagram.transform)
 
 
-@tx.jit
 def get_envelope(self: Diagram, t: Optional[Affine] = None) -> Envelope:
-    # assert self.size() == ()
     if t is None:
-        t = tx.ident
+        t = tx._ident_arr
     segment = self._accept(GetLocatedSegments(), t)
+    transform, _ = segment_parts(segment)
+    seg_shape = transform.shape[:-2]
     assert (
-        segment.shape[: len(self.shape)] == self.shape
-    ), f"{segment.transform.shape} {self.shape}"
-    return Envelope(segment)
+        seg_shape[: len(self.shape)] == self.shape
+    ), f"{transform.shape} {self.shape}"
+    return make_envelope(segment)
 
 
-BatchEnvelope = Batched[Envelope, "*#B"]
-
-__all__ = ["BatchEnvelope", "Envelope"]
+__all__ = [
+    "Envelope",
+    "make_envelope",
+    "concat_envelopes",
+    "transform_envelope",
+    "envelope_measure",
+    "envelope_segment",
+]

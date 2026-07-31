@@ -5,10 +5,11 @@ from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
+import numpy as onp
 from matplotlib.text import TextPath
 
 import chalk.transform as tx
-from chalk.path import Path
+from chalk.path import Path, Text
 from chalk.style import StyleHolder
 
 if TYPE_CHECKING:
@@ -92,16 +93,29 @@ class Patch:
         vert = np.empty((0, 3, 1))
         command = np.empty((0))
         closed = True
-        for loc_trail in path.loc_trails:
-            p = loc_trail.location
-            segments = loc_trail.located_segments()
-            vert = segment_to_curve(segments.transform, segments.angles)
-            if path.scale_invariant is not None:
+        from chalk.path import path_get_located, path_is_scale_invariant, path_text_bytes
+        from chalk.segment import segment_parts
+        from chalk.trail import located_location, located_segments, located_trail, trail_closed
+        import jax
+
+        path_ty = jax.typeof(path)
+        for i in range(path_ty.n_locs):
+            loc_trail = path_get_located(path, i)
+            p = located_location(loc_trail)
+            segments = located_segments(loc_trail)
+            seg_t, seg_a = segment_parts(segments)
+            vert = segment_to_curve(seg_t, seg_a)
+            if bool(onp.asarray(path_is_scale_invariant(path))):
                 scale = height / 20
-                transform = tx.remove_scale(transform) @ tx.scale(tx.V2(scale, scale))
+                import chalk.geom as geom
+
+                xf = tx.remove_scale(geom.make_xf(tx.np.asarray(transform))) @ tx.scale(
+                    tx.V2(scale, scale)
+                )
+                transform = tx.data(xf)
 
             vert, command = close(p, vert, transform)
-            closed = loc_trail.trail.closed.all()
+            closed = trail_closed(located_trail(loc_trail)).all()
 
             # Closing
             extra = tx.np.zeros(vert.shape)
@@ -114,32 +128,36 @@ class Patch:
 
         vert = vert[..., :2, 0]
         # Text rendering
-        if path.text is not None:
-            text_path = TextPath((0, 0), path.text.to_str(), size=1, usetex=True)
+        if path_ty.text_len:
+            text_path = TextPath(
+                (0, 0), Text(path_text_bytes(path)).to_str(), size=1, usetex=True
+            )
             command = np.concatenate([command, text_path.codes], -1)
             v = text_path.vertices
             # Center
             t1 = np.max(v[..., 0]) / 2
             t2 = np.max(v[..., 1]) / 2
-            new_verts: tx.Array = (
-                transform
+            import chalk.geom as geom
+
+            new_pts = (
+                geom.make_xf(tx.np.asarray(transform))
                 @ tx.translation(tx.V2(-t1, -t2))
-                @ tx.P2(v[..., 0], v[..., 1])  # type: ignore
+                @ tx.P2(v[..., 0], v[..., 1])
             )
+            new_verts = tx.data(new_pts)
             vert = np.concatenate([vert, new_verts[..., :2, 0]], -2)
 
         return Patch(vert, command, style, order, height, closed)
 
 
-@tx.jit  # type: ignore
 def patch_from_prim(prim: Primitive, style: StyleHolder, height: tx.IntLike) -> Patch:
     size = prim.size()
     style = prim.style if prim.style is not None else style
     assert isinstance(prim.prim_shape, Path)
     assert prim.order is not None
-    in_style = (
-        style.to_mpl()
-    )  # tx.multi_vmap(style.to_mpl.__func__, len(size))(style),  # type: ignore
+    from chalk.style import style_to_mpl
+
+    in_style = style_to_mpl(style)
     patch = Patch.from_path(
         prim.prim_shape,
         prim.transform,

@@ -114,16 +114,24 @@ def arrow(length: tx.Floating, style: ArrowOpts = ArrowOpts()) -> Diagram:
     if style.trail is None:
         segment = arc_seg(tx.V2(l_adj, 0), style.arc_height + 1e-3)
         shaft = segment.stroke()
-        seg = segment.segments
-        tan = -tx.perpendicular(seg.q - tx.scale(tx.V2(1, -1)) @ seg.center)  # type: ignore
-        φ = tx.angle(tan)
+        from chalk.segment import segment_center, segment_q
+        from chalk.trail import trail_segment
+
+        seg = trail_segment(segment)
+        q = segment_q(seg)
+        c = segment_center(seg)
+        tan = -tx.perpendicular(q - tx.scale(tx.V2(1, -1)) @ c)  # type: ignore
+        φ = tx.np.asarray(tx.angle(tan)).reshape(-1)[-1]
         arrow = arrow.rotate(φ)
         if style.arc_height < 0:
             arrow = arrow.rotate(180)
     else:
-        shaft = style.trail.stroke().scale_uniform_to_x(l_adj).fill_opacity(0)
+        from chalk.segment import segment_parts
+        from chalk.trail import trail_segment
 
-        arrow = arrow.rotate(-style.trail.segments.angles[-1, 0])
+        shaft = style.trail.stroke().scale_uniform_to_x(l_adj).fill_opacity(0)
+        _, angles = segment_parts(trail_segment(style.trail))
+        arrow = arrow.rotate(-tx.np.asarray(angles).reshape(-1, 2)[-1, 0])
     return shaft.apply_style(style.shaft_style).translate_by(
         t * tx.unit_x
     ) + arrow.translate_by((l_adj + t) * tx.unit_x)
