@@ -20,7 +20,7 @@ H = W = 80
 KERNEL = 11
 N = 100
 STEPS = 500
-LR = 0.03
+LR = 0.05
 LOSS_EVERY = 10
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
@@ -83,13 +83,13 @@ def write_gif(imgs, path, duration=0.08):
     imageio.mimsave(path, [to_uint8(im) for im in imgs], loop=0, duration=duration)
 
 
-def init_params(seed=1):
+def init_params(seed=42):
     random.seed(seed)
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    radii = 0.8 + 0.18 * jnp.arange(N, 0, -1).astype(jnp.float64)
-    color = jnp.zeros((N, 3))
+    radii = jnp.array([0.6 + 18.0 * random.random() ** 1.6 for _ in range(N)])
+    color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
     return (loc, radii, color)
 
 
