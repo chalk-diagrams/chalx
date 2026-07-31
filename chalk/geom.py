@@ -499,6 +499,17 @@ class MakeFromData(VJPHiPrimitive):
     vjp_fwd = vjp_fwd_from_jvp
     vjp_bwd_retval = transpose_jvp
 
+    def transpose(self, cts, arr):
+        from jax._src.ad_util import Zero as AdZero
+
+        if isinstance(cts, (Zero, AdZero)):
+            return None
+        if self.kind == "xf":
+            ct = xf_to_array(cts)
+        else:
+            ct = v2_to_array(cts)
+        return _accum((arr,), (ct,))
+
     def batch(self, axis_data, args, in_dims):
         (arr,) = args
         if self.kind == "v2":
