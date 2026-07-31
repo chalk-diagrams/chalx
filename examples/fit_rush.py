@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import numpy as onp
 from PIL import Image, ImageDraw, ImageFont
 
-from chalk import circle
+from chalk import circle, concat, rectangle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite
@@ -53,11 +53,36 @@ def diagram(params):
     paints = jax.nn.sigmoid(color)
     return (
         _unit.fill_color(paints)
+        .fill_opacity(1.0)
         .scale_x(radii[:, 0])
         .scale_y(radii[:, 1])
         .rotate_rad(rots[:, 0])
         .translate(loc[:, 0], loc[:, 1])
     )
+
+
+def diagram_stacked(params):
+    """Same ellipses as ``diagram``, stacked back-to-front like the scanline over-composite."""
+    from colour import Color
+
+    loc, radii, rots, color = (onp.asarray(x) for x in sort_params(params))
+    paints = 1.0 / (1.0 + onp.exp(-color))
+    dias = []
+    for i in range(len(paints)):
+        rgb = tuple(float(c) for c in paints[i])
+        dias.append(
+            _unit.fill_color(Color(rgb=rgb))
+            .fill_opacity(1)
+            .scale_x(float(radii[i, 0]))
+            .scale_y(float(radii[i, 1]))
+            .rotate_rad(float(rots[i, 0]))
+            .translate(float(loc[i, 0]), float(loc[i, 1]))
+        )
+    frame = rectangle(float(W), float(H)).line_width(0).fill_opacity(0).translate(
+        float(W) / 2.0, float(H) / 2.0
+    )
+    # Painter: first behind, last on top (same as lax.scan composite).
+    return concat(dias).with_envelope(frame).scale_y(-1)
 
 
 def raster(params):
@@ -228,7 +253,7 @@ def main():
     write_gif(frames, "/opt/cursor/artifacts/fit_rush.gif", duration=0.08)
     print("wrote /opt/cursor/artifacts/fit_rush.gif")
 
-    dia = diagram(params).concat().scale_y(-1).center_xy()
+    dia = diagram_stacked(params)
     lib_path = "/opt/cursor/artifacts/rush_ell_library.png"
     dia.render(lib_path, height=LIB_HEIGHT)
     print(f"wrote cairo of the fitted diagram {lib_path}")
