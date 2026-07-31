@@ -21,7 +21,7 @@ from chalk.raster import scanline_origins
 from chalk.style import composite_by_z, modulate_opacity
 
 W, H = 96, 72  # 4:3, matches the highland-cow photo
-N = 100
+N = 500
 STEPS = 750
 MIN_SIZE = 1.0
 LR0 = 0.03
@@ -31,7 +31,7 @@ PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
-PREFIX = "cow5"
+PREFIX = "cow6"
 KERNELS = (7, 5, 3)
 
 _unit = circle(1.0).line_width(0)
@@ -325,7 +325,7 @@ def main():
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title("100 ellipses · cow · z+α(z) · xy scan · 7→5→3")
+        ax.set_title(f"{N} ellipses · cow · z+α(z) · xy scan · 7→5→3")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
