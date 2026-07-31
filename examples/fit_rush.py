@@ -1,4 +1,4 @@
-"""Fit 100 circles to Sasha's portrait from https://rush-nlp.com/."""
+"""Fit triangles to Sasha's portrait from https://rush-nlp.com/."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import jax.numpy as jnp
 import numpy as onp
 from PIL import Image
 
-from chalk import circle
+from chalk import triangle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite
@@ -18,22 +18,25 @@ from chalk.trace import transform_trace
 
 H = W = 80
 KERNEL = 11
-N = 1000
-STEPS = 1000
-LR = 0.02
-LOSS_EVERY = 50
+N = 300
+STEPS = 500
+MIN_SIZE = 2.5
+LR = 0.03
+LOSS_EVERY = 25
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
-tr0 = circle(1.0).get_trace()
+tr0 = triangle(1.0).get_trace()
 _px = scanline_origins(H, axis="x")
 _vx = jnp.array([[1.0], [0.0], [0.0]])
 
 
-def _circle_affine(lx, ly, r):
+def _tri_affine(lx, ly, size, rot):
+    ca, sa = jnp.cos(-rot), jnp.sin(-rot)
     eye = jnp.eye(3)
-    S = eye.at[0, 0].set(r).at[1, 1].set(r)
+    R = eye.at[0, 0].set(ca).at[0, 1].set(-sa).at[1, 0].set(sa).at[1, 1].set(ca)
+    S = eye.at[0, 0].set(size).at[1, 1].set(size)
     T = eye.at[0, 2].set(lx).at[1, 2].set(ly)
-    return T @ S
+    return T @ S @ R
 
 
 def load_goal():
@@ -48,11 +51,10 @@ def reduce_color(y):
 
 
 def render(params):
-    loc, radii, color = params
-    # Painter's order: large behind small. Same order for loss, frames, PNG.
-    order = jnp.argsort(-radii)
-    loc, radii, color = loc[order], radii[order], color[order]
-    As = jax.vmap(_circle_affine)(loc[:, 0], loc[:, 1], radii)
+    loc, sizes, rots, color = params
+    order = jnp.argsort(-sizes)
+    loc, sizes, rots, color = loc[order], sizes[order], rots[order], color[order]
+    As = jax.vmap(_tri_affine)(loc[:, 0], loc[:, 1], sizes, rots[:, 0])
     paints = jax.nn.sigmoid(color)
 
     def cover(_carry, A):
@@ -93,9 +95,12 @@ def init_params(seed=42):
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    radii = jnp.array([0.25 + 8.0 * random.random() ** 2.0 for _ in range(N)])
+    sizes = jnp.array(
+        [MIN_SIZE + 12.0 * random.random() ** 1.7 for _ in range(N)]
+    )
+    rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
-    return (loc, radii, color)
+    return (loc, sizes, rots, color)
 
 
 def main():
@@ -140,11 +145,11 @@ def main():
             new_m.append(mo)
             new_v.append(vo)
         params, m, v = tuple(new), tuple(new_m), tuple(new_v)
-        loc, radii, color = params
-        radii = jnp.clip(jnp.abs(radii), 0.4, float(H) * 0.35)
+        loc, sizes, rots, color = params
+        sizes = jnp.clip(jnp.abs(sizes), MIN_SIZE, float(H) * 0.4)
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
-        params = (loc, radii, color)
+        params = (loc, sizes, rots, color)
         if i % 25 == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
