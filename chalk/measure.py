@@ -99,7 +99,9 @@ def _boundary_fn(kern: int):
     return boundary
 
 
-def measure_from_splits(splits, mask, n_bins: int, kernel: int = 11):
+def measure_from_splits(
+    splits, mask, n_bins: int, kernel: int = 11, *, boundary: bool = True
+):
     """Coverage from precomputed splits. ``splits`` is ``[..., K]``."""
     splits = jnp.asarray(splits)
     mask = jnp.asarray(mask)
@@ -113,8 +115,9 @@ def measure_from_splits(splits, mask, n_bins: int, kernel: int = 11):
         splits = splits.reshape(-1, splits.shape[-1])
         mask = mask.reshape(-1, mask.shape[-1])
     cov = _convolve_rows(_fill_rows(splits, mask, n_bins), kernel)
-    boundary = _boundary_fn(int(kernel))
-    cov = jax.vmap(boundary)(cov, splits, mask)
+    if boundary:
+        bnd = _boundary_fn(int(kernel))
+        cov = jax.vmap(bnd)(cov, splits, mask)
     if squeeze:
         return cov[0]
     return cov.reshape(batch + (n_bins,))
@@ -128,6 +131,7 @@ def trace_measure(
     *,
     kernel: int = 11,
     pixel: float = 1.0,
+    boundary: bool = True,
 ):
     """Discrete trace: occupancy along ray(s) after binning + AA.
 
@@ -141,7 +145,9 @@ def trace_measure(
     v = tx.data(v)
     dists, mask = trace_ray(obj, p, v)
     splits = jnp.asarray(dists) / pixel
-    return measure_from_splits(splits, mask, n_bins, kernel=kernel)
+    return measure_from_splits(
+        splits, mask, n_bins, kernel=kernel, boundary=boundary
+    )
 
 
 __all__ = ["trace_measure", "measure_from_splits"]

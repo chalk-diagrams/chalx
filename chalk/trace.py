@@ -36,16 +36,16 @@ if TYPE_CHECKING:
     from chalk.types import Diagram
 
 
-@tx.jit
 def _trace(
     transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC
 ) -> Tuple[tx.Array, tx.Array]:
     point, direction = tx.np.broadcast_arrays(point, d)
-    segments_shape = transform.shape[:-2]
-    for _ in range(len(segments_shape)):
-        point = point[..., None, :, :]
-        direction = direction[..., None, :, :]
-
+    # Broadcast ray up to segment batch: (*ray_batch, *seg_batch, 3, 1)
+    seg_batch = transform.shape[:-2]
+    point = jnp.reshape(point, point.shape[:-2] + (1,) * len(seg_batch) + point.shape[-2:])
+    direction = jnp.reshape(
+        direction, direction.shape[:-2] + (1,) * len(seg_batch) + direction.shape[-2:]
+    )
     t1 = tx.inv(transform)
     d, m = arc_trace(transform, angles, t1 @ point, t1 @ d)
     d = d.reshape(d.shape[:-2] + (-1,))

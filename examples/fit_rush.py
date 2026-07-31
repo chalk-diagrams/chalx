@@ -18,17 +18,15 @@ from chalk.trace import transform_trace
 
 H = W = 80
 KERNEL = 11
-N = 100
-STEPS = 500
-LR = 0.05
-LOSS_EVERY = 10
+N = 300
+STEPS = 300
+LR = 0.03
+LOSS_EVERY = 25
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
 tr0 = circle(1.0).get_trace()
 _px = scanline_origins(H, axis="x")
 _vx = scanline_direction("x")
-_py = scanline_origins(W, axis="y")
-_vy = scanline_direction("y")
 
 
 def _circle_affine(lx, ly, r):
@@ -57,23 +55,18 @@ def render(params):
     As = jax.vmap(_circle_affine)(loc[:, 0], loc[:, 1], radii)
     paints = jax.nn.sigmoid(color)
 
-    def cover(A):
+    def cover(_carry, A):
         tr = transform_trace(tr0, A)
-        ax = trace_measure(tr, _px, _vx, W, kernel=KERNEL)
-        ay = trace_measure(tr, _py, _vy, H, kernel=KERNEL).T
-        return ax, ay
+        alpha = trace_measure(tr, _px, _vx, W, kernel=KERNEL, boundary=False)
+        return None, alpha
 
-    alphas_x, alphas_y = jax.lax.map(cover, As)
+    _, alphas = jax.lax.scan(cover, None, As)
 
     def paint_over(img, xs):
-        ax, ay, paint = xs
-        img = composite(img, ax, paint)
-        img = composite(img, ay, paint)
-        return img, None
+        alpha, paint = xs
+        return composite(img, alpha, paint), None
 
-    img, _ = jax.lax.scan(
-        paint_over, jnp.ones((H, W, 3)), (alphas_x, alphas_y, paints)
-    )
+    img, _ = jax.lax.scan(paint_over, jnp.ones((H, W, 3)), (alphas, paints))
     return img
 
 
@@ -100,21 +93,30 @@ def init_params(seed=42):
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    radii = jnp.array([0.6 + 18.0 * random.random() ** 1.6 for _ in range(N)])
+    radii = jnp.array([0.35 + 10.0 * random.random() ** 1.8 for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
     return (loc, radii, color)
 
 
 def main():
+    print(f"N={N} STEPS={STEPS} {H}x{W}", flush=True)
     goal = reduce_color(load_goal())
     to_png(goal, "/opt/cursor/artifacts/fit_rush_target.png")
     params = init_params()
-    start_img = render(params)
-    to_png(start_img, "/opt/cursor/artifacts/fit_rush_start.png")
 
+    print("jit compile…", flush=True)
+    render_jit = jax.jit(render)
     loss_jit = jax.jit(loss_fn)
     grad_jit = jax.jit(jax.grad(loss_fn))
-    render_jit = jax.jit(render)
+    import time as _time
+
+    t0 = _time.perf_counter()
+    start_img = render_jit(params).block_until_ready()
+    print(f"  render compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
+    to_png(start_img, "/opt/cursor/artifacts/fit_rush_start.png")
+    t0 = _time.perf_counter()
+    jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal))
+    print(f"  grad compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
 
     history = [params]
     best, best_loss = params, float("inf")
@@ -143,7 +145,7 @@ def main():
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
         params = (loc, radii, color)
-        if i % 8 == 0 or i == 1:
+        if i % 15 == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             cur_loss = float(loss_jit(params, goal))
