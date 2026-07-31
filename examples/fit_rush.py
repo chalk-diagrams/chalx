@@ -16,7 +16,7 @@ from chalk.raster import scanline_origins
 from chalk.style import composite
 
 H = W = 80
-KERNEL = 1  # no 1D AA conv — closer to Cairo hard coverage
+KERNEL = 5  # narrower 1D AA than the original 11
 N = 100
 STEPS = 300
 MIN_SIZE = 1.0
@@ -179,7 +179,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
     except TypeError:
         font = ImageFont.load_default()
     labels = [
-        "scanline (no 1D AA kernel)",
+        f"scanline (kernel={KERNEL})",
         "cairo of the same diagram",
         "target photo (not composited)",
     ]
@@ -260,29 +260,29 @@ def main():
         "/opt/cursor/artifacts/fit_rush_compare.png",
     )
     frames = [jnp.concatenate([goal, raster_jit(p)], axis=1) for p in history]
-    write_gif(frames, "/opt/cursor/artifacts/rush_k1.gif", duration=0.08)
-    print(f"wrote /opt/cursor/artifacts/rush_k1.gif ({len(frames)} frames)")
+    write_gif(frames, "/opt/cursor/artifacts/rush_k5.gif", duration=0.08)
+    print(f"wrote /opt/cursor/artifacts/rush_k5.gif ({len(frames)} frames)")
 
     dia = diagram_stacked(params)
-    lib_path = "/opt/cursor/artifacts/rush_k1_cairo.png"
+    lib_path = "/opt/cursor/artifacts/rush_k5_cairo.png"
     dia.render(lib_path, height=LIB_HEIGHT)
-    svg_path = "/opt/cursor/artifacts/rush_k1.svg"
+    svg_path = "/opt/cursor/artifacts/rush_k5.svg"
     dia.render_svg(svg_path, height=LIB_HEIGHT)
     print(f"wrote cairo+svg {lib_path} {svg_path}")
     write_compare_strip(
         final,
         lib_path,
         goal,
-        "/opt/cursor/artifacts/rush_k1_strip.png",
+        "/opt/cursor/artifacts/rush_k5_strip.png",
     )
-    to_png(start_img, "/opt/cursor/artifacts/rush_k1_start.png")
-    to_png(final, "/opt/cursor/artifacts/rush_k1_scan.png")
-    to_png(goal, "/opt/cursor/artifacts/rush_k1_target.png")
+    to_png(start_img, "/opt/cursor/artifacts/rush_k5_start.png")
+    to_png(final, "/opt/cursor/artifacts/rush_k5_scan.png")
+    to_png(goal, "/opt/cursor/artifacts/rush_k5_target.png")
     to_png(
         jnp.concatenate([goal, start_img, final], axis=1),
-        "/opt/cursor/artifacts/rush_k1_compare.png",
+        "/opt/cursor/artifacts/rush_k5_compare.png",
     )
-    print("wrote /opt/cursor/artifacts/rush_k1_strip.png")
+    print("wrote /opt/cursor/artifacts/rush_k5_strip.png")
 
 
 if __name__ == "__main__":
