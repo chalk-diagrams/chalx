@@ -25,8 +25,10 @@ LOSS_EVERY = 10
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
 tr0 = circle(1.0).get_trace()
-_p = scanline_origins(H, axis="x")
-_v = scanline_direction("x")
+_px = scanline_origins(H, axis="x")
+_vx = scanline_direction("x")
+_py = scanline_origins(W, axis="y")
+_vy = scanline_direction("y")
 
 
 def _circle_affine(lx, ly, r):
@@ -49,19 +51,29 @@ def reduce_color(y):
 
 def render(params):
     loc, radii, color = params
+    # Painter's order: large behind small. Same order for loss, frames, PNG.
+    order = jnp.argsort(-radii)
+    loc, radii, color = loc[order], radii[order], color[order]
     As = jax.vmap(_circle_affine)(loc[:, 0], loc[:, 1], radii)
     paints = jax.nn.sigmoid(color)
 
     def cover(A):
-        return trace_measure(transform_trace(tr0, A), _p, _v, W, kernel=KERNEL)
+        tr = transform_trace(tr0, A)
+        ax = trace_measure(tr, _px, _vx, W, kernel=KERNEL)
+        ay = trace_measure(tr, _py, _vy, H, kernel=KERNEL).T
+        return ax, ay
 
-    alphas = jax.lax.map(cover, As)
+    alphas_x, alphas_y = jax.lax.map(cover, As)
 
     def paint_over(img, xs):
-        alpha, paint = xs
-        return composite(img, alpha, paint), None
+        ax, ay, paint = xs
+        img = composite(img, ax, paint)
+        img = composite(img, ay, paint)
+        return img, None
 
-    img, _ = jax.lax.scan(paint_over, jnp.ones((H, W, 3)), (alphas, paints))
+    img, _ = jax.lax.scan(
+        paint_over, jnp.ones((H, W, 3)), (alphas_x, alphas_y, paints)
+    )
     return img
 
 

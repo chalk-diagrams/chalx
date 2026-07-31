@@ -86,7 +86,9 @@ class TraceTy(HiType):
         return Trace(self.seg_ty.vspace_zero())
 
     def vspace_add(self, x: Trace, y: Trace):
-        return Trace(self.seg_ty.vspace_add(x.segment, y.segment))
+        return make_trace(
+            self.seg_ty.vspace_add(trace_segment(x), trace_segment(y))
+        )
 
     def str_short(self, short_dtypes=False, mesh_axis_types=False):
         inner = self.seg_ty.str_short(short_dtypes, mesh_axis_types)[4:-1]

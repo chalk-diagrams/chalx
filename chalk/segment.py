@@ -87,7 +87,9 @@ class SegTy(HiType):
         )
 
     def vspace_add(self, x: Segment, y: Segment):
-        return Segment(x.transform + y.transform, x.angles + y.angles)
+        xf1, a1 = segment_parts(x)
+        xf2, a2 = segment_parts(y)
+        return make_segment(xf1 + xf2, a1 + a2)
 
     def str_short(self, short_dtypes=False, mesh_axis_types=False):
         batch = ",".join(str(d) for d in self.batch_shape)

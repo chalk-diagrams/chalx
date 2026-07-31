@@ -39,7 +39,7 @@ def rasterize(
     kernel: int = 11,
     background: float = 1.0,
     paint: Optional[Any] = None,
-    axes: tuple[str, ...] = ("x",),
+    axes: tuple[str, ...] = ("x", "y"),
 ):
     """Rasterize diagram(s) via ``trace_measure`` + ``composite``."""
     if not isinstance(shapes, (list, tuple)):
