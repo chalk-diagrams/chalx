@@ -206,7 +206,8 @@ register_hitype(
 def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     p, q = tx.to_point(p), tx.to_point(q)
     h = abs(height)
-    d = tx.length(q - p)
+    diff = geom.p2_sub_p2(q, p)
+    d = tx.length(diff)
     # Determine the arc's angle θ and its radius r
     θ = tx.np.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
     r = d / (2 * tx.np.sin(θ))
@@ -217,7 +218,6 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     dy = tx.np.where(bl, r - h, h - r)
     flip = tx.np.where(bl, 1, -1)
 
-    diff = q - p
     angles = tx.np.stack(
         [flip * -tx.from_radians(θ), flip * 2 * tx.from_radians(θ)], -1
     )
