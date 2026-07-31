@@ -154,13 +154,18 @@ def write_video(frames_uint8, path, fps=12):
         "+faststart",
         path,
     ]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    assert proc.stdin is not None
-    for fr in frames_uint8:
-        proc.stdin.write(onp.ascontiguousarray(fr).tobytes())
-    proc.stdin.close()
-    _, err = proc.communicate()
-    if proc.returncode != 0:
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
+    )
+    assert proc.stdin is not None and proc.stderr is not None
+    try:
+        for fr in frames_uint8:
+            proc.stdin.write(onp.ascontiguousarray(fr).tobytes())
+    finally:
+        proc.stdin.close()
+    err = proc.stderr.read()
+    code = proc.wait()
+    if code != 0:
         raise RuntimeError(err.decode("utf-8", errors="replace")[-2000:])
 
 
@@ -216,7 +221,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
 
 def cairo_frame(params, height=LIB_HEIGHT):
     path = "/tmp/rush_tri_frame.png"
-    diagram_stacked(params).render(path, height=height)
+    diagram_stacked(params).render(path, height=height, width=height)
     return onp.asarray(Image.open(path).convert("RGB"))
 
 
