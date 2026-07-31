@@ -134,8 +134,8 @@ def to_png(img, path):
     Image.fromarray(to_uint8(img)).save(path)
 
 
-def crossfade_to(src_u8, dst_u8, *, n_fade: int = 10, hold: int = 5):
-    """Last-second blend ``src`` → ``dst``, then hold ``dst``."""
+def crossfade_to(src_u8, dst_u8, *, n_fade: int = 10, hold_src: int = 5, hold_dst: int = 10):
+    """Hold ``src``, blend to ``dst`` over ``n_fade`` frames, then hold ``dst``."""
     a = onp.asarray(src_u8, dtype="float32")
     b = onp.asarray(dst_u8, dtype="float32")
     if a.shape != b.shape:
@@ -145,12 +145,13 @@ def crossfade_to(src_u8, dst_u8, *, n_fade: int = 10, hold: int = 5):
             ).convert("RGB"),
             dtype="float32",
         )
-    out = []
+    src = a.clip(0, 255).astype("uint8")
+    dst = b.clip(0, 255).astype("uint8")
+    out = [src] * hold_src
     for i in range(1, n_fade + 1):
         t = i / float(n_fade)
         out.append(((1.0 - t) * a + t * b).clip(0, 255).astype("uint8"))
-    hold_fr = b.clip(0, 255).astype("uint8")
-    out.extend([hold_fr] * hold)
+    out.extend([dst] * hold_dst)
     return out
 
 
@@ -371,8 +372,11 @@ def main():
             Image.Resampling.NEAREST,
         ).convert("RGB")
     )
-    cairo_u8.extend(crossfade_to(cairo_u8[-1], raster_hi, n_fade=10, hold=5))
+    cairo_u8.extend(
+        crossfade_to(cairo_u8[-1], raster_hi, n_fade=10, hold_src=5, hold_dst=10)
+    )
     write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
+    write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo_to_raster.mp4", fps=10)
 
     dia = diagram_stacked(params)
     lib_path = f"{OUT}/{PREFIX}_cairo.png"
