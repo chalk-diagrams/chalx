@@ -1,4 +1,8 @@
-"""Fit ellipses to a photo: trace raster + Cairo, with LR/kernel decay."""
+"""Fit ellipses to a photo: trace raster + Cairo, with LR/kernel decay.
+
+Draw order is the ellipse index (0 behind, N-1 in front) — the same
+order ``diagram.concat()`` uses. No per-step size sort.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +31,7 @@ PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
+PREFIX = "cow3"
 KERNELS = (7, 5, 3)
 
 _unit = circle(1.0).line_width(0)
@@ -58,14 +63,8 @@ def kernel_at(step: int) -> int:
     return 3
 
 
-def sort_params(params):
-    loc, radii, rots, color, opacity = params
-    order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
-    return loc[order], radii[order], rots[order], color[order], opacity[order]
-
-
 def diagram(params):
-    loc, radii, rots, color, opacity = sort_params(params)
+    loc, radii, rots, color, opacity = params
     paints = jax.nn.sigmoid(color)
     opac = jax.nn.sigmoid(opacity)
     return (
@@ -90,7 +89,7 @@ def diagram_stacked(params):
 
 def make_raster(kernel: int):
     def raster(params):
-        loc, radii, rots, color, opacity = sort_params(params)
+        loc, radii, rots, color, opacity = params
         paints = jax.nn.sigmoid(color)
         opac = jax.nn.sigmoid(opacity)
 
@@ -213,9 +212,13 @@ def cairo_frame(params):
 
 
 def main():
-    print(f"cow2 N={N} STEPS={STEPS} {W}x{H} center-init LR/kernel 7→5→3 after {DECAY_START}", flush=True)
+    print(
+        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} index z-order "
+        f"LR/kernel 7→5→3 after {DECAY_START}",
+        flush=True,
+    )
     goal = reduce_color(load_goal())
-    to_png(goal, f"{OUT}/cow2_target.png")
+    to_png(goal, f"{OUT}/{PREFIX}_target.png")
     params = init_params()
 
     print("jit compile kernels", KERNELS, "…", flush=True)
@@ -233,7 +236,7 @@ def main():
         print(f"  kernel={k} compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
         fns[k] = (raster_jit, loss_jit, grad_jit)
         if k == KERNELS[0]:
-            to_png(start_img, f"{OUT}/cow2_start.png")
+            to_png(start_img, f"{OUT}/{PREFIX}_start.png")
             start_img0 = start_img
 
     history = [(0, params)]
@@ -292,7 +295,7 @@ def main():
 
     params = best
     onp.savez(
-        f"{OUT}/cow2_best.npz",
+        f"{OUT}/{PREFIX}_best.npz",
         loc=onp.asarray(params[0]),
         radii=onp.asarray(params[1]),
         rots=onp.asarray(params[2]),
@@ -303,21 +306,21 @@ def main():
     final_k = kernel_at(STEPS)
     raster_jit, loss_jit, _ = fns[final_k]
     final = raster_jit(params)
-    to_png(final, f"{OUT}/cow2_final.png")
-    to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/cow2_compare.png")
+    to_png(final, f"{OUT}/{PREFIX}_final.png")
+    to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/{PREFIX}_compare.png")
 
     scan_side = [
         jnp.concatenate([goal, fns[kernel_at(max(step, 1))][0](p)], axis=1)
         for step, p in history
     ]
     # history[0] is init (treat as step 0 -> kernel 11), history[1] is step 1, then every 10
-    write_gif(scan_side, f"{OUT}/cow2.gif", duration=0.08)
+    write_gif(scan_side, f"{OUT}/{PREFIX}.gif", duration=0.08)
     gh, gw = int(goal.shape[0]), int(goal.shape[1])
     scan_u8 = [
         onp.asarray(Image.fromarray(to_uint8(fr)).resize((gw * 4, gh * 4), Image.Resampling.NEAREST))
         for fr in scan_side
     ]
-    write_video(scan_u8, f"{OUT}/cow2_scan.mp4", fps=10)
+    write_video(scan_u8, f"{OUT}/{PREFIX}_scan.mp4", fps=10)
     print(f"wrote scan video ({len(scan_u8)} frames)", flush=True)
 
     print("cairo video…", flush=True)
@@ -326,16 +329,16 @@ def main():
         cairo_u8.append(cairo_frame(p))
         if i % 8 == 0 or i == len(history) - 1:
             print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
-    write_video(cairo_u8, f"{OUT}/cow2_cairo.mp4", fps=10)
+    write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
 
     dia = diagram_stacked(params)
-    lib_path = f"{OUT}/cow2_cairo.png"
+    lib_path = f"{OUT}/{PREFIX}_cairo.png"
     dia.render(lib_path, height=LIB_HEIGHT, width=LIB_WIDTH)
-    dia.render_svg(f"{OUT}/cow2.svg", height=LIB_HEIGHT)
-    write_compare_strip(final, lib_path, goal, f"{OUT}/cow2_strip.png", final_k)
-    to_png(start_img0, f"{OUT}/cow2_start.png")
-    to_png(goal, f"{OUT}/cow2_target.png")
-    print(f"wrote {OUT}/cow2_strip.png best={best_loss:.1f}", flush=True)
+    dia.render_svg(f"{OUT}/{PREFIX}.svg", height=LIB_HEIGHT)
+    write_compare_strip(final, lib_path, goal, f"{OUT}/{PREFIX}_strip.png", final_k)
+    to_png(start_img0, f"{OUT}/{PREFIX}_start.png")
+    to_png(goal, f"{OUT}/{PREFIX}_target.png")
+    print(f"wrote {OUT}/{PREFIX}_strip.png best={best_loss:.1f}", flush=True)
 
     try:
         import matplotlib
@@ -349,12 +352,12 @@ def main():
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title("500 ellipses · cow · center init · 7→5→3")
+        ax.set_title("500 ellipses · cow · index z-order · 7→5→3")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         fig.tight_layout()
-        fig.savefig(f"{OUT}/cow2_curve.png")
+        fig.savefig(f"{OUT}/{PREFIX}_curve.png")
     except Exception as e:
         print("curve skip", e, flush=True)
 
