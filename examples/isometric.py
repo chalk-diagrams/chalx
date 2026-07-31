@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from chalk import *
-from chalk.path import make_path
 from colour import Color
 from typing import List
-import numpy as np
+import jax
+import jax.numpy as jnp
 
 # pyright: basic
 
@@ -13,16 +13,16 @@ white = Color("white")
 black = Color("black")
 
 
-def lookAt(eye: np.ndarray, center: np.ndarray, up: np.ndarray):
+def lookAt(eye: jax.Array, center: jax.Array, up: jax.Array):
     """Python version of the haskell lookAt function in linear.projections"""
-    f = (center - eye) / np.linalg.norm(center - eye)
-    s = np.cross(f, up) / np.linalg.norm(np.cross(f, up))
-    u = np.cross(s, f)
-    return np.array([[*s, 0], [*u, 0], [*-f, 0], [0, 0, 0, 1]])
+    f = (center - eye) / jnp.linalg.norm(center - eye)
+    s = jnp.cross(f, up) / jnp.linalg.norm(jnp.cross(f, up))
+    u = jnp.cross(s, f)
+    return jnp.array([[*s, 0], [*u, 0], [*-f, 0], [0, 0, 0, 1]])
 
 
 def scale3(x, y, z):
-    return np.array([[x, 0, 0, 0], [0, y, 0, 0], [0, 0, z, 0], [0, 0, 0, 1]])
+    return jnp.array([[x, 0, 0, 0], [0, y, 0, 0], [0, 0, z, 0], [0, 0, 0, 1]])
 
 
 @dataclass
@@ -31,16 +31,16 @@ class D3:
     y: float
     z: float
 
-    def to_np(self):
-        return np.array([self.x, self.y, self.z])
+    def to_array(self):
+        return jnp.array([self.x, self.y, self.z])
 
 
 V3 = D3
 
 
 def homogenous(trails: List[List[D3]]):
-    """Convert list of directions to a np.array of homogenous coordinates"""
-    return np.array([[[*o.to_np(), 1] for o in offsets] for offsets in trails])
+    """Convert directions to homogeneous JAX coordinates."""
+    return jnp.array([[[*o.to_array(), 1] for o in offsets] for offsets in trails])
 
 
 def cube():
@@ -57,16 +57,13 @@ def cube():
     )
 
 
-def to_trail(trail: np.ndarray, locations: np.ndarray):
+def to_trail(trail: jax.Array, locations: jax.Array):
     return [
         (
-            make_path(
-                (
-                    Trail.from_offsets([V2(*v[:2]) for v in trail])
-                    .close()
-                    .at(V2(*l[:2])),
-                )
-            ),
+            Trail.from_offsets([V2(*v[:2]) for v in trail])
+            .close()
+            .at(V2(*l[:2]))
+            .to_path(),
             l[2],
         )
         for l in locations
@@ -81,7 +78,7 @@ def project(projection, shape3, positions):
 
 
 # Create Data
-x = np.random.rand(20, 30, 40) > 0.9
+x = jax.random.uniform(jax.random.key(0), (20, 30, 40)) > 0.9
 a, b, c = x.nonzero()
 
 # Big Cube
@@ -91,9 +88,9 @@ s_ = x.shape
 
 # Isometric projection of tensor
 projection = lookAt(
-    V3(s_[1] + s_[2], s_[0] + s_[2], s_[0] + s_[1]).to_np(),
-    V3(0, 0, 0).to_np(),
-    V3(0, 0, 1).to_np(),
+    V3(s_[1] + s_[2], s_[0] + s_[2], s_[0] + s_[1]).to_array(),
+    V3(0, 0, 0).to_array(),
+    V3(0, 0, 1).to_array(),
 )
 outer = project(projection, big_cube, [V3(0, 0, 0)])
 d = (

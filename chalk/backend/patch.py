@@ -131,7 +131,7 @@ class Patch:
         # Text rendering
         if path_ty.text_len:
             text_path = TextPath(
-                (0, 0), Text(path_text_bytes(path)).to_str(), size=1, usetex=True
+                (0, 0), Text(path_text_bytes(path)).to_str(), size=1, usetex=False
             )
             command = np.concatenate([command, text_path.codes], -1)
             v = text_path.vertices
