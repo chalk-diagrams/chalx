@@ -34,9 +34,9 @@ _N_FLAGS = 5
 def to_color(c: ColorLike) -> ColorVec:
     """Convert colour name / Color / RGB array to an RGB vector."""
     if isinstance(c, str):
-        return tx.np.asarray(Color(c).rgb)
+        return jnp.asarray(Color(c).rgb)
     if isinstance(c, Color):
-        return tx.np.asarray(c.rgb)
+        return jnp.asarray(c.rgb)
     return c
 
 

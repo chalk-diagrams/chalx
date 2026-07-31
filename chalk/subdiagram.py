@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
+import jax.numpy as jnp
+
 import chalk.transform as tx
 import chalk.geom as geom
 from chalk.monoid import Maybe
@@ -68,7 +70,7 @@ class Subdiagram:
         """
         o = self.get_location()
         d, m = self.get_trace().trace_p(o, -v)
-        return tx.np.where(m, d, tx._origin_arr)
+        return jnp.where(m, d, tx._origin_arr)
 
 
 class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
@@ -88,7 +90,7 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
         size = diagram.diagrams.size()
         data = tx.data(t)[..., None, :, :]
         batched = geom.make_xf(
-            tx.np.broadcast_to(data, (*data.shape[:-3], size[0], 3, 3))
+            jnp.broadcast_to(data, (*data.shape[:-3], size[0], 3, 3))
         )
         return diagram.diagrams._accept(self, batched)
 

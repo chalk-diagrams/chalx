@@ -1,4 +1,5 @@
 from colour import Color
+import jax.numpy as jnp
 
 import chalk.transform as tx
 from chalk.path import Path
@@ -31,8 +32,8 @@ def dart(cut: float = 0.2) -> Diagram:
     from chalk.core import Empty
 
     pts = tx.P2(
-        tx.np.asarray([0.0, 1.0, 0.0, -1.0, 0.0]),
-        tx.np.asarray([-cut, cut, -1.0 - cut, cut, -cut]),
+        jnp.asarray([0.0, 1.0, 0.0, -1.0, 0.0]),
+        jnp.asarray([-cut, cut, -1.0 - cut, cut, -cut]),
     )
     pts = tx.rotation_angle(-90) @ tx.translation(tx.V2(1.5 * cut, 1 + 3 * cut)) @ pts
 

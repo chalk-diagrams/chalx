@@ -179,8 +179,8 @@ class Path(Transformable):
         if l == 0:
             return Path.empty()
         offsets = (
-            point_data[..., tx.np.arange(1, l), :, :]
-            - point_data[..., tx.np.arange(0, l - 1), :, :]
+            point_data[..., jnp.arange(1, l), :, :]
+            - point_data[..., jnp.arange(0, l - 1), :, :]
         )
         trail = Trail.from_array(geom.make_v2_from_data(offsets), closed)
         start = geom.make_p2_from_data(point_data[..., 0, :, :])
@@ -188,8 +188,8 @@ class Path(Transformable):
 
     @staticmethod
     def from_points(points: List[P2_t], closed: bool = False) -> Path:
-        ls_points = tx.np.broadcast_arrays(*[tx.data(p) for p in points])
-        return Path.from_array(tx.np.stack(ls_points, axis=-3), closed)
+        ls_points = jnp.broadcast_arrays(*[tx.data(p) for p in points])
+        return Path.from_array(jnp.stack(ls_points, axis=-3), closed)
 
     @staticmethod
     def from_point(point: P2_t) -> Path:

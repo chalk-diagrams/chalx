@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 def _trace(
     transform: tx.Affine, angles: tx.Angles, point: tx.P2_tC, d: tx.V2_tC
 ) -> Tuple[tx.Array, tx.Array]:
-    point, direction = tx.np.broadcast_arrays(point, d)
+    point, direction = jnp.broadcast_arrays(point, d)
     # Broadcast ray up to segment batch: (*ray_batch, *seg_batch, 3, 1)
     seg_batch = transform.shape[:-2]
     point = jnp.reshape(point, point.shape[:-2] + (1,) * len(seg_batch) + point.shape[-2:])
@@ -52,9 +52,9 @@ def _trace(
     d = d.reshape(d.shape[:-2] + (-1,))
     m = m.reshape(m.shape[:-2] + (-1,))
 
-    ad = tx.np.argsort(d + (1 - m) * 1e10, axis=-1)
-    d = tx.np.take_along_axis(d, ad, axis=-1)
-    m = tx.np.take_along_axis(m, ad, axis=-1)
+    ad = jnp.argsort(d + (1 - m) * 1e10, axis=-1)
+    d = jnp.take_along_axis(d, ad, axis=-1)
+    m = jnp.take_along_axis(m, ad, axis=-1)
     return (d, m)
 
 
@@ -131,9 +131,9 @@ class Trace(Transformable):
     def trace_v(self, p: P2_t, v: V2_t) -> Tuple[tx.V2_tC, tx.MaskC]:
         vn = tx.norm(v)
         dists, m = trace_ray(self, tx.data(p), tx.data(vn))
-        d = tx.np.sort(dists + (1 - m) * 1e10, axis=-1)
-        ad = tx.np.argsort(dists + (1 - m) * 1e10, axis=-1)
-        m = tx.np.take_along_axis(m, ad, axis=-1)
+        d = jnp.sort(dists + (1 - m) * 1e10, axis=-1)
+        ad = jnp.argsort(dists + (1 - m) * 1e10, axis=-1)
+        m = jnp.take_along_axis(m, ad, axis=-1)
         s = d[..., 0]
         return (tx.scale_vec(vn, s), m[..., 0])
 

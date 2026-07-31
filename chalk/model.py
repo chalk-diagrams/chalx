@@ -1,5 +1,8 @@
 """A set of helper functions that help users debug diagram properties."""
 
+import jax
+import jax.numpy as jnp
+
 import chalk.transform as tx
 from chalk.path import Path
 from chalk.shapes import circle, text
@@ -10,8 +13,8 @@ from chalk.types import Diagram
 
 def show_origin(self: Diagram) -> Diagram:
     envelope = self.get_envelope()
-    origin_size = tx.np.maximum(
-        0.1, tx.np.minimum(envelope.height, envelope.width) / 50
+    origin_size = jnp.maximum(
+        0.1, jnp.minimum(envelope.height, envelope.width) / 50
     )
     origin = circle(origin_size).line_color("red")
     return self + origin
@@ -30,7 +33,7 @@ def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diag
         .line_color("red")
     )
     segments = envelope.to_segments(angle)
-    segment_diagrams = tx.vmap(
+    segment_diagrams = jax.vmap(
         lambda offset: seg(offset).stroke(),
         in_axes=GeomSpec(),
         out_axes=DiagSpec(),

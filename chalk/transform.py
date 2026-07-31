@@ -11,7 +11,6 @@ from typing import Tuple, Any
 import jax
 
 from chalk.array_types import (
-    JAX_MODE,
     Array,
     Batchable,
     Batched,
@@ -26,12 +25,10 @@ from chalk.array_types import (
     ftos,
     index_update,
     jit,
-    multi_vmap,
     np,
     prefix_broadcast,
     tree_map,
     vectorize,
-    vmap,
 )
 from jaxtyping import Float
 from typing_extensions import Self
@@ -601,14 +598,9 @@ __all__ = [
     "IntLikeC",
     "Mask",
     "MaskC",
-    "np",
-    "jit",
-    "vmap",
-    "multi_vmap",
     "tree_map",
     "Batchable",
     "Batched",
     "prefix_broadcast",
     "BoolLike",
-    "JAX_MODE",
 ]

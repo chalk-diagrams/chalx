@@ -190,10 +190,10 @@ class Segment:
 def _is_in_mod_360(angles: Angles, d: V2_t) -> tx.Mask:
     angle0_deg = angles[..., 0]
     angle1_deg = angles.sum(-1)
-    low = tx.np.minimum(angle0_deg, angle1_deg)
-    high = tx.np.maximum(angle0_deg, angle1_deg)
+    low = jnp.minimum(angle0_deg, angle1_deg)
+    high = jnp.maximum(angle0_deg, angle1_deg)
     check = (high - low) % 360
-    return tx.np.asarray(((tx.angle(d) - low) % 360) <= check)
+    return jnp.asarray(((tx.angle(d) - low) % 360) <= check)
 
 
 def _segment_typeof(segment: Segment) -> SegTy:
@@ -214,16 +214,16 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     diff = geom.p2_sub_p2(q, p)
     d = tx.length(diff)
     # Determine the arc's angle θ and its radius r
-    θ = tx.np.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
-    r = d / (2 * tx.np.sin(θ))
+    θ = jnp.arccos((d**2 - 4.0 * h**2) / (d**2 + 4.0 * h**2))
+    r = d / (2 * jnp.sin(θ))
 
     # bend left
     bl = height > 0
-    φ = tx.np.where(bl, +tx.np.pi / 2, -tx.np.pi / 2)
-    dy = tx.np.where(bl, r - h, h - r)
-    flip = tx.np.where(bl, 1, -1)
+    φ = jnp.where(bl, +jnp.pi / 2, -jnp.pi / 2)
+    dy = jnp.where(bl, r - h, h - r)
+    flip = jnp.where(bl, 1, -1)
 
-    angles = tx.np.stack(
+    angles = jnp.stack(
         [flip * -tx.from_radians(θ), flip * 2 * tx.from_radians(θ)], -1
     )
     ret = (
@@ -236,8 +236,8 @@ def arc_between(p: P2_t, q: P2_t, height: tx.Scalars) -> Segment:
     return Segment.make(ret, angles)
 
 
-@tx.jit
-@partial(tx.vectorize, signature="(3,3),(2),(3,1)->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,3),(2),(3,1)->()")
 def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     """Compute the envelope for a batch of segments."""
     angle0_deg = angles[..., 0]
@@ -247,14 +247,14 @@ def arc_envelope(trans: Affine, angles: Angles, d: tx.V2_tC) -> Array:
     v1 = tx._polar_arr(angle0_deg)
     v2 = tx._polar_arr(angle1_deg)
     d2 = (d * d)[..., :2, 0].sum(-1)
-    return tx.np.where(  # type: ignore
+    return jnp.where(  # type: ignore
         (is_circle | _is_in_mod_360(angles, d)),
-        1 / tx.np.sqrt(d2),
-        tx.np.maximum(tx._dot_arr(d, v1), tx._dot_arr(d, v2)),
+        1 / jnp.sqrt(d2),
+        jnp.maximum(tx._dot_arr(d, v1), tx._dot_arr(d, v2)),
     )
 
 
-@partial(tx.vectorize, signature="(3,3),(2),(3,1),(3,1)->(2),(2)")
+@partial(jnp.vectorize, signature="(3,3),(2),(3,1),(3,1)->(2),(2)")
 def arc_trace(
     trans: Affine, angles: Angles, p: tx.P2_tC, v: tx.V2_tC
 ) -> Tuple[tx.Array, tx.Array]:
@@ -264,8 +264,8 @@ def arc_trace(
     mask1 = mask1 & _is_in_mod_360(angles, ray.point(d1))
     mask2 = mask2 & _is_in_mod_360(angles, ray.point(d2))
 
-    d = tx.np.stack([d1, d2], -1)
-    mask = tx.np.stack([mask1, mask2], -1)
+    d = jnp.stack([d1, d2], -1)
+    mask = jnp.stack([mask1, mask2], -1)
     return d, mask
 
 

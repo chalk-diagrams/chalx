@@ -211,7 +211,7 @@ class Trail(Transformable, TrailLike):
     def centered(self) -> Located:
         pts = trail_points(self)
         t, _ = segment_parts(self.segments)
-        center = -tx.np.sum(tx.data(pts), axis=-3) / t.shape[0]
+        center = -jnp.sum(tx.data(pts), axis=-3) / t.shape[0]
         return self.at(geom.make_v2_from_data(center))
 
     @staticmethod
@@ -223,7 +223,7 @@ class Trail(Transformable, TrailLike):
 
     @staticmethod
     def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
-        data = tx.np.stack([tx.data(offset) for offset in offsets])
+        data = jnp.stack([tx.data(offset) for offset in offsets])
         return Trail.from_array(geom.make_v2_from_data(data), closed)
 
     @staticmethod
@@ -642,7 +642,7 @@ def arc_seg(offset: V2_t, height: tx.Floating) -> Trail:
 def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
     arc_p = tx.polar(angle)
     return Segment.make(
-        tx.translation(-arc_p), tx.np.asarray([angle, dangle])
+        tx.translation(-arc_p), jnp.asarray([angle, dangle])
     ).to_trail()
 
 
