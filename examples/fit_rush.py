@@ -42,18 +42,19 @@ def reduce_color(y):
 
 
 def sort_params(params):
-    loc, radii, rots, color = params
+    loc, radii, rots, color, opacity = params
     order = jnp.argsort(-(radii[:, 0] * radii[:, 1]))
-    return loc[order], radii[order], rots[order], color[order]
+    return loc[order], radii[order], rots[order], color[order], opacity[order]
 
 
 def diagram(params):
     """One batched diagram: unit circle, scaled/rotated/translated/filled."""
-    loc, radii, rots, color = sort_params(params)
+    loc, radii, rots, color, opacity = sort_params(params)
     paints = jax.nn.sigmoid(color)
+    opac = jax.nn.sigmoid(opacity)
     return (
         _unit.fill_color(paints)
-        .fill_opacity(1.0)
+        .fill_opacity(opac)
         .scale_x(radii[:, 0])
         .scale_y(radii[:, 1])
         .rotate_rad(rots[:, 0])
@@ -65,14 +66,15 @@ def diagram_stacked(params):
     """Same ellipses as ``diagram``, stacked back-to-front like the scanline over-composite."""
     from colour import Color
 
-    loc, radii, rots, color = (onp.asarray(x) for x in sort_params(params))
+    loc, radii, rots, color, opacity = (onp.asarray(x) for x in sort_params(params))
     paints = 1.0 / (1.0 + onp.exp(-color))
+    opac = 1.0 / (1.0 + onp.exp(-opacity))
     dias = []
     for i in range(len(paints)):
         rgb = tuple(float(c) for c in paints[i])
         dias.append(
             _unit.fill_color(Color(rgb=rgb))
-            .fill_opacity(1)
+            .fill_opacity(float(opac[i]))
             .scale_x(float(radii[i, 0]))
             .scale_y(float(radii[i, 1]))
             .rotate_rad(float(rots[i, 0]))
@@ -87,8 +89,9 @@ def diagram_stacked(params):
 
 
 def raster(params):
-    loc, radii, rots, color = sort_params(params)
+    loc, radii, rots, color, opacity = sort_params(params)
     paints = jax.nn.sigmoid(color)
+    opac = jax.nn.sigmoid(opacity)
 
     def cover(_, xs):
         (lx, ly), (rx, ry), (rot,) = xs
@@ -99,10 +102,12 @@ def raster(params):
     _, alphas = jax.lax.scan(cover, None, (loc, radii, rots))
 
     def paint_over(img, xs):
-        alpha, paint = xs
-        return composite(img, alpha, paint), None
+        coverage, paint, a = xs
+        return composite(img, coverage, (paint, a)), None
 
-    img, _ = jax.lax.scan(paint_over, jnp.ones((H, W, 3)), (alphas, paints))
+    img, _ = jax.lax.scan(
+        paint_over, jnp.ones((H, W, 3)), (alphas, paints, opac)
+    )
     return img
 
 
@@ -140,7 +145,8 @@ def init_params(seed=42):
     radii = jnp.array(radii)
     rots = jnp.array([[random.uniform(0.0, 2.0 * jnp.pi)] for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
-    return (loc, radii, rots, color)
+    opacity = jnp.array([random.uniform(-0.5, 1.5) for _ in range(N)])
+    return (loc, radii, rots, color, opacity)
 
 
 def _letterbox(im: Image.Image, size: int) -> Image.Image:
@@ -223,11 +229,12 @@ def main():
             new_m.append(mo)
             new_v.append(vo)
         params, m, v = tuple(new), tuple(new_m), tuple(new_v)
-        loc, radii, rots, color = params
+        loc, radii, rots, color, opacity = params
         radii = jnp.clip(jnp.abs(radii), MIN_SIZE, float(H) * 0.4)
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
-        params = (loc, radii, rots, color)
+        opacity = jnp.clip(opacity, -6.0, 6.0)
+        params = (loc, radii, rots, color, opacity)
         if i % 25 == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
@@ -243,6 +250,7 @@ def main():
         radii=onp.asarray(params[1]),
         rots=onp.asarray(params[2]),
         color=onp.asarray(params[3]),
+        opacity=onp.asarray(params[4]),
     )
     final = raster_jit(params)
     to_png(final, "/opt/cursor/artifacts/fit_rush_final.png")
@@ -257,7 +265,9 @@ def main():
     dia = diagram_stacked(params)
     lib_path = "/opt/cursor/artifacts/rush_ell_library.png"
     dia.render(lib_path, height=LIB_HEIGHT)
-    print(f"wrote cairo of the fitted diagram {lib_path}")
+    svg_path = "/opt/cursor/artifacts/rush_ell_library.svg"
+    dia.render_svg(svg_path, height=LIB_HEIGHT)
+    print(f"wrote cairo+svg of the fitted diagram {lib_path} {svg_path}")
     write_compare_strip(
         final,
         lib_path,

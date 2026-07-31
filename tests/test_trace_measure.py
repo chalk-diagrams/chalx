@@ -37,6 +37,20 @@ def test_composite_over():
     onp.testing.assert_allclose(out[2, 2], onp.asarray(to_color("red")), atol=1e-5)
 
 
+def test_composite_style_opacity():
+    from chalk.style import Style
+
+    img = jnp.ones((2, 2, 3))
+    cov = jnp.ones((2, 2))
+    style = Style(fill_color=to_color("red"), fill_opacity=0.25)
+    out = composite(img, cov, style)
+    red = onp.asarray(to_color("red"))
+    expected = 0.75 * 1.0 + 0.25 * red
+    onp.testing.assert_allclose(onp.asarray(out[0, 0]), expected, atol=1e-5)
+    out2 = composite(img, cov, (to_color("red"), 0.25))
+    onp.testing.assert_allclose(onp.asarray(out2[0, 0]), expected, atol=1e-5)
+
+
 def test_rasterize_smoke():
     d = circle(15).translate(32, 32).fill_color("blue")
     img = rasterize(d, 64, 64, kernel=5, paint=to_color("blue"))

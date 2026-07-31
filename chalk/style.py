@@ -474,25 +474,41 @@ def style_to_mpl(style) -> Dict[str, Any]:
     return StyleToMpl(jax.typeof(style))(style)
 
 
-def composite(img, alpha, paint):
-    """Over-composite coverage ``alpha`` with ``paint`` onto ``img``.
-
-    ``img``: ``[..., H, W, C]`` (usually C=3).
-    ``alpha``: ``[..., H, W]``.
-    ``paint``: ``StyleHolder``, RGB ``[..., C]``, or a colour name.
-    """
-    import jax.numpy as jnp
-
-    img = jnp.asarray(img)
-    alpha = jnp.asarray(alpha)[..., None]
+def _paint_rgba(paint):
+    """Unpremultiplied ``(rgb [..., 3], opacity [...])`` from a paint value."""
     if isinstance(paint, StyleHolder):
         mpl = style_to_mpl(paint)
-        color = mpl["facecolor"] * mpl["alpha"][..., None]
-    elif isinstance(paint, str):
-        color = jnp.asarray(to_color(paint))
-    else:
-        color = jnp.asarray(paint)
-    return (1.0 - alpha) * img + alpha * color
+        return jnp.asarray(mpl["facecolor"]), jnp.asarray(mpl["alpha"])
+    if isinstance(paint, (tuple, list)) and len(paint) == 2 and not isinstance(
+        paint[0], (str, bytes)
+    ):
+        return jnp.asarray(paint[0]), jnp.asarray(paint[1])
+    if isinstance(paint, str):
+        return jnp.asarray(to_color(paint)), jnp.asarray(1.0)
+    paint = jnp.asarray(paint)
+    if paint.shape[-1] == 4:
+        return paint[..., :3], paint[..., 3]
+    return paint, jnp.asarray(1.0)
+
+
+def composite(img, coverage, paint):
+    """Porter-Duff over: geometric coverage × style opacity.
+
+    Matches Cairo ``set_source_rgba(r, g, b, a)`` + fill and SVG
+    ``fill-opacity``. ``coverage`` comes from ``trace_measure``; ``paint``
+    may be a ``StyleHolder``, RGB, RGBA, colour name, or ``(rgb, opacity)``.
+    """
+    img = jnp.asarray(img)
+    coverage = jnp.asarray(coverage)
+    rgb, opacity = _paint_rgba(paint)
+    extra_a = coverage.ndim - opacity.ndim
+    if extra_a > 0:
+        opacity = opacity.reshape(opacity.shape + (1,) * extra_a)
+    extra_c = coverage.ndim - (rgb.ndim - 1)
+    if extra_c > 0:
+        rgb = rgb.reshape(rgb.shape[:-1] + (1,) * extra_c + rgb.shape[-1:])
+    alpha = coverage * opacity
+    return (1.0 - alpha[..., None]) * img + alpha[..., None] * rgb
 
 
 __all__ = [
