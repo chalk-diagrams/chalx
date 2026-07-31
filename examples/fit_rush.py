@@ -16,12 +16,12 @@ from chalk.raster import scanline_origins
 from chalk.style import composite
 
 H = W = 80
-KERNEL = 11
-N = 1000
-STEPS = 2000
+KERNEL = 1  # no 1D AA conv — closer to Cairo hard coverage
+N = 100
+STEPS = 300
 MIN_SIZE = 1.0
 LR = 0.03
-LOSS_EVERY = 50
+LOSS_EVERY = 10
 GIF_EVERY = 10
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 LIB_HEIGHT = 400
@@ -179,7 +179,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
     except TypeError:
         font = ImageFont.load_default()
     labels = [
-        "scanline (optimizer saw this)",
+        "scanline (no 1D AA kernel)",
         "cairo of the same diagram",
         "target photo (not composited)",
     ]
@@ -189,7 +189,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path):
 
 
 def main():
-    print(f"N={N} STEPS={STEPS} MIN_SIZE={MIN_SIZE} {H}x{W} ellipses", flush=True)
+    print(f"N={N} STEPS={STEPS} MIN_SIZE={MIN_SIZE} KERNEL={KERNEL} {H}x{W}", flush=True)
     goal = reduce_color(load_goal())
     to_png(goal, "/opt/cursor/artifacts/fit_rush_target.png")
     params = init_params()
@@ -236,13 +236,13 @@ def main():
         color = jnp.clip(color, -6.0, 6.0)
         opacity = jnp.clip(opacity, -6.0, 6.0)
         params = (loc, radii, rots, color, opacity)
-        if i % 50 == 0 or i == 1:
+        if i % GIF_EVERY == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             cur_loss = float(loss_jit(params, goal))
             if cur_loss < best_loss:
                 best_loss, best = cur_loss, params
-            print(f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}")
+            print(f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}", flush=True)
 
     params = best
     onp.savez(
@@ -260,29 +260,29 @@ def main():
         "/opt/cursor/artifacts/fit_rush_compare.png",
     )
     frames = [jnp.concatenate([goal, raster_jit(p)], axis=1) for p in history]
-    write_gif(frames, "/opt/cursor/artifacts/fit_rush.gif", duration=0.08)
-    print("wrote /opt/cursor/artifacts/fit_rush.gif")
+    write_gif(frames, "/opt/cursor/artifacts/rush_k1.gif", duration=0.08)
+    print(f"wrote /opt/cursor/artifacts/rush_k1.gif ({len(frames)} frames)")
 
     dia = diagram_stacked(params)
-    lib_path = "/opt/cursor/artifacts/rush_1k_cairo.png"
+    lib_path = "/opt/cursor/artifacts/rush_k1_cairo.png"
     dia.render(lib_path, height=LIB_HEIGHT)
-    svg_path = "/opt/cursor/artifacts/rush_1k.svg"
+    svg_path = "/opt/cursor/artifacts/rush_k1.svg"
     dia.render_svg(svg_path, height=LIB_HEIGHT)
     print(f"wrote cairo+svg {lib_path} {svg_path}")
     write_compare_strip(
         final,
         lib_path,
         goal,
-        "/opt/cursor/artifacts/rush_1k_strip.png",
+        "/opt/cursor/artifacts/rush_k1_strip.png",
     )
-    to_png(start_img, "/opt/cursor/artifacts/rush_1k_start.png")
-    to_png(final, "/opt/cursor/artifacts/rush_1k_scan.png")
-    to_png(goal, "/opt/cursor/artifacts/rush_1k_target.png")
+    to_png(start_img, "/opt/cursor/artifacts/rush_k1_start.png")
+    to_png(final, "/opt/cursor/artifacts/rush_k1_scan.png")
+    to_png(goal, "/opt/cursor/artifacts/rush_k1_target.png")
     to_png(
         jnp.concatenate([goal, start_img, final], axis=1),
-        "/opt/cursor/artifacts/rush_1k_compare.png",
+        "/opt/cursor/artifacts/rush_k1_compare.png",
     )
-    print("wrote /opt/cursor/artifacts/rush_1k_strip.png")
+    print("wrote /opt/cursor/artifacts/rush_k1_strip.png")
 
 
 if __name__ == "__main__":
