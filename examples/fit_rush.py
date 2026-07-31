@@ -1,4 +1,4 @@
-"""Fit 50 ellipses to Sasha's portrait from https://rush-nlp.com/."""
+"""Fit 100 circles to Sasha's portrait from https://rush-nlp.com/."""
 
 from __future__ import annotations
 
@@ -18,9 +18,10 @@ from chalk.trace import transform_trace
 
 H = W = 80
 KERNEL = 11
-N = 50
+N = 100
 STEPS = 500
-LR = 0.04
+LR = 0.03
+LOSS_EVERY = 10
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
 tr0 = circle(1.0).get_trace()
@@ -28,13 +29,11 @@ _p = scanline_origins(H, axis="x")
 _v = scanline_direction("x")
 
 
-def _ellipse_affine(lx, ly, rx, ry, rot):
-    ca, sa = jnp.cos(-rot), jnp.sin(-rot)
+def _circle_affine(lx, ly, r):
     eye = jnp.eye(3)
-    R = eye.at[0, 0].set(ca).at[0, 1].set(-sa).at[1, 0].set(sa).at[1, 1].set(ca)
-    S = eye.at[0, 0].set(rx).at[1, 1].set(ry)
+    S = eye.at[0, 0].set(r).at[1, 1].set(r)
     T = eye.at[0, 2].set(lx).at[1, 2].set(ly)
-    return T @ S @ R
+    return T @ S
 
 
 def load_goal():
@@ -49,10 +48,8 @@ def reduce_color(y):
 
 
 def render(params):
-    loc, radii, color, rot = params
-    As = jax.vmap(_ellipse_affine)(
-        loc[:, 0], loc[:, 1], radii[:, 0], radii[:, 1], rot[:, 0]
-    )
+    loc, radii, color = params
+    As = jax.vmap(_circle_affine)(loc[:, 0], loc[:, 1], radii)
     paints = jax.nn.sigmoid(color)
 
     def cover(A):
@@ -91,10 +88,9 @@ def init_params(seed=1):
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    radii = 1.2 + 0.28 * jnp.arange(N, 0, -1)[:, None] * jnp.ones((N, 2))
+    radii = 0.8 + 0.18 * jnp.arange(N, 0, -1).astype(jnp.float64)
     color = jnp.zeros((N, 3))
-    rot = jnp.zeros((N, 1))
-    return (loc, radii, color, rot)
+    return (loc, radii, color)
 
 
 def main():
@@ -130,17 +126,17 @@ def main():
             new_m.append(mo)
             new_v.append(vo)
         params, m, v = tuple(new), tuple(new_m), tuple(new_v)
-        loc, radii, color, rot = params
-        radii = jnp.clip(jnp.abs(radii), 0.5, float(H) * 0.4)
+        loc, radii, color = params
+        radii = jnp.clip(jnp.abs(radii), 0.4, float(H) * 0.35)
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
-        params = (loc, radii, color, rot)
-        cur_loss = float(loss_jit(params, goal))
-        if cur_loss < best_loss:
-            best_loss, best = cur_loss, params
+        params = (loc, radii, color)
         if i % 8 == 0 or i == 1:
             history.append(params)
-        if i == 1 or i % 50 == 0 or i == STEPS:
+        if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
+            cur_loss = float(loss_jit(params, goal))
+            if cur_loss < best_loss:
+                best_loss, best = cur_loss, params
             print(f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}")
 
     params = best
