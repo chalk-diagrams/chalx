@@ -131,11 +131,12 @@ class Affine:
 
     def __matmul__(self, other):
         other = _coerce_any(other)
-        if isinstance(other, Affine):
+        other_ty = jax.typeof(other)
+        if isinstance(other, Affine) or isinstance(other_ty, XfTy):
             return xf_compose(self, other)
-        if isinstance(other, Pt):
+        if isinstance(other, Pt) or isinstance(other_ty, P2Ty):
             return xf_apply_pt(self, other)
-        if isinstance(other, Vec):
+        if isinstance(other, Vec) or isinstance(other_ty, V2Ty):
             return xf_apply_vec(self, other)
         arr = jnp.asarray(other)
         if arr.shape[-2:] == (3, 3):
