@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Tuple, Any
 
+import jax
+
 from chalk.array_types import (
     JAX_MODE,
     Array,
@@ -78,7 +80,9 @@ def V2(x: Floating, y: Floating) -> V2_t:
     """Map (x,y) of any shape to a (batched) vector."""
     if isinstance(x, float) and isinstance(y, float):
         return geom.make_v2(x, y)
-    x, y = np.broadcast_arrays(ftos(x), ftos(y))
+    x = np.asarray(ftos(x))
+    y = np.asarray(ftos(y))
+    x, y = np.broadcast_arrays(x, y)
     return geom.make_v2(x, y)
 
 
@@ -280,9 +284,27 @@ def _scale_arr(vec):
     return index_update(base, index, vec[..., :2, 0])
 
 
+def _is_v2(vec) -> bool:
+    if isinstance(vec, Vec):
+        return True
+    try:
+        return isinstance(jax.typeof(vec), geom.V2Ty)
+    except Exception:
+        return False
+
+
+def _is_xf(aff) -> bool:
+    if isinstance(aff, Affine):
+        return True
+    try:
+        return isinstance(jax.typeof(aff), geom.XfTy)
+    except Exception:
+        return False
+
+
 def scale(vec: V2_t) -> Affine:
     """Create a affine scale matrix"""
-    if isinstance(vec, Vec):
+    if _is_v2(vec):
         return geom.xf_scale(vec)
     return geom.make_xf(_scale_arr(data(vec)))
 
@@ -297,7 +319,7 @@ def _translation_arr(vec):
 
 def translation(vec: V2_t) -> Affine:
     """Create an affine translation matrix"""
-    if isinstance(vec, Vec):
+    if _is_v2(vec):
         return geom.xf_translation(vec)
     return geom.make_xf(_translation_arr(data(vec)))
 
@@ -312,7 +334,7 @@ def _get_translation_arr(aff):
 
 def get_translation(aff: Affine) -> V2_t:
     """Get the translation of an affine matrix"""
-    if isinstance(aff, Affine):
+    if _is_xf(aff):
         return geom.xf_get_translation(aff)
     return _get_translation_arr(aff)
 
@@ -331,7 +353,7 @@ def _rotation_arr(r: Floating):
 
 def rotation(r: Floating) -> Affine:
     """Create an affine rotation matrix in radians"""
-    return geom.make_xf(_rotation_arr(r))
+    return geom.xf_rotation(ftos(r))
 
 
 def rotation_angle(r: Floating) -> Affine:
@@ -409,6 +431,39 @@ def transpose_translation(aff: Affine) -> Affine:
     return index_update(aff, index, swap)  # type: ignore
 
 
+def _scale_matrix(sx: Floating, sy: Floating):
+    sx = np.asarray(sx, dtype=np.float64)
+    sy = np.asarray(sy, dtype=np.float64)
+    sx, sy = np.broadcast_arrays(sx, sy)
+    eye = np.broadcast_to(np.eye(3), sx.shape + (3, 3))
+    return eye.at[..., 0, 0].set(sx).at[..., 1, 1].set(sy)
+
+
+def _rotation_matrix(θ: Floating):
+    θ = np.asarray(θ, dtype=np.float64)
+    rad = -θ
+    ca, sa = np.cos(rad), np.sin(rad)
+    eye = np.broadcast_to(np.eye(3), θ.shape + (3, 3))
+    return (
+        eye.at[..., 0, 0]
+        .set(ca)
+        .at[..., 0, 1]
+        .set(-sa)
+        .at[..., 1, 0]
+        .set(sa)
+        .at[..., 1, 1]
+        .set(ca)
+    )
+
+
+def _translation_matrix(dx: Floating, dy: Floating):
+    dx = np.asarray(dx, dtype=np.float64)
+    dy = np.asarray(dy, dtype=np.float64)
+    dx, dy = np.broadcast_arrays(dx, dy)
+    eye = np.broadcast_to(np.eye(3), dx.shape + (3, 3))
+    return eye.at[..., 0, 2].set(dx).at[..., 1, 2].set(dy)
+
+
 class Transformable:
     """Syntactic sugar to apply transformations to objects
     as methods. Creates matrices and applies them.
@@ -428,28 +483,27 @@ class Transformable:
 
     def scale(self, α: Floating) -> Self:
         """Scale uniformly by `α`"""
-        return self._app(scale(V2(α, α)))
+        return self._app(_scale_matrix(α, α))
 
     def scale_x(self, α: Floating) -> Self:
         """Scale horizontally by `α`"""
-        return self._app(scale(V2(α, 1)))
+        return self._app(_scale_matrix(α, 1.0))
 
     def scale_y(self, α: Floating) -> Self:
         """Scale vertically by `α`"""
-        return self._app(scale(V2(1, α)))
+        return self._app(_scale_matrix(1.0, α))
 
     def rotate(self, deg: Floating) -> Self:
         """Rotate by `deg` degrees counterclockwise"""
-        return self._app(rotation(to_radians(deg)))
+        return self._app(_rotation_matrix(to_radians(deg)))
 
     def rotate_rad(self, θ: Floating) -> Self:
         """Rotate by `θ` radians counterclockwise"""
-        return self._app(rotation((θ)))
+        return self._app(_rotation_matrix(θ))
 
     def rotate_by(self, turns: Floating) -> Self:
         """Rotate by fractions of a circle (turn)"""
-        θ = 2 * math.pi * turns
-        return self._app(rotation((θ)))
+        return self._app(_rotation_matrix(2 * math.pi * turns))
 
     def reflect_x(self) -> Self:
         """Reflect across the x-axis"""
@@ -469,7 +523,7 @@ class Transformable:
 
     def translate(self, dx: Floating, dy: Floating) -> Self:
         """Translate by `(dx, dy)`"""
-        return self._app(translation(V2(dx, dy)))
+        return self._app(_translation_matrix(dx, dy))
 
     def translate_by(self, vector: V2_t) -> Self:  # type: ignore
         """Translate by `vector`"""

@@ -27,6 +27,15 @@ from jax.experimental.hijax import (
 _DT = jnp.dtype("float64")
 
 
+def _accum(primals_or_accums, cotangents):
+    from jax.experimental.hijax import GradAccum
+
+    for slot, ct in zip(primals_or_accums, cotangents):
+        if isinstance(slot, GradAccum) and ct is not None:
+            slot.accum(ct)
+    return None
+
+
 def _batch_of_hom(arr) -> Tuple[int, ...]:
     a = jnp.asarray(arr)
     return tuple(a.shape[:-2])
@@ -148,9 +157,19 @@ Geom = Union[Vec, Pt, Affine]
 
 
 def data(x: Any) -> jax.Array:
-    """Underlying array (eager / ``expand`` only)."""
+    """Lower geom values to arrays (eager, JIT, and AD)."""
     if isinstance(x, (Vec, Pt, Affine)):
         return jnp.asarray(x.data)
+    try:
+        ty = jax.typeof(x)
+    except Exception:
+        return jnp.asarray(x)
+    if isinstance(ty, V2Ty):
+        return v2_to_array(x)
+    if isinstance(ty, P2Ty):
+        return p2_to_array(x)
+    if isinstance(ty, XfTy):
+        return xf_to_array(x)
     return jnp.asarray(x)
 
 
@@ -218,6 +237,10 @@ class V2Ty(HiType):
 
     __repr__ = str_short
 
+    @property
+    def dtype(self):
+        return jnp.dtype(self.dtype_name)
+
     def dec_rank(self, size, spec):
         assert isinstance(spec, GeomSpec) and self.batch and self.batch[0] == size
         return V2Ty(self.batch[1:], self.dtype_name)
@@ -252,6 +275,10 @@ class P2Ty(HiType):
         return f"p2[{b}]" if b else "p2[]"
 
     __repr__ = str_short
+
+    @property
+    def dtype(self):
+        return jnp.dtype(self.dtype_name)
 
     def dec_rank(self, size, spec):
         assert isinstance(spec, GeomSpec) and self.batch and self.batch[0] == size
@@ -293,6 +320,10 @@ class XfTy(HiType):
         return f"xf[{b}]" if b else "xf[]"
 
     __repr__ = str_short
+
+    @property
+    def dtype(self):
+        return jnp.dtype(self.dtype_name)
 
     def dec_rank(self, size, spec):
         assert isinstance(spec, GeomSpec) and self.batch and self.batch[0] == size
@@ -365,6 +396,15 @@ class MakeV2(VJPHiPrimitive):
     linearized = apply_derived_linearization
     vjp_fwd = vjp_fwd_from_jvp
     vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, x, y):
+        from jax._src.ad_util import Zero as AdZero
+
+        v_ct = cts
+        if isinstance(v_ct, (Zero, AdZero)):
+            return None
+        arr = v2_to_array(v_ct)
+        return _accum((x, y), (arr[..., 0, 0], arr[..., 1, 0]))
 
     def batch(self, axis_data, args, in_dims):
         return make_v2(*args), _out_dim(in_dims)
@@ -483,6 +523,71 @@ def make_p2_from_data(arr) -> Pt:
 def make_xf(arr) -> Affine:
     arr = jnp.asarray(arr)
     return MakeFromData(jax.typeof(arr), "xf")(arr)
+
+
+class GeomToArray(VJPHiPrimitive):
+    """Lower opaque geom to its array payload."""
+
+    def __init__(self, aval, kind: str):
+        self.in_avals = (aval,)
+        if kind == "xf":
+            self.out_aval = ShapedArray(aval.batch + (3, 3), jnp.dtype(aval.dtype_name))
+        else:
+            self.out_aval = ShapedArray(aval.batch + (3, 1), jnp.dtype(aval.dtype_name))
+        self.params = dict(kind=kind)
+        super().__init__()
+
+    def expand(self, val):
+        return jnp.asarray(val.data)
+
+    def jvp(self, primals, tangents):
+        (val,), (dval,) = primals, tangents
+        prim = GeomToArray(jax.typeof(val), self.kind)(val)
+        if isinstance(dval, Zero):
+            return prim, jnp.zeros(self.out_aval.shape, dtype=self.out_aval.dtype)
+        dkind = "v2" if self.kind == "p2" else self.kind
+        return prim, GeomToArray(jax.typeof(dval), dkind)(dval)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, val):
+        from jax._src.ad_util import Zero as AdZero
+
+        arr_ct = cts
+        if isinstance(arr_ct, (Zero, AdZero)):
+            return None
+        if self.kind == "xf":
+            val_ct = make_xf(arr_ct)
+        elif self.kind == "p2":
+            val_ct = make_v2_from_data(jnp.asarray(arr_ct).at[..., 2, 0].set(0.0))
+        else:
+            val_ct = make_v2_from_data(arr_ct)
+        return _accum((val,), (val_ct,))
+
+    def batch(self, axis_data, args, in_dims):
+        (val,) = args
+        if self.kind == "xf":
+            out = xf_to_array(val)
+        elif self.kind == "p2":
+            out = p2_to_array(val)
+        else:
+            out = v2_to_array(val)
+        return out, _out_dim(in_dims)
+
+
+def v2_to_array(v) -> jax.Array:
+    return GeomToArray(jax.typeof(v), "v2")(v)
+
+
+def p2_to_array(p) -> jax.Array:
+    return GeomToArray(jax.typeof(p), "p2")(p)
+
+
+def xf_to_array(t) -> jax.Array:
+    return GeomToArray(jax.typeof(t), "xf")(t)
 
 
 # ---------------------------------------------------------------------------
@@ -798,6 +903,21 @@ class XfCompose(VJPHiPrimitive):
     lin = linearize_from_jvp
     linearized = apply_derived_linearization
     vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, a, b):
+        from jax._src.ad_util import Zero as AdZero
+
+        c_ct = cts
+        if isinstance(c_ct, (Zero, AdZero)):
+            return None
+        # d(A@B)=dA@B + A@dB ⇒ A_ct = C_ct @ B^T , B_ct = A^T @ C_ct (on 3x3)
+        ca = xf_to_array(c_ct)
+        aa = xf_to_array(a)
+        ba = xf_to_array(b)
+        a_ct = make_xf(ca @ jnp.swapaxes(ba, -1, -2))
+        b_ct = make_xf(jnp.swapaxes(aa, -1, -2) @ ca)
+        return _accum((a, b), (a_ct, b_ct))
 
     def batch(self, axis_data, args, in_dims):
         return xf_compose(*args), _out_dim(in_dims)
@@ -928,12 +1048,22 @@ class XfFromTranslation(VJPHiPrimitive):
         prim_out = xf_translation(v)
         if isinstance(dv, Zero):
             return prim_out, jax.typeof(prim_out).vspace_zero()
-        return prim_out, xf_translation(dv)
+        return prim_out, xf_translation_tangent(dv)
 
     lin = linearize_from_jvp
     linearized = apply_derived_linearization
     vjp_fwd = vjp_fwd_from_jvp
     vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, v):
+        from jax._src.ad_util import Zero as AdZero
+
+        xf_ct = cts
+        if isinstance(xf_ct, (Zero, AdZero)):
+            return None
+        arr = xf_to_array(xf_ct)
+        v_ct = make_v2(arr[..., 0, 2], arr[..., 1, 2])
+        return _accum((v,), (v_ct,))
 
     def batch(self, axis_data, args, in_dims):
         return xf_translation(args[0]), _out_dim(in_dims)
@@ -941,6 +1071,39 @@ class XfFromTranslation(VJPHiPrimitive):
 
 def xf_translation(v: Vec) -> Affine:
     return XfFromTranslation(jax.typeof(v))(v)
+
+
+class XfTranslationTangent(VJPHiPrimitive):
+    def __init__(self, v: V2Ty):
+        self.in_avals = (v,)
+        self.out_aval = XfTy(v.batch, v.dtype_name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, v: Vec):
+        z = jnp.zeros(v.data.shape[:-2] + (3, 3), dtype=v.data.dtype)
+        return Affine(
+            z.at[..., 0, 2].set(v.data[..., 0, 0]).at[..., 1, 2].set(v.data[..., 1, 0])
+        )
+
+    def jvp(self, primals, tangents):
+        (v,), (dv,) = primals, tangents
+        prim = xf_translation_tangent(v)
+        if isinstance(dv, Zero):
+            return prim, jax.typeof(prim).vspace_zero()
+        return prim, xf_translation_tangent(dv)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def batch(self, axis_data, args, in_dims):
+        return xf_translation_tangent(args[0]), _out_dim(in_dims)
+
+
+def xf_translation_tangent(v) -> Affine:
+    return XfTranslationTangent(jax.typeof(v))(v)
 
 
 class XfFromScale(VJPHiPrimitive):
@@ -960,12 +1123,167 @@ class XfFromScale(VJPHiPrimitive):
             .set(v.data[..., 1, 0])
         )
 
+    def jvp(self, primals, tangents):
+        (v,), (dv,) = primals, tangents
+        prim_out = xf_scale(v)
+        if isinstance(dv, Zero):
+            return prim_out, jax.typeof(prim_out).vspace_zero()
+        return prim_out, xf_scale_tangent(dv)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, v):
+        from jax._src.ad_util import Zero as AdZero
+
+        xf_ct = cts
+        if isinstance(xf_ct, (Zero, AdZero)):
+            return None
+        arr = xf_to_array(xf_ct)
+        v_ct = make_v2(arr[..., 0, 0], arr[..., 1, 1])
+        return _accum((v,), (v_ct,))
+
     def batch(self, axis_data, args, in_dims):
         return xf_scale(args[0]), _out_dim(in_dims)
 
 
 def xf_scale(v: Vec) -> Affine:
     return XfFromScale(jax.typeof(v))(v)
+
+
+class XfScaleTangent(VJPHiPrimitive):
+    def __init__(self, v: V2Ty):
+        self.in_avals = (v,)
+        self.out_aval = XfTy(v.batch, v.dtype_name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, v: Vec):
+        z = jnp.zeros(v.data.shape[:-2] + (3, 3), dtype=v.data.dtype)
+        return Affine(
+            z.at[..., 0, 0].set(v.data[..., 0, 0]).at[..., 1, 1].set(v.data[..., 1, 0])
+        )
+
+    def jvp(self, primals, tangents):
+        (v,), (dv,) = primals, tangents
+        prim = xf_scale_tangent(v)
+        if isinstance(dv, Zero):
+            return prim, jax.typeof(prim).vspace_zero()
+        return prim, xf_scale_tangent(dv)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def batch(self, axis_data, args, in_dims):
+        return xf_scale_tangent(args[0]), _out_dim(in_dims)
+
+
+def xf_scale_tangent(v) -> Affine:
+    return XfScaleTangent(jax.typeof(v))(v)
+
+
+class XfFromRotation(VJPHiPrimitive):
+    """Rotation by ``θ`` radians, matching ``transform.rotation`` (y-up chalk)."""
+
+    def __init__(self, r_aval):
+        self.in_avals = (r_aval,)
+        batch = tuple(r_aval.shape)
+        self.out_aval = XfTy(batch, jnp.dtype(r_aval.dtype).name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, r):
+        rad = -jnp.asarray(r, dtype=_DT)
+        ca, sa = jnp.cos(rad), jnp.sin(rad)
+        batch = rad.shape
+        eye = jnp.broadcast_to(jnp.eye(3, dtype=_DT), batch + (3, 3))
+        return Affine(
+            eye.at[..., 0, 0]
+            .set(ca)
+            .at[..., 0, 1]
+            .set(-sa)
+            .at[..., 1, 0]
+            .set(sa)
+            .at[..., 1, 1]
+            .set(ca)
+        )
+
+    def jvp(self, primals, tangents):
+        (r,), (dr,) = primals, tangents
+        prim_out = xf_rotation(r)
+        if isinstance(dr, Zero):
+            return prim_out, jax.typeof(prim_out).vspace_zero()
+        return prim_out, xf_rotation_tangent(r, dr)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, r):
+        from jax._src.ad_util import Zero as AdZero
+
+        xf_ct = cts
+        if isinstance(xf_ct, (Zero, AdZero)):
+            return None
+        arr = xf_to_array(xf_ct)
+        # M = [[c, s], [-s, c]] with c=cos(r), s=sin(r); dM/dr = [[-s, c], [-c, -s]]
+        # <dM, dM/dr> = -s M00 + c M01 - c M10 - s M11
+        s, c = jnp.sin(r), jnp.cos(r)
+        dr_ct = (
+            -s * arr[..., 0, 0]
+            + c * arr[..., 0, 1]
+            - c * arr[..., 1, 0]
+            - s * arr[..., 1, 1]
+        )
+        return _accum((r,), (dr_ct,))
+
+    def batch(self, axis_data, args, in_dims):
+        return xf_rotation(args[0]), _out_dim(in_dims)
+
+
+def xf_rotation(r) -> Affine:
+    r = jnp.asarray(r)
+    return XfFromRotation(jax.typeof(r))(r)
+
+
+class XfRotationTangent(VJPHiPrimitive):
+    def __init__(self, r_aval, dr_aval):
+        self.in_avals = (r_aval, dr_aval)
+        batch = tuple(jnp.broadcast_shapes(r_aval.shape, dr_aval.shape))
+        self.out_aval = XfTy(batch, jnp.dtype(r_aval.dtype).name)
+        self.params = {}
+        super().__init__()
+
+    def expand(self, r, dr):
+        r = jnp.asarray(r, dtype=_DT)
+        dr = jnp.asarray(dr, dtype=_DT)
+        # d/dθ of rotation(θ) with internal rad=-θ.
+        s, c = jnp.sin(r), jnp.cos(r)
+        z = jnp.zeros(jnp.broadcast_shapes(r.shape, dr.shape) + (3, 3), dtype=_DT)
+        return Affine(
+            z.at[..., 0, 0]
+            .set(-s * dr)
+            .at[..., 0, 1]
+            .set(c * dr)
+            .at[..., 1, 0]
+            .set(-c * dr)
+            .at[..., 1, 1]
+            .set(-s * dr)
+        )
+
+    def batch(self, axis_data, args, in_dims):
+        return xf_rotation_tangent(*args), _out_dim(in_dims)
+
+
+def xf_rotation_tangent(r, dr) -> Affine:
+    r = jnp.asarray(r)
+    dr = jnp.asarray(dr)
+    return XfRotationTangent(jax.typeof(r), jax.typeof(dr))(r, dr)
 
 
 class GetTranslation(VJPHiPrimitive):

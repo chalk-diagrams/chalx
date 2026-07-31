@@ -96,6 +96,10 @@ class TraceTy(HiType):
 
     __repr__ = str_short
 
+    @property
+    def dtype(self):
+        return self.seg_ty.dtype
+
     def dec_rank(self, size, spec):
         assert isinstance(spec, TraceSpec)
         return TraceTy(self.seg_ty.dec_rank(size, SegSpec()))
@@ -333,7 +337,31 @@ class _GetLocatedSegments(DiagramVisitor[Segment, Affine]):
 
 
 def get_trace(self: Diagram) -> Trace:
-    return make_trace(self._accept(_GetLocatedSegments(), tx._ident_arr))
+    from jax.core import Tracer
+
+    from chalk.diag import DiagTy
+
+    ty = jax.typeof(self)
+    if not isinstance(ty, DiagTy) or not isinstance(self, Tracer):
+        return make_trace(self._accept(_GetLocatedSegments(), tx._ident_arr))
+    return _get_trace_traced(self, ty)
+
+
+def _get_trace_traced(d, ty) -> Trace:
+    from chalk.diag import diag_prim_trace, diag_uncons_child, diag_uncons_xf
+
+    if ty.tag == "xf":
+        child, xf = diag_uncons_xf(d)
+        return transform_trace(_get_trace_traced(child, ty.child_tys[0]), xf)
+    if ty.tag in ("style", "name"):
+        child = diag_uncons_child(d)
+        return _get_trace_traced(child, ty.child_tys[0])
+    if ty.tag == "axis":
+        child = diag_uncons_child(d)
+        return _get_trace_traced(child, ty.child_tys[0])
+    if ty.tag in ("prim", "empty", "compose"):
+        return diag_prim_trace(d)
+    raise ValueError(ty.tag)
 
 
 def trace_measure(*args, **kwargs):

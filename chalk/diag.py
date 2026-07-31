@@ -16,7 +16,13 @@ from jax.experimental.hijax import (
     MappingSpec,
     ShapedArray,
     VJPHiPrimitive,
+    Zero,
+    apply_derived_linearization,
+    aval_method,
+    linearize_from_jvp,
     register_hitype,
+    transpose_jvp,
+    vjp_fwd_from_jvp,
 )
 
 import chalk.core as C
@@ -53,8 +59,20 @@ class DiagTy(HiType):
 
     __repr__ = str_short
 
+    @property
+    def dtype(self):
+        return _DT
+
     def to_tangent_aval(self):
         return self
+
+    def vspace_zero(self):
+        return self.raise_val(
+            *[jnp.zeros(a.shape, dtype=a.dtype) for a in self.lo_ty()]
+        )
+
+    def vspace_add(self, x, y):
+        return diag_vspace_add(x, y)
 
     def lo_ty(self):
         if self.tag == "empty":
@@ -349,6 +367,35 @@ class DiagXf(VJPHiPrimitive):
     def expand(self, child, xf):
         return C.ApplyTransform(xf, child)
 
+    def jvp(self, primals, tangents):
+        child, xf = primals
+        dchild, dxf = tangents
+        prim = diag_xf(child, xf)
+        if isinstance(dxf, Zero):
+            dxf = jnp.zeros_like(xf)
+        if isinstance(dchild, Zero):
+            dchild = jax.typeof(child).vspace_zero()
+        return prim, diag_xf(dchild, dxf)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, child, xf):
+        from jax.experimental.hijax import GradAccum
+        from jax._src.ad_util import Zero as AdZero
+
+        d_ct = cts
+        if isinstance(d_ct, (Zero, AdZero)):
+            return None
+        child_ct, xf_ct = diag_uncons_xf(d_ct)
+        if isinstance(child, GradAccum):
+            child.accum(child_ct)
+        if isinstance(xf, GradAccum):
+            xf.accum(xf_ct)
+        return None
+
     def batch(self, axis_data, args, in_dims):
         child, xf = args
         out = diag_xf(child, xf)
@@ -373,6 +420,35 @@ class DiagStyle(VJPHiPrimitive):
 
     def expand(self, child, style):
         return C.ApplyStyle(style, child)
+
+    def jvp(self, primals, tangents):
+        child, style = primals
+        dchild, dstyle = tangents
+        prim = diag_style(child, style)
+        if isinstance(dchild, Zero):
+            dchild = jax.typeof(child).vspace_zero()
+        if isinstance(dstyle, Zero):
+            dstyle = jax.typeof(style).vspace_zero()
+        return prim, diag_style(dchild, dstyle)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, child, style):
+        from jax.experimental.hijax import GradAccum
+        from jax._src.ad_util import Zero as AdZero
+
+        d_ct = cts
+        if isinstance(d_ct, (Zero, AdZero)):
+            return None
+        child_ct = diag_uncons_child(d_ct)
+        if isinstance(child, GradAccum):
+            child.accum(child_ct)
+        if isinstance(style, GradAccum):
+            style.accum(self.in_avals[1].vspace_zero())
+        return None
 
     def batch(self, axis_data, args, in_dims):
         child, style = args
@@ -488,3 +564,265 @@ def map_diag_prefix(d, fn: Callable):
     if isinstance(d, C.ComposeAxis):
         return diag_axis(map_diag_prefix(d.diagrams, fn))
     return d
+
+
+class DiagVspaceAdd(VJPHiPrimitive):
+    def __init__(self, dty: DiagTy):
+        self.in_avals = (dty, dty)
+        self.out_aval = dty
+        self.params = dict(dty=dty)
+        super().__init__()
+
+    def expand(self, x, y):
+        ty = self.dty
+        los = [a + b for a, b in zip(ty.lower_val(x), ty.lower_val(y))]
+        return ty.raise_val(*los)
+
+    def jvp(self, primals, tangents):
+        x, y = primals
+        dx, dy = tangents
+        prim = diag_vspace_add(x, y)
+        if isinstance(dx, Zero):
+            dx = jax.typeof(x).vspace_zero()
+        if isinstance(dy, Zero):
+            dy = jax.typeof(y).vspace_zero()
+        return prim, diag_vspace_add(dx, dy)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def batch(self, axis_data, args, in_dims):
+        return diag_vspace_add(*args), (
+            None if all(d is None for d in in_dims) else DiagSpec()
+        )
+
+
+def diag_vspace_add(x, y):
+    return DiagVspaceAdd(jax.typeof(x))(x, y)
+
+
+class DiagUnconsXf(VJPHiPrimitive):
+    def __init__(self, dty: DiagTy):
+        assert dty.tag == "xf"
+        self.in_avals = (dty,)
+        self.out_aval = (
+            dty.child_tys[0],
+            ShapedArray(dty.xf_shape + (3, 3), _DT),
+        )
+        self.params = dict(dty=dty)
+        super().__init__()
+
+    def expand(self, d):
+        return d.diagram, jnp.asarray(d.transform, dtype=_DT)
+
+    def jvp(self, primals, tangents):
+        (d,), (dd,) = primals, tangents
+        child, xf = diag_uncons_xf(d)
+        if isinstance(dd, Zero):
+            return (child, xf), (
+                jax.typeof(child).vspace_zero(),
+                jnp.zeros_like(xf),
+            )
+        dchild, dxf = diag_uncons_xf(dd)
+        return (child, xf), (dchild, dxf)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, d):
+        from jax.experimental.hijax import GradAccum
+        from jax._src.ad_util import Zero as AdZero
+
+        child_ct, xf_ct = cts
+        if isinstance(child_ct, (Zero, AdZero)):
+            child_ct = self.out_aval[0].vspace_zero()
+        if isinstance(xf_ct, (Zero, AdZero)):
+            xf_ct = jnp.zeros(self.out_aval[1].shape, dtype=self.out_aval[1].dtype)
+        d_ct = diag_xf(child_ct, xf_ct)
+        if isinstance(d, GradAccum):
+            d.accum(d_ct)
+        return None
+
+    def batch(self, axis_data, args, in_dims):
+        (d,) = args
+        out = diag_uncons_xf(d)
+        return out, (None if in_dims[0] is None else (DiagSpec(), 0))
+
+
+def diag_uncons_xf(d):
+    return DiagUnconsXf(jax.typeof(d))(d)
+
+
+class DiagUnconsChild(VJPHiPrimitive):
+    def __init__(self, dty: DiagTy):
+        self.in_avals = (dty,)
+        self.out_aval = dty.child_tys[0]
+        self.params = dict(dty=dty)
+        super().__init__()
+
+    def expand(self, d):
+        return d.diagram
+
+    def jvp(self, primals, tangents):
+        (d,), (dd,) = primals, tangents
+        child = diag_uncons_child(d)
+        if isinstance(dd, Zero):
+            return child, jax.typeof(child).vspace_zero()
+        return child, diag_uncons_child(dd)
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, d):
+        from jax.experimental.hijax import GradAccum
+        from jax._src.ad_util import Zero as AdZero
+
+        child_ct = cts
+        if isinstance(child_ct, (Zero, AdZero)):
+            child_ct = self.out_aval.vspace_zero()
+        # Re-wrap with zero style/name payload via vspace on full type is hard;
+        # style/name don't affect trace, cotangent on child only.
+        d_ct = child_ct
+        if isinstance(d, GradAccum):
+            # Cotangent of a style wrapper is a style-diag with child cotangent.
+            dty = self.dty
+            if dty.tag == "style" and dty.style_ty is not None:
+                d_ct = diag_style(child_ct, dty.style_ty.vspace_zero())
+            elif dty.tag == "name":
+                from chalk.subdiagram import Name
+
+                d_ct = diag_name(child_ct, Name(dty.name or ()))
+            elif dty.tag == "axis":
+                d_ct = diag_axis(child_ct)
+            d.accum(d_ct)
+        return None
+
+    def batch(self, axis_data, args, in_dims):
+        out = diag_uncons_child(args[0])
+        return out, (None if in_dims[0] is None else DiagSpec())
+
+
+def diag_uncons_child(d):
+    return DiagUnconsChild(jax.typeof(d))(d)
+
+
+class DiagPrimTrace(VJPHiPrimitive):
+    def __init__(self, dty: DiagTy):
+        from chalk.trace import TraceTy
+
+        self.in_avals = (dty,)
+        self.out_aval = _trace_ty_from_diag(dty)
+        self.params = dict(dty=dty)
+        super().__init__()
+
+    def expand(self, d):
+        from chalk.trace import _GetLocatedSegments, make_trace
+        import chalk.transform as tx
+
+        return make_trace(d._accept(_GetLocatedSegments(), tx._ident_arr))
+
+    def jvp(self, primals, tangents):
+        (d,), _dd = primals, tangents
+        prim = diag_prim_trace(d)
+        return prim, jax.typeof(prim).vspace_zero()
+
+    lin = linearize_from_jvp
+    linearized = apply_derived_linearization
+    vjp_fwd = vjp_fwd_from_jvp
+    vjp_bwd_retval = transpose_jvp
+
+    def transpose(self, cts, d):
+        from jax.experimental.hijax import GradAccum
+
+        if isinstance(d, GradAccum):
+            d.accum(self.in_avals[0].vspace_zero())
+        return None
+
+    def batch(self, axis_data, args, in_dims):
+        from chalk.trace import TraceSpec
+
+        out = diag_prim_trace(args[0])
+        return out, (None if in_dims[0] is None else TraceSpec())
+
+
+def diag_prim_trace(d):
+    return DiagPrimTrace(jax.typeof(d))(d)
+
+
+def _trace_ty_from_diag(dty: DiagTy):
+    from chalk.segment import SegSpec, SegTy
+    from chalk.trace import TraceTy
+
+    if dty.tag in ("xf", "style", "name", "axis"):
+        tr = _trace_ty_from_diag(dty.child_tys[0])
+        if dty.tag == "xf" and dty.batch != tr.seg_ty.batch_shape:
+            st = tr.seg_ty
+            out = st
+            for size in reversed(dty.batch[len(st.batch_shape) :]):
+                out = out.inc_rank(size, SegSpec())
+            return TraceTy(out)
+        return tr
+    if dty.tag == "prim":
+        assert dty.path_ty is not None
+        n_segs = 0
+        dtype = "float64"
+        for lt in dty.path_ty.loc_tys:
+            n_segs += lt.trail_ty.seg_ty.n_segs
+            dtype = lt.trail_ty.seg_ty.dtype_name
+        return TraceTy(SegTy(dty.batch, max(n_segs, 1), dtype))
+    if dty.tag == "empty":
+        return TraceTy(SegTy((), 1, "float64"))
+    if dty.tag == "compose":
+        parts = [_trace_ty_from_diag(c) for c in dty.child_tys]
+        n = sum(p.seg_ty.n_segs for p in parts) if parts else 1
+        batch = parts[0].seg_ty.batch_shape if parts else ()
+        dtype = parts[0].seg_ty.dtype_name if parts else "float64"
+        return TraceTy(SegTy(batch, max(n, 1), dtype))
+    raise ValueError(dty.tag)
+
+
+def _aval_apply_transform(d, t):
+    from chalk.geom import data as geom_data
+
+    return diag_xf(d, geom_data(t))
+
+
+def _aval_apply_style(d, style):
+    return diag_style(d, style)
+
+
+def _aval_get_trace(d):
+    from chalk.trace import get_trace
+
+    return get_trace(d)
+
+
+def _install_diag_aval_methods():
+    from chalk.style import Stylable
+    from chalk.transform import Transformable
+
+    DiagTy.apply_transform = aval_method(_aval_apply_transform)
+    DiagTy._app = aval_method(_aval_apply_transform)
+    DiagTy.apply_style = aval_method(_aval_apply_style)
+    DiagTy.get_trace = aval_method(_aval_get_trace)
+    DiagTy.scale = aval_method(Transformable.scale)
+    DiagTy.scale_x = aval_method(Transformable.scale_x)
+    DiagTy.scale_y = aval_method(Transformable.scale_y)
+    DiagTy.rotate = aval_method(Transformable.rotate)
+    DiagTy.rotate_rad = aval_method(Transformable.rotate_rad)
+    DiagTy.rotate_by = aval_method(Transformable.rotate_by)
+    DiagTy.translate = aval_method(Transformable.translate)
+    DiagTy.translate_by = aval_method(Transformable.translate_by)
+    DiagTy.fill_color = aval_method(Stylable.fill_color)
+    DiagTy.line_width = aval_method(Stylable.line_width)
+    DiagTy.line_color = aval_method(Stylable.line_color)
+    DiagTy.fill_opacity = aval_method(Stylable.fill_opacity)
+
+
+_install_diag_aval_methods()

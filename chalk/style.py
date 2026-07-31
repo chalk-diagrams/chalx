@@ -202,6 +202,10 @@ class StyleTy(HiType):
 
     __repr__ = str_short
 
+    @property
+    def dtype(self):
+        return jnp.dtype(self.dtype_name)
+
     def dec_rank(self, size, spec):
         assert isinstance(spec, StyleSpec)
         assert self.batch_shape and self.batch_shape[0] == size

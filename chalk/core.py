@@ -275,10 +275,16 @@ class Primitive(BaseDiagram):
 
         return diag_prim(shape, tx.data(tx.make_ident(shape.shape)))
 
-    def apply_transform(self: BatchPrimitive, t: Affine) -> BatchPrimitive:
+    def apply_transform(self: BatchPrimitive, t: Affine) -> BroadDiagram:
+        from jax.core import Tracer
+
         from chalk.diag import diag_prim
 
+        if isinstance(t, Tracer):
+            return BaseDiagram.apply_transform(self, t)
         t = tx.data(t)
+        if isinstance(t, Tracer):
+            return BaseDiagram.apply_transform(self, t)
         chalk.broadcast.check(t.shape[:-2], self.shape, str(type(self)), "Transform")
         new_transform = t @ self.transform
         new_diagram = ApplyTransform(new_transform, Empty())
