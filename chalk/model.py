@@ -1,7 +1,6 @@
 """A set of helper functions that help users debug diagram properties."""
 
 import chalk.transform as tx
-from chalk.combinators import concat
 from chalk.path import Path
 from chalk.shapes import circle, text
 from chalk.trail import seg
@@ -30,7 +29,7 @@ def show_envelope(self: Diagram, phantom: bool = False, angle: int = 45) -> Diag
     segments = envelope.to_segments(angle)
 
     outer = outer + (
-        concat([seg(segments[i][None]).stroke() for i in range(segments.shape[0])])
+        seg(segments).stroke().concat()
         .line_color("blue")
         .dashing([0.01, 0.01], 0)
     )

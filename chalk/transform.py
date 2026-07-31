@@ -32,7 +32,6 @@ from chalk.array_types import (
     tree_map,
     vectorize,
     vmap,
-    onp,
 )
 from jaxtyping import Float
 from typing_extensions import Self
@@ -612,5 +611,4 @@ __all__ = [
     "prefix_broadcast",
     "BoolLike",
     "JAX_MODE",
-    "onp",
 ]

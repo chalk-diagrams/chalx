@@ -6,7 +6,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import numpy as onp
 from colour import Color
 from jax.experimental.hijax import (
     HiType,
@@ -254,46 +253,46 @@ class StyleHolder(Stylable):
         return make_style(*parts)
 
     def _flag(self, i: int) -> Any:
-        return onp.asarray(self.set_flags)[..., i]
+        return self.set_flags[..., i]
 
     @property
     def fill_color_(self) -> ColorVec:
-        val = onp.asarray(self.fill_rgb)
+        val = jnp.asarray(self.fill_rgb)
         flag = self._flag(_F_FILL_COLOR)
-        default = onp.broadcast_to(onp.asarray(_DEFAULT_FILL), val.shape)
-        return onp.where(flag[..., None], val, default)
+        default = jnp.broadcast_to(_DEFAULT_FILL, val.shape)
+        return jnp.where(flag[..., None], val, default)
 
     @property
     def line_color_(self) -> ColorVec:
-        val = onp.asarray(self.line_rgb)
+        val = jnp.asarray(self.line_rgb)
         flag = self._flag(_F_LINE_COLOR)
-        default = onp.broadcast_to(onp.asarray(_DEFAULT_LINE), val.shape)
-        return onp.where(flag[..., None], val, default)
+        default = jnp.broadcast_to(_DEFAULT_LINE, val.shape)
+        return jnp.where(flag[..., None], val, default)
 
     @property
     def fill_opacity_(self) -> Property:
-        val = onp.asarray(self.fill_alpha)
+        val = jnp.asarray(self.fill_alpha)
         flag = self._flag(_F_FILL_OPACITY)
-        default = onp.broadcast_to(onp.asarray(_DEFAULT_FILL_OPACITY), val.shape)
-        return onp.where(flag, val, default)
+        default = jnp.broadcast_to(_DEFAULT_FILL_OPACITY, val.shape)
+        return jnp.where(flag, val, default)
 
     @property
     def line_opacity_(self) -> Property:
-        val = onp.asarray(self.line_alpha)
+        val = jnp.asarray(self.line_alpha)
         flag = self._flag(_F_LINE_OPACITY)
-        default = onp.broadcast_to(onp.asarray(_DEFAULT_LINE_OPACITY), val.shape)
-        return onp.where(flag, val, default)
+        default = jnp.broadcast_to(_DEFAULT_LINE_OPACITY, val.shape)
+        return jnp.where(flag, val, default)
 
     @property
     def line_width_(self) -> Property:
-        val = onp.asarray(self.stroke_width)
+        val = jnp.asarray(self.stroke_width)
         flag = self._flag(_F_LINE_WIDTH)
-        default = onp.broadcast_to(onp.asarray(_DEFAULT_LINE_WIDTH), val.shape)
-        return onp.where(flag, val, default)
+        default = jnp.broadcast_to(_DEFAULT_LINE_WIDTH, val.shape)
+        return jnp.where(flag, val, default)
 
     @property
     def output_size(self) -> Property:
-        return onp.asarray(200.0)
+        return jnp.asarray(200.0)
 
     @property
     def dashing_(self) -> None:

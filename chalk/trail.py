@@ -158,9 +158,9 @@ class Located(Transformable):
         return transform_located(self, t)
 
     def to_path(self) -> Path:
-        from chalk.path import make_path
+        from chalk.path import _make_path
 
-        return make_path((self._promote(),))
+        return _make_path((self._promote(),))
 
 
 @dataclass(frozen=True)
@@ -211,7 +211,8 @@ class Trail(Transformable, TrailLike):
     def centered(self) -> Located:
         pts = trail_points(self)
         t, _ = segment_parts(self.segments)
-        return self.at(-tx.np.sum(pts, axis=-3) / t.shape[0])
+        center = -tx.np.sum(tx.data(pts), axis=-3) / t.shape[0]
+        return self.at(geom.make_v2_from_data(center))
 
     @staticmethod
     def from_array(offsets: V2_t, closed: bool = False) -> Trail:
@@ -222,7 +223,8 @@ class Trail(Transformable, TrailLike):
 
     @staticmethod
     def from_offsets(offsets: List[V2_t], closed: bool = False) -> Trail:
-        return Trail.from_array(tx.np.stack(offsets), closed)
+        data = tx.np.stack([tx.data(offset) for offset in offsets])
+        return Trail.from_array(geom.make_v2_from_data(data), closed)
 
     @staticmethod
     def hrule(length: Floating) -> Trail:
@@ -394,23 +396,23 @@ class TrailPoints(VJPHiPrimitive):
     def __init__(self, trail_aval: TrailTy):
         seg = trail_aval.seg_ty
         self.in_avals = (trail_aval,)
-        self.out_aval = ShapedArray(
-            seg.batch_shape + (seg.n_segs, 3, 1), jnp.dtype(seg.dtype_name)
+        self.out_aval = geom.P2Ty(
+            seg.batch_shape + (seg.n_segs,), seg.dtype_name
         )
         self.params = {}
         super().__init__()
 
     def expand(self, trail: Trail):
-        q = segment_q(trail.segments)
+        q = tx.data(segment_q(trail.segments))
         pts = jnp.cumsum(q, axis=-3) - q
-        return pts.at[..., 2, 0].set(1.0)
+        return geom.make_p2_from_data(pts.at[..., 2, 0].set(1.0))
 
     def batch(self, axis_data, args, in_dims):
         (trail,) = args
         (d,) = in_dims
         if d is None:
             return trail_points(trail), None
-        return trail_points(trail), 0
+        return trail_points(trail), geom.GeomSpec()
 
 
 class TrailClosed(VJPHiPrimitive):
@@ -499,22 +501,23 @@ class LocatedPoints(VJPHiPrimitive):
     def __init__(self, loc_aval: LocatedTy):
         seg = loc_aval.trail_ty.seg_ty
         self.in_avals = (loc_aval,)
-        self.out_aval = ShapedArray(
-            seg.batch_shape + (seg.n_segs, 3, 1), jnp.dtype(seg.dtype_name)
+        self.out_aval = geom.P2Ty(
+            seg.batch_shape + (seg.n_segs,), seg.dtype_name
         )
         self.params = {}
         super().__init__()
 
     def expand(self, loc: Located):
-        pts = trail_points(loc.trail)
-        return pts + jnp.asarray(loc.location)[..., None, :, :]
+        pts = tx.data(trail_points(loc.trail))
+        location = tx.data(loc.location)
+        return geom.make_p2_from_data(pts + location[..., None, :, :])
 
     def batch(self, axis_data, args, in_dims):
         (loc,) = args
         (d,) = in_dims
         if d is None:
             return located_points(loc), None
-        return located_points(loc), 0
+        return located_points(loc), geom.GeomSpec()
 
 
 class LocatedSegments(VJPHiPrimitive):
@@ -526,7 +529,7 @@ class LocatedSegments(VJPHiPrimitive):
 
     def expand(self, loc: Located):
         pts = located_points(loc)
-        off = geom.make_v2_from_data(jnp.asarray(pts).at[..., 2, 0].set(0.0))
+        off = geom.make_v2_from_data(tx.data(pts).at[..., 2, 0].set(0.0))
         return transform_segment(loc.trail.segments, tx.translation(off))
 
     def batch(self, axis_data, args, in_dims):
@@ -540,21 +543,21 @@ class LocatedSegments(VJPHiPrimitive):
 class LocatedLocation(VJPHiPrimitive):
     def __init__(self, loc_aval: LocatedTy):
         self.in_avals = (loc_aval,)
-        self.out_aval = ShapedArray(
-            loc_aval.loc_shape, jnp.dtype(loc_aval.dtype_name)
+        self.out_aval = geom.P2Ty(
+            loc_aval.loc_shape[:-2], loc_aval.dtype_name
         )
         self.params = {}
         super().__init__()
 
     def expand(self, loc: Located):
-        return jnp.asarray(loc.location)
+        return geom.make_p2_from_data(tx.data(loc.location))
 
     def batch(self, axis_data, args, in_dims):
         (loc,) = args
         (d,) = in_dims
         if d is None:
             return located_location(loc), None
-        return located_location(loc), 0
+        return located_location(loc), geom.GeomSpec()
 
 
 class LocatedTrail(VJPHiPrimitive):
@@ -597,7 +600,7 @@ def trail_close(trail) -> Trail:
     return TrailClose(jax.typeof(trail))(trail)
 
 
-def trail_points(trail) -> jax.Array:
+def trail_points(trail) -> P2_t:
     return TrailPoints(jax.typeof(trail))(trail)
 
 
@@ -619,7 +622,7 @@ def transform_located(loc, t) -> Located:
     return TransformLocated(jax.typeof(loc), jax.typeof(t))(loc, t)
 
 
-def located_points(loc) -> jax.Array:
+def located_points(loc) -> P2_t:
     return LocatedPoints(jax.typeof(loc))(loc)
 
 
@@ -627,7 +630,7 @@ def located_segments(loc) -> Segment:
     return LocatedSegments(jax.typeof(loc))(loc)
 
 
-def located_location(loc) -> jax.Array:
+def located_location(loc) -> P2_t:
     return LocatedLocation(jax.typeof(loc))(loc)
 
 

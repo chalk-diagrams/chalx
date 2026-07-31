@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
+from itertools import product
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-import numpy as onp
+import jax
 from matplotlib.text import TextPath
 
 import chalk.transform as tx
@@ -34,7 +35,7 @@ def segment_to_curve(transform: tx.Affine, angles: tx.Angles) -> tx.V2_tC:
 
 
 @partial(tx.np.vectorize, signature="(3,1),(a,c,3,1),(3,3)->(b,3,1),(b)")
-def close(p: tx.P2_t, vert: tx.V2_t, trans: tx.Affine) -> Tuple[tx.V2_tC, tx.IntLikeC]:
+def _close_array(p, vert, trans) -> Tuple[tx.V2_tC, tx.IntLikeC]:
     # vert = vert.reshape(*vert.shape[:-4], vert.shape[-4] * vert.shape[-3],
     #                 vert.shape[-2], vert.shape[-1])
     vert = vert.reshape(-1, 3, 1)
@@ -45,17 +46,19 @@ def close(p: tx.P2_t, vert: tx.V2_t, trans: tx.Affine) -> Tuple[tx.V2_tC, tx.Int
     return vert, command
 
 
+def close(p: tx.P2_t, vert, trans: tx.Affine) -> Tuple[tx.V2_tC, tx.IntLikeC]:
+    return _close_array(tx.data(p), vert, tx.data(trans))
+
+
 def order_patches(
     patches: List[Patch], time: Tuple[int, ...] = ()
 ) -> List[Tuple[Tuple[int, ...], Patch, Dict[str, Any]]]:
-    import numpy as onp
-
-    if tx.JAX_MODE:
-        patches = tx.tree_map(onp.asarray, patches)
-
     d = {}
     for patch in patches:
-        for ind, i in tx.onp.ndenumerate(patch.order[time]):  # type: ignore
+        order = jax.device_get(patch.order[time])
+        indices = product(*(range(size) for size in order.shape))
+        for ind in indices:
+            i = int(order[ind])
             assert i not in d, f"Order {i} assigned twice"
             d[i] = (patch, time + ind)
     return [(d[k][1], d[k][0], d[k][0].get_style(d[k][1])) for k in sorted(d.keys())]
@@ -96,8 +99,6 @@ class Patch:
         from chalk.path import path_get_located, path_is_scale_invariant, path_text_bytes
         from chalk.segment import segment_parts
         from chalk.trail import located_location, located_segments, located_trail, trail_closed
-        import jax
-
         path_ty = jax.typeof(path)
         for i in range(path_ty.n_locs):
             loc_trail = path_get_located(path, i)
@@ -105,7 +106,7 @@ class Patch:
             segments = located_segments(loc_trail)
             seg_t, seg_a = segment_parts(segments)
             vert = segment_to_curve(seg_t, seg_a)
-            if bool(onp.asarray(path_is_scale_invariant(path))):
+            if bool(jax.device_get(path_is_scale_invariant(path))):
                 scale = height / 20
                 import chalk.geom as geom
 

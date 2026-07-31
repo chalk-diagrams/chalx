@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Callable, List, Tuple, TypeVar, Union
 
 import jax
 import jax.numpy as np
-import numpy as onp
 from jax import config
 from jaxtyping import Array, Bool, Float, Int
 from typing_extensions import Self
@@ -30,13 +29,13 @@ else:
 Batched
 
 Scalars = Float[Array, "*#B"]
-IntLike = Union[Int[Array, "*#B"], int, onp.int64]
+IntLike = Union[Int[Array, "*#B"], int]
 BoolLike = Union[bool]
 Ints = Int[Array, "*#B"]
-Floating = Union[Scalars, IntLike, float, int, onp.int64, onp.float64]
+Floating = Union[Scalars, IntLike, float, int]
 Mask = Bool[Array, "*#B"]
 MaskC = Bool[Array, "*#C"]
-IntLikeC = Union[Int[Array, "*#C"], int, onp.int64]
+IntLikeC = Union[Int[Array, "*#C"], int]
 ScalarsC = Float[Array, "*#C"]
 
 

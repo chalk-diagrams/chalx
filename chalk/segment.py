@@ -452,13 +452,13 @@ class SegmentParts(VJPHiPrimitive):
 
 
 class SegmentQ(VJPHiPrimitive):
-    """Endpoint of each arc, as homogeneous points ``[..., 3, 1]``."""
+    """Endpoint of each arc as opaque ``p2`` values."""
 
     def __init__(self, seg_aval: SegTy):
         self.in_avals = (seg_aval,)
-        self.out_aval = ShapedArray(
-            seg_aval.batch_shape + (seg_aval.n_segs, 3, 1),
-            jnp.dtype(seg_aval.dtype_name),
+        self.out_aval = geom.P2Ty(
+            seg_aval.batch_shape + (seg_aval.n_segs,),
+            seg_aval.dtype_name,
         )
         self.params = {}
         super().__init__()
@@ -471,24 +471,24 @@ class SegmentQ(VJPHiPrimitive):
         x, y = jnp.cos(rad), jnp.sin(rad)
         ones = jnp.ones_like(x)
         q = jnp.stack([x, y, ones], axis=-1)[..., None]
-        return transform @ q
+        return geom.make_p2_from_data(transform @ q)
 
     def batch(self, axis_data, args, in_dims):
         (seg,) = args
         (d,) = in_dims
         if d is None:
             return segment_q(seg), None
-        return segment_q(seg), 0
+        return segment_q(seg), geom.GeomSpec()
 
 
 class SegmentCenter(VJPHiPrimitive):
-    """Ellipse center of each arc, as homogeneous points."""
+    """Ellipse center of each arc as opaque ``p2`` values."""
 
     def __init__(self, seg_aval: SegTy):
         self.in_avals = (seg_aval,)
-        self.out_aval = ShapedArray(
-            seg_aval.batch_shape + (seg_aval.n_segs, 3, 1),
-            jnp.dtype(seg_aval.dtype_name),
+        self.out_aval = geom.P2Ty(
+            seg_aval.batch_shape + (seg_aval.n_segs,),
+            seg_aval.dtype_name,
         )
         self.params = {}
         super().__init__()
@@ -497,25 +497,25 @@ class SegmentCenter(VJPHiPrimitive):
         transform = jnp.asarray(seg.transform)
         origin = jnp.zeros(transform.shape[:-2] + (3, 1), dtype=transform.dtype)
         origin = origin.at[..., 2, 0].set(1.0)
-        return transform @ origin
+        return geom.make_p2_from_data(transform @ origin)
 
     def batch(self, axis_data, args, in_dims):
         (seg,) = args
         (d,) = in_dims
         if d is None:
             return segment_center(seg), None
-        return segment_center(seg), 0
+        return segment_center(seg), geom.GeomSpec()
 
 
 def segment_parts(seg) -> Tuple[jax.Array, jax.Array]:
     return SegmentParts(jax.typeof(seg))(seg)
 
 
-def segment_q(seg) -> jax.Array:
+def segment_q(seg) -> P2_t:
     return SegmentQ(jax.typeof(seg))(seg)
 
 
-def segment_center(seg) -> jax.Array:
+def segment_center(seg) -> P2_t:
     return SegmentCenter(jax.typeof(seg))(seg)
 
 
