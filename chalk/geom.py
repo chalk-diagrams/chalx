@@ -18,6 +18,7 @@ from jax.experimental.hijax import (
     VJPHiPrimitive,
     Zero,
     apply_derived_linearization,
+    aval_method,
     linearize_from_jvp,
     register_hitype,
     transpose_jvp,
@@ -1419,7 +1420,18 @@ def length(v: Vec):
     return Length(jax.typeof(v))(v)
 
 
-# Clean up leftover junk in MakeV2 first version - already deleted.
+def _xf_matmul(t, other):
+    other_ty = jax.typeof(other)
+    if isinstance(other_ty, XfTy):
+        return xf_compose(t, other)
+    if isinstance(other_ty, P2Ty):
+        return xf_apply_pt(t, other)
+    if isinstance(other_ty, V2Ty):
+        return xf_apply_vec(t, other)
+    return xf_apply_hom(t, other)
+
+
+XfTy._matmul = aval_method(_xf_matmul)
 
 # Constant unit values as hijax (eager).
 unit_x = Vec(jnp.asarray([1.0, 0.0, 0.0], dtype=_DT).reshape(3, 1))
