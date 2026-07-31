@@ -9,6 +9,7 @@ from functools import partial
 from typing import Tuple, Any
 
 import jax
+import jax.numpy as jnp
 
 from chalk.array_types import (
     Array,
@@ -24,11 +25,8 @@ from chalk.array_types import (
     Scalars,
     ftos,
     index_update,
-    jit,
-    np,
     prefix_broadcast,
     tree_map,
-    vectorize,
 )
 from jaxtyping import Float
 from typing_extensions import Self
@@ -56,10 +54,10 @@ ColorVec = Float[Array, "#*B 3"]
 Property = Float[Array, "#*B"]
 
 # Homogeneous array constants (for jitted / expand code).
-_unit_x_arr = np.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
-_unit_y_arr = np.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
-_origin_arr = np.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
-_ident_arr = np.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+_unit_x_arr = jnp.asarray([1.0, 0.0, 0.0]).reshape((3, 1))
+_unit_y_arr = jnp.asarray([0.0, 1.0, 0.0]).reshape((3, 1))
+_origin_arr = jnp.asarray([0.0, 0.0, 1.0]).reshape((3, 1))
+_ident_arr = jnp.asarray([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
 
 unit_x: V2_t = geom.unit_x
 unit_y: V2_t = geom.unit_y
@@ -74,13 +72,13 @@ def make_ident(shape: Tuple[int, ...]) -> Affine:
 
 def V2(x: Floating, y: Floating) -> V2_t:
     """Map (x,y) of any shape to a (batched) vector."""
-    x, y = np.broadcast_arrays(ftos(x), ftos(y))
+    x, y = jnp.broadcast_arrays(ftos(x), ftos(y))
     return geom.make_v2(x, y)
 
 
 def P2(x: Floating, y: Floating) -> P2_t:
     """Map (x,y) of any shape to a (batched) point."""
-    x, y = np.broadcast_arrays(ftos(x), ftos(y))
+    x, y = jnp.broadcast_arrays(ftos(x), ftos(y))
     return geom.make_p2(x, y)
 
 
@@ -95,7 +93,7 @@ def _as_v2(v) -> Vec:
         return v
     if isinstance(ty, geom.P2Ty):
         return geom.to_vec(v)
-    arr = np.asarray(v)
+    arr = jnp.asarray(v)
     if arr.ndim >= 2 and arr.shape[-2:] == (3, 1):
         return geom.make_v2_from_data(arr.at[..., 2, 0].set(0.0))
     raise TypeError(f"expected v2[] or p2[], got {ty}")
@@ -107,17 +105,17 @@ def _as_xf(t) -> Affine:
     ty = jax.typeof(t)
     if isinstance(ty, geom.XfTy):
         return t
-    arr = np.asarray(t)
+    arr = jnp.asarray(t)
     if arr.ndim >= 2 and arr.shape[-2:] == (3, 3):
         return geom.make_xf(arr)
     raise TypeError(f"expected xf[], got {ty}")
 
 
-@jit
+@jax.jit
 def to_P2(x: Float[Array, "*B 2"]) -> P2_t:
     """Map a standard vector to a point."""
-    _, o = np.broadcast_arrays(x[..., :1], ftos(1.0))
-    s = np.concatenate([x, o], axis=-1)[..., None]
+    _, o = jnp.broadcast_arrays(x[..., :1], ftos(1.0))
+    s = jnp.concatenate([x, o], axis=-1)[..., None]
     return geom.make_p2_from_data(s)
 
 
@@ -141,10 +139,10 @@ def length2(v: V2_t) -> Scalars:
     return geom.length2(_as_v2(v))
 
 
-@jit
-@partial(vectorize, signature="(3,1)->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,1)->()")
 def _angle_arr(v) -> Scalars:
-    return np.asarray(from_rad * np.arctan2(v[..., 1, 0], v[..., 0, 0]))
+    return jnp.asarray(from_rad * jnp.arctan2(v[..., 1, 0], v[..., 0, 0]))
 
 
 def angle(v: V2_t) -> Scalars:
@@ -152,10 +150,10 @@ def angle(v: V2_t) -> Scalars:
     return _angle_arr(data(v))
 
 
-@jit
-@partial(vectorize, signature="(3,1)->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,1)->()")
 def _rad_arr(v) -> Scalars:
-    return np.asarray(np.arctan2(v[..., 1, 0], v[..., 0, 0]))
+    return jnp.asarray(jnp.arctan2(v[..., 1, 0], v[..., 0, 0]))
 
 
 def rad(v: P2_t) -> Scalars:
@@ -163,10 +161,10 @@ def rad(v: P2_t) -> Scalars:
     return _rad_arr(data(v))
 
 
-@jit
-@partial(vectorize, signature="(3,1)->(3,1)")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,1)->(3,1)")
 def _perpendicular_arr(v):
-    return np.stack([-v[..., 1, :], v[..., 0, :], v[..., 2, :]], axis=-2)
+    return jnp.stack([-v[..., 1, :], v[..., 0, :], v[..., 2, :]], axis=-2)
 
 
 def perpendicular(v: V2_t) -> V2_t:
@@ -174,12 +172,12 @@ def perpendicular(v: V2_t) -> V2_t:
     return geom.make_v2_from_data(_perpendicular_arr(data(_as_v2(v))))
 
 
-@jit
-@partial(vectorize, signature="(),(),(),(),(),()->(3,3)")
+@jax.jit
+@partial(jnp.vectorize, signature="(),(),(),(),(),()->(3,3)")
 def _make_affine_arr(a, b, c, d, e, f):
     vals = list([ftos(x) for x in [a, b, c, d, e, f, 0.0, 0.0, 1.0]])
-    vals = np.broadcast_arrays(*vals)  # type: ignore
-    x = np.stack(vals, axis=-1)
+    vals = jnp.broadcast_arrays(*vals)  # type: ignore
+    x = jnp.stack(vals, axis=-1)
     return x.reshape(vals[0].shape + (3, 3))
 
 
@@ -195,10 +193,10 @@ def make_affine(
     return geom.make_xf(_make_affine_arr(a, b, c, d, e, f))
 
 
-@jit
-@partial(vectorize, signature="(3,1),(3,1)->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,1),(3,1)->()")
 def _dot_arr(v1, v2) -> Scalars:
-    return np.asarray((v1 * v2).sum(-1).sum(-1))
+    return jnp.asarray((v1 * v2).sum(-1).sum(-1))
 
 
 def dot(v1: V2_t, v2: V2_t) -> Scalars:
@@ -206,10 +204,10 @@ def dot(v1: V2_t, v2: V2_t) -> Scalars:
     return _dot_arr(data(v1), data(v2))
 
 
-@jit
-@partial(vectorize, signature="(3,1),(3,1)->()")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,1),(3,1)->()")
 def _cross_arr(v1, v2) -> Scalars:
-    return np.cross(v1, v2)
+    return jnp.cross(v1, v2)
 
 
 def cross(v1: V2_t, v2: V2_t) -> Scalars:
@@ -229,13 +227,13 @@ def to_vec(p: P2_t) -> V2_t:
     return _as_v2(p)
 
 
-@jit
-@partial(vectorize, signature="()->(3,1)")
+@jax.jit
+@partial(jnp.vectorize, signature="()->(3,1)")
 def _polar_arr(angle: Floating):
     rad = to_radians(angle)
-    x, y = np.cos(rad), np.sin(rad)
-    z = np.zeros_like(x)
-    return np.stack([x, y, z], axis=-1)[..., None]
+    x, y = jnp.cos(rad), jnp.sin(rad)
+    z = jnp.zeros_like(x)
+    return jnp.stack([x, y, z], axis=-1)[..., None]
 
 
 def polar(angle: Floating) -> V2_t:
@@ -268,10 +266,10 @@ def rotation_angle(r: Floating) -> Affine:
     return rotation(to_radians(r))
 
 
-@partial(vectorize, signature="(3,3)->(3,3)")
-@jit
+@partial(jnp.vectorize, signature="(3,3)->(3,3)")
+@jax.jit
 def _inv_arr(aff):
-    det = np.linalg.det(aff)
+    det = jnp.linalg.det(aff)
     idet = 1.0 / det
     sa, sb, sc = aff[..., 0, 0], aff[..., 0, 1], aff[..., 0, 2]
     sd, se, sf = aff[..., 1, 0], aff[..., 1, 1], aff[..., 1, 2]
@@ -286,11 +284,11 @@ def _inv_arr(aff):
         rd,
         re,
         -sc * rd - sf * re,
-        np.zeros(ra.shape),
-        np.zeros(ra.shape),
-        np.ones(ra.shape),
+        jnp.zeros(ra.shape),
+        jnp.zeros(ra.shape),
+        jnp.ones(ra.shape),
     )
-    x = np.stack(vals, axis=-1)
+    x = jnp.stack(vals, axis=-1)
     return x.reshape(vals[0].shape + (3, 3))
 
 
@@ -302,20 +300,20 @@ def inv(aff: Affine) -> Affine:
 from_rad = 180 / math.pi
 
 
-@jit
-@partial(vectorize, signature="()->()")
+@jax.jit
+@partial(jnp.vectorize, signature="()->()")
 def from_radians(θ: Floating) -> Scalars:
-    return np.asarray(ftos(θ) * from_rad)
+    return jnp.asarray(ftos(θ) * from_rad)
 
 
-@jit
-@partial(vectorize, signature="()->()")
+@jax.jit
+@partial(jnp.vectorize, signature="()->()")
 def to_radians(θ: Floating) -> Scalars:
-    return np.asarray((ftos(θ) / 180) * math.pi)
+    return jnp.asarray((ftos(θ) / 180) * math.pi)
 
 
-@jit
-@partial(vectorize, signature="(3,3)->(3,3)")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,3)->(3,3)")
 def _remove_translation_arr(aff):
     index = (Ellipsis, slice(0, 1), 2)
     return index_update(aff, index, 0)
@@ -326,12 +324,12 @@ def remove_translation(aff: Affine) -> Affine:
     return geom.make_xf(_remove_translation_arr(data(_as_xf(aff))))
 
 
-@jit
-@partial(vectorize, signature="(3,3)->(3,3)")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,3)->(3,3)")
 def _remove_scale_arr(aff):
     index = (Ellipsis, slice(0, 2), slice(0, 2))
-    det = np.linalg.det(aff[index])
-    return index_update(aff, index, aff[index] / np.sqrt(det[..., None, None]))
+    det = jnp.linalg.det(aff[index])
+    return index_update(aff, index, aff[index] / jnp.sqrt(det[..., None, None]))
 
 
 def remove_scale(aff: Affine) -> Affine:
@@ -339,8 +337,8 @@ def remove_scale(aff: Affine) -> Affine:
     return geom.make_xf(_remove_scale_arr(data(_as_xf(aff))))
 
 
-@jit
-@partial(vectorize, signature="(3,3)->(3,3)")
+@jax.jit
+@partial(jnp.vectorize, signature="(3,3)->(3,3)")
 def _transpose_linear_arr(aff):
     index = (Ellipsis, slice(0, 2), slice(0, 2))
     swap = aff[..., :2, :2].swapaxes(-1, -2)
@@ -424,9 +422,9 @@ class Ray:
     v: V2_t
 
     def point(self, len: Scalars) -> P2_t:
-        p = np.asarray(self.pt)
-        v = np.asarray(self.v)
-        return p + np.asarray(len)[..., None, None] * v
+        p = jnp.asarray(self.pt)
+        v = jnp.asarray(self.v)
+        return p + jnp.asarray(len)[..., None, None] * v
 
 
 @dataclass
@@ -439,8 +437,8 @@ class BoundingBox(Transformable):
         t = data(t)
         tl = t @ data(self.tl)
         br = t @ data(self.br)
-        tl2 = np.minimum(tl, br)
-        br2 = np.maximum(tl, br)
+        tl2 = jnp.minimum(tl, br)
+        br2 = jnp.maximum(tl, br)
         return BoundingBox(geom.make_p2_from_data(tl2), geom.make_p2_from_data(br2))  # type: ignore
 
     @property
@@ -464,7 +462,7 @@ class BoundingBox(Transformable):
         )
 
 
-# @partial(vectorize, signature="(3,1),(3,1),()->(),()") # type: ignore
+# @partial(jnp.vectorize, signature="(3,1),(3,1),()->(),()") # type: ignore
 def ray_circle_intersection(
     anchor: P2_t, direction: V2_t, circle_radius: Floating
 ) -> Tuple[Scalars, Mask, Scalars, Mask]:
@@ -499,15 +497,15 @@ def ray_circle_intersection(
     mask1 = Δ < 0
     mask2 = Δ < -eps
 
-    ret1 = (-b - np.sqrt(Δ + 1e9 * mask1)) / (2 * a)
-    ret2 = (-b + np.sqrt(np.where(mid, 0, Δ) + 1e9 * mask2)) / (2 * a)
-    ret1 = np.where(mask1, -b / (2 * a), ret1)
-    ret2 = np.where(mask2, -b / (2 * a), ret2)
+    ret1 = (-b - jnp.sqrt(Δ + 1e9 * mask1)) / (2 * a)
+    ret2 = (-b + jnp.sqrt(jnp.where(mid, 0, Δ) + 1e9 * mask2)) / (2 * a)
+    ret1 = jnp.where(mask1, -b / (2 * a), ret1)
+    ret2 = jnp.where(mask2, -b / (2 * a), ret2)
     assert not isinstance(ret2, tuple)
     return ret1, 1 - mask1, ret2, 1 - mask2
 
 
-@partial(vectorize, excluded=[2], signature="(),()->(a,3,1)")
+@partial(jnp.vectorize, excluded=[2], signature="(),()->(a,3,1)")
 def arc_to_bezier(theta1: Array, theta2: Array, n: int = 5) -> Array:
     """Returns the bezier curves for the unit circle arc from angles *theta1* to
     *theta2* (in degrees).
@@ -524,23 +522,23 @@ def arc_to_bezier(theta1: Array, theta2: Array, n: int = 5) -> Array:
         polylines, quadratic or cubic Bezier curves
         <https://web.archive.org/web/20190318044212/http://www.spaceroots.org/documents/ellipse/index.html>`_.
     """
-    theta1, theta2 = np.broadcast_arrays(theta1, theta2)
+    theta1, theta2 = jnp.broadcast_arrays(theta1, theta2)
     extra = theta1.shape
     eta1 = theta1
-    eta2 = theta2  # - 360 * np.floor((theta2 - theta1) / 360)
+    eta2 = theta2  # - 360 * jnp.floor((theta2 - theta1) / 360)
     # Ensure 2pi range is not flattened to 0 due to floating-point errors,
     # but don't try to expand existing 0 range.
-    # eta2 = np.where((theta2 != theta1) & (eta2 <= eta1), eta2 + 360, eta2)
+    # eta2 = jnp.where((theta2 != theta1) & (eta2 <= eta1), eta2 + 360, eta2)
     eta1, eta2 = to_radians(eta1), to_radians(eta2)
 
     deta = (eta2 - eta1) / n
-    t = np.tan(0.5 * deta)
-    alpha = np.sin(deta) * (np.sqrt(4.0 + 3.0 * t * t) - 1) / 3.0
+    t = jnp.tan(0.5 * deta)
+    alpha = jnp.sin(deta) * (jnp.sqrt(4.0 + 3.0 * t * t) - 1) / 3.0
     alpha = alpha[..., None]
 
-    steps = np.linspace(eta1, eta2, n + 1, axis=-1)
-    cos_eta = np.cos(steps)
-    sin_eta = np.sin(steps)
+    steps = jnp.linspace(eta1, eta2, n + 1, axis=-1)
+    cos_eta = jnp.cos(steps)
+    sin_eta = jnp.sin(steps)
 
     xA = cos_eta[..., :-1]
     yA = sin_eta[..., :-1]
@@ -554,7 +552,7 @@ def arc_to_bezier(theta1: Array, theta2: Array, n: int = 5) -> Array:
 
     length = n * 3
 
-    vertices = np.ones(extra + (length, 3, 1))
+    vertices = jnp.ones(extra + (length, 3, 1))
     vertex_offset = 0
     end = length
 
