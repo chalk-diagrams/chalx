@@ -81,11 +81,21 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
             return x.map_prefix(fn)
         if isinstance(x, Segment):
             if xs:
+                transform = fn(
+                    data(x.transform), *[data(s.transform) for s in xs]
+                )
                 return make_segment(
-                    fn(x.transform, *[s.transform for s in xs]),
+                    make_xf(transform),
                     fn(x.angles, *[s.angles for s in xs]),
                 )
-            return x.map_prefix(fn)
+            transform = fn(data(x.transform))
+            angles = fn(x.angles)
+            if transform is None and angles is None:
+                return x
+            return make_segment(
+                x.transform if transform is None else make_xf(transform),
+                x.angles if angles is None else angles,
+            )
         if isinstance(x, BaseDiagram):
             return map_diag_prefix(x, fn)
         if isinstance(x, Vec):
