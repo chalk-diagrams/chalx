@@ -18,6 +18,7 @@ from jax.experimental.hijax import (
     VJPHiPrimitive,
     Zero,
     apply_derived_linearization,
+    aval_method,
     linearize_from_jvp,
     register_hitype,
     transpose_jvp,
@@ -531,6 +532,16 @@ def segment_q(seg) -> P2_t:
 
 def segment_center(seg) -> P2_t:
     return SegmentCenter(jax.typeof(seg))(seg)
+
+
+def _aval_to_trail(seg):
+    from chalk.trail import make_trail
+
+    _, angles = segment_parts(seg)
+    return make_trail(seg, jnp.zeros(angles.shape[:-1], dtype=bool))
+
+
+SegTy.to_trail = aval_method(_aval_to_trail)
 
 
 __all__ = []

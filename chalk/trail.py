@@ -11,6 +11,7 @@ from jax.experimental.hijax import (
     MappingSpec,
     ShapedArray,
     VJPHiPrimitive,
+    aval_method,
     register_hitype,
 )
 
@@ -655,6 +656,19 @@ def arc_seg_angle(angle: tx.Floating, dangle: tx.Floating) -> Trail:
 
 def arc_between_trail(q: P2_t, height: tx.Scalars) -> Trail:
     return arc.arc_between(tx.P2(0, 0), q, height).to_trail()
+
+
+def _aval_trail_stroke(trail):
+    from chalk.diag import diag_prim
+    from chalk.path import _make_path
+
+    trail_ty = jax.typeof(trail)
+    location = tx.P2(0.0, 0.0)
+    path = _make_path((make_located(trail_promote(trail), location),))
+    return diag_prim(path, tx.make_ident(trail_ty.seg_ty.batch_shape))
+
+
+TrailTy.stroke = aval_method(_aval_trail_stroke)
 
 
 __all__ = [
