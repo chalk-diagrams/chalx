@@ -228,7 +228,7 @@ class TraceRay(VJPHiPrimitive):
         # Output shapes follow _trace: dists/mask after flatten of hit axis.
         # Conservative: leave as leading-dir/point batch + trailing hits.
         seg = tr_aval.seg_ty
-        p_batch = tuple(p_aval.shape[:-2])
+        p_batch = p_aval.batch
         # _trace returns sorted hits; width is 2 * n_segs after reshape
         n_hits = max(seg.n_segs * 2, 1)
         out = ShapedArray(p_batch + (n_hits,), jnp.dtype(seg.dtype_name))
@@ -239,13 +239,13 @@ class TraceRay(VJPHiPrimitive):
 
     def expand(self, tr: Trace, point, direction):
         xf, ang = segment_parts(trace_segment(tr))
-        dist, mask = _trace(xf, ang, jnp.asarray(point), jnp.asarray(direction))
+        dist, mask = _trace(xf, ang, tx.data(point), tx.data(direction))
         return dist, jnp.asarray(mask, dtype=dist.dtype)
 
     def vjp_fwd(self, nzs_in, tr, point, direction):
         xf, ang = segment_parts(trace_segment(tr))
-        point = jnp.asarray(point)
-        direction = jnp.asarray(direction)
+        point = tx.data(point)
+        direction = tx.data(direction)
         dist, mask = _trace(xf, ang, point, direction)
 
         def dist_fn(xf_, ang_, p_, d_):
@@ -261,11 +261,15 @@ class TraceRay(VJPHiPrimitive):
             dt = jnp.dtype(seg_ty.dtype_name)
             z_xf = jnp.zeros(seg_ty.batch_shape + (seg_ty.n_segs, 3, 3), dt)
             z_ang = jnp.zeros(seg_ty.batch_shape + (seg_ty.n_segs, 2), dt)
-            z_p = jnp.zeros(self.in_avals[1].shape, self.in_avals[1].dtype)
-            z_d = jnp.zeros(self.in_avals[2].shape, self.in_avals[2].dtype)
+            z_p = self.in_avals[1].to_tangent_aval().vspace_zero()
+            z_d = self.in_avals[2].vspace_zero()
             return make_trace(make_segment(z_xf, z_ang)), z_p, z_d
         dxf, dang, dp, dd = vjp(jnp.asarray(g_dist))
-        return make_trace(make_segment(dxf, dang)), dp, dd
+        return (
+            make_trace(make_segment(dxf, dang)),
+            geom.make_v2_from_data(dp),
+            geom.make_v2_from_data(dd),
+        )
 
     def batch(self, axis_data, args, in_dims):
         tr, p, d = args
@@ -314,8 +318,8 @@ def transform_trace(tr, t) -> Trace:
 
 
 def trace_ray(tr, point, direction) -> Tuple[jax.Array, jax.Array]:
-    point = tx.data(point)
-    direction = tx.data(direction)
+    point = tx.to_point(point)
+    direction = tx._as_v2(direction)
     return TraceRay(jax.typeof(tr), jax.typeof(point), jax.typeof(direction))(
         tr, point, direction
     )
