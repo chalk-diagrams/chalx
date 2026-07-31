@@ -3,7 +3,6 @@
 Each triangle keeps a scalar ``z`` (low = behind). Scanline and Cairo both
 hard-sort by ``z`` and gate fill opacity with ``modulate_opacity(z)``.
 Coverage is the average of a left-to-right and top-to-bottom scan.
-Init is small triangles clustered near the image center.
 """
 
 from __future__ import annotations
@@ -21,20 +20,20 @@ from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite_by_z, modulate_opacity
 
-W, H = 96, 72  # 4:3, matches the highland-cow photo
+W, H = 120, 64  # ~wide alpine lake photo
 N = 1500
 STEPS = 500
 MIN_SIZE = 1.0
 LR0 = 0.03
 LOSS_EVERY = 10
 GIF_EVERY = 10
-DECAY_START = 333  # last third taper LR and kernel 7→5→3
-PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-974299a8fcb2.jpg"
-LIB_HEIGHT = 360
-LIB_WIDTH = 480
+DECAY_START = 333  # last third taper LR; kernel 3→1
+PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/c756b95f-2fba-4bcd-8cdb-4a635411becb.png"
+LIB_HEIGHT = 320
+LIB_WIDTH = 600
 OUT = "/opt/cursor/artifacts"
-PREFIX = "tri8"
-KERNELS = (7, 5, 3)
+PREFIX = "lake1"
+KERNELS = (3, 1)
 
 _unit = triangle(1.0).line_width(0)
 _px = scanline_origins(H, axis="x")
@@ -61,10 +60,8 @@ def lr_at(step: int) -> float:
 
 def kernel_at(step: int) -> int:
     if step <= DECAY_START:
-        return 7
-    if step <= DECAY_START + (STEPS - DECAY_START) // 2:
-        return 5
-    return 3
+        return 3
+    return 1
 
 
 def split_geom(params):
@@ -171,16 +168,20 @@ def init_params(seed=42):
     cx, cy = W / 2.0, H / 2.0
     locs = []
     for _ in range(N):
-        x = cx + random.gauss(0.0, W * 0.06)
-        y = cy + random.gauss(0.0, H * 0.06)
-        x = min(max(x, cx - W * 0.18), cx + W * 0.18)
-        y = min(max(y, cy - H * 0.18), cy + H * 0.18)
+        if random.random() < 0.72:
+            x = cx + random.gauss(0.0, W * 0.16)
+            y = cy + random.gauss(0.0, H * 0.16)
+            x = min(max(x, 4.0), float(W - 4))
+            y = min(max(y, 4.0), float(H - 4))
+        else:
+            x = 6.0 + (W - 12.0) * random.random()
+            y = 6.0 + (H - 12.0) * random.random()
         locs.append([x, y])
     loc = jnp.array(locs)
     radii = []
     for _ in range(N):
-        size = MIN_SIZE + 2.2 * random.random() ** 1.4
-        aspect = 0.45 + 0.55 * random.random()
+        size = MIN_SIZE + 14.0 * random.random() ** 1.6
+        aspect = 0.35 + 0.65 * random.random()
         if random.random() < 0.5:
             radii.append([size, max(MIN_SIZE, size * aspect)])
         else:
@@ -227,7 +228,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
 
 def main():
     print(
-        f"{PREFIX} triangles N={N} STEPS={STEPS} {W}x{H} z+α(z) xy-scan + video "
+        f"{PREFIX} triangles N={N} STEPS={STEPS} {W}x{H} z+α(z) kernel 3→1 + video "
         f"LR/kernel 7→5→3 after {DECAY_START}",
         flush=True,
     )
@@ -374,7 +375,7 @@ def main():
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title(f"{N} triangles · cow · center-small init · z+α(z)")
+        ax.set_title(f"{N} triangles · lake · z+α(z) · kernel 3→1")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
