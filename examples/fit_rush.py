@@ -9,6 +9,7 @@ Init is size-ordered so ``z`` starts as large-behind / small-in-front.
 from __future__ import annotations
 
 import random
+import subprocess
 
 import jax
 import jax.numpy as jnp
@@ -21,17 +22,18 @@ from chalk.raster import scanline_origins
 from chalk.style import composite_by_z, modulate_opacity
 
 W, H = 96, 72  # 4:3, matches the highland-cow photo
-N = 500
-STEPS = 750
+N = 1500
+STEPS = 500
 MIN_SIZE = 1.0
 LR0 = 0.03
 LOSS_EVERY = 10
-DECAY_START = 500  # last 250 steps taper LR and kernel 7→5→3
+GIF_EVERY = 10
+DECAY_START = 333  # last third taper LR and kernel 7→5→3
 PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-974299a8fcb2.jpg"
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
-PREFIX = "cow6"
+PREFIX = "cow7"
 KERNELS = (7, 5, 3)
 
 _unit = circle(1.0).line_width(0)
@@ -135,6 +137,35 @@ def to_png(img, path):
     Image.fromarray(to_uint8(img)).save(path)
 
 
+def write_video(frames_uint8, path, fps=12):
+    h, w = frames_uint8[0].shape[:2]
+    if h % 2:
+        h -= 1
+    if w % 2:
+        w -= 1
+    cmd = [
+        "ffmpeg", "-y", "-f", "rawvideo", "-vcodec", "rawvideo",
+        "-s", f"{w}x{h}", "-pix_fmt", "rgb24", "-r", str(fps), "-i", "-",
+        "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path,
+    ]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    assert proc.stdin is not None and proc.stderr is not None
+    try:
+        for fr in frames_uint8:
+            proc.stdin.write(onp.ascontiguousarray(fr[:h, :w]).tobytes())
+    finally:
+        proc.stdin.close()
+    err = proc.stderr.read()
+    if proc.wait() != 0:
+        raise RuntimeError(err.decode("utf-8", errors="replace")[-2000:])
+
+
+def cairo_frame(params):
+    path = "/tmp/cow_ell_frame.png"
+    diagram_stacked(params).render(path, height=LIB_HEIGHT, width=LIB_WIDTH)
+    return onp.asarray(Image.open(path).convert("RGB"))
+
+
 def init_params(seed=42):
     random.seed(seed)
     cx, cy = W / 2.0, H / 2.0
@@ -201,7 +232,7 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
 
 def main():
     print(
-        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} z-order+α(z) xy-scan stills-only "
+        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} z-order+α(z) xy-scan + video "
         f"LR/kernel 7→5→3 after {DECAY_START}",
         flush=True,
     )
@@ -227,6 +258,7 @@ def main():
             to_png(start_img, f"{OUT}/{PREFIX}_start.png")
             start_img0 = start_img
 
+    history = [(0, params)]
     curve = []
     best, best_loss = params, float("inf")
     prev_kern = kernel_at(1)
@@ -266,6 +298,8 @@ def main():
         opacity = jnp.clip(opacity, -6.0, 6.0)
         z = jnp.clip(z, -8.0, 8.0)
         params = (loc, radii, rots, color, opacity, z)
+        if i % GIF_EVERY == 0 or i == 1:
+            history.append((i, params))
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             if kern != prev_kern:
                 best_loss = float("inf")
@@ -296,6 +330,26 @@ def main():
     final = raster_jit(params)
     to_png(final, f"{OUT}/{PREFIX}_final.png")
     to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/{PREFIX}_compare.png")
+
+    scan_side = [
+        jnp.concatenate([goal, fns[kernel_at(max(step, 1))][0](p)], axis=1)
+        for step, p in history
+    ]
+    gh, gw = int(goal.shape[0]), int(goal.shape[1])
+    scan_u8 = [
+        onp.asarray(Image.fromarray(to_uint8(fr)).resize((gw * 4, gh * 4), Image.Resampling.NEAREST))
+        for fr in scan_side
+    ]
+    write_video(scan_u8, f"{OUT}/{PREFIX}_scan.mp4", fps=10)
+    print(f"wrote scan video ({len(scan_u8)} frames)", flush=True)
+
+    print("cairo video…", flush=True)
+    cairo_u8 = []
+    for i, (_step, p) in enumerate(history):
+        cairo_u8.append(cairo_frame(p))
+        if i % 8 == 0 or i == len(history) - 1:
+            print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
+    write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
 
     dia = diagram_stacked(params)
     lib_path = f"{OUT}/{PREFIX}_cairo.png"
