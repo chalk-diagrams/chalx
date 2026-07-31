@@ -16,7 +16,8 @@ import numpy as onp
 from PIL import Image, ImageDraw, ImageFont
 
 from chalk import circle, rectangle
-from chalk.raster import trace_measure_xy
+from chalk.measure import trace_measure
+from chalk.raster import scanline_origins
 from chalk.style import composite_by_z, modulate_opacity
 
 W, H = 96, 72  # 4:3, matches the highland-cow photo
@@ -34,6 +35,10 @@ PREFIX = "cow5"
 KERNELS = (7, 5, 3)
 
 _unit = circle(1.0).line_width(0)
+_px = scanline_origins(H, axis="x")
+_py = scanline_origins(W, axis="y")
+_vx = jnp.array([[1.0], [0.0], [0.0]])
+_vy = jnp.array([[0.0], [1.0], [0.0]])
 
 
 def load_goal():
@@ -98,14 +103,22 @@ def make_raster(kernel: int):
         loc, radii, rots, color, opacity, z = params
         paints = jax.nn.sigmoid(color)
         opac = jax.nn.sigmoid(opacity)
+        geom = (loc, radii, rots)
 
-        def cover(_, xs):
+        def ellipse(xs):
             (lx, ly), (rx, ry), (rot,) = xs
-            d = _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
-            α = trace_measure_xy(d, H, W, kernel=kernel)
-            return None, α
+            return _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
 
-        _, alphas = jax.lax.scan(cover, None, (loc, radii, rots))
+        def cover_x(_, xs):
+            return None, trace_measure(ellipse(xs), _px, _vx, W, kernel=kernel)
+
+        def cover_y(_, xs):
+            return None, trace_measure(ellipse(xs), _py, _vy, H, kernel=kernel)
+
+        # Two scans: a single scan body cannot call trace_measure twice under grad.
+        _, ax = jax.lax.scan(cover_x, None, geom)
+        _, ay = jax.lax.scan(cover_y, None, geom)
+        alphas = 0.5 * (ax + jnp.transpose(ay, (0, 2, 1)))
         return composite_by_z(jnp.ones((H, W, 3)), alphas, (paints, opac), z, hard=True)
 
     def loss_fn(params, goal):

@@ -46,10 +46,13 @@ def trace_measure_xy(
     directions matches the DiffRast plug. Also covers rows/cols that one
     scan drops when a hit starts off-frame.
     """
+    # Use raw homogeneous vectors (not hijax V2) so this is safe under jit+scan.
+    vx = jnp.array([[1.0], [0.0], [0.0]])
+    vy = jnp.array([[0.0], [1.0], [0.0]])
     ax = trace_measure(
         shape,
         scanline_origins(height, axis="x", pixel=pixel),
-        scanline_direction("x"),
+        vx,
         width,
         kernel=kernel,
         pixel=pixel,
@@ -58,7 +61,7 @@ def trace_measure_xy(
     ay = trace_measure(
         shape,
         scanline_origins(width, axis="y", pixel=pixel),
-        scanline_direction("y"),
+        vy,
         height,
         kernel=kernel,
         pixel=pixel,
