@@ -90,6 +90,29 @@ def write_gif(imgs, path, duration=0.08):
     imageio.mimsave(path, [to_uint8(im) for im in imgs], loop=0, duration=duration)
 
 
+def diagram_from_params(params):
+    from colour import Color
+
+    from chalk import concat, triangle
+
+    loc, sizes, rots, color = (onp.asarray(x) for x in params)
+    order = onp.argsort(-sizes)
+    dias = []
+    for i in order:
+        rgb = tuple(float(c) for c in (1.0 / (1.0 + onp.exp(-color[i]))))
+        d = (
+            triangle(1.0)
+            .line_width(0)
+            .fill_color(Color(rgb=rgb))
+            .rotate_rad(float(rots[i, 0]))
+            .scale(float(sizes[i]))
+            .translate(float(loc[i, 0]), float(loc[i, 1]))
+        )
+        dias.append(d)
+    # Fit used image y-down; Chalk is y-up.
+    return concat(dias).scale_y(-1).center_xy()
+
+
 def init_params(seed=42):
     random.seed(seed)
     loc = jnp.array(
@@ -159,6 +182,13 @@ def main():
             print(f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}")
 
     params = best
+    onp.savez(
+        "/opt/cursor/artifacts/fit_rush_best.npz",
+        loc=onp.asarray(params[0]),
+        sizes=onp.asarray(params[1]),
+        rots=onp.asarray(params[2]),
+        color=onp.asarray(params[3]),
+    )
     final = render_jit(params)
     to_png(final, "/opt/cursor/artifacts/fit_rush_final.png")
     to_png(
@@ -168,6 +198,11 @@ def main():
     frames = [jnp.concatenate([goal, render_jit(p)], axis=1) for p in history]
     write_gif(frames, "/opt/cursor/artifacts/fit_rush.gif", duration=0.08)
     print("wrote /opt/cursor/artifacts/fit_rush.gif")
+
+    dia = diagram_from_params(params)
+    lib_path = "/opt/cursor/artifacts/rush_tri_library.png"
+    dia.render(lib_path, height=400)
+    print(f"wrote library render {lib_path}")
 
 
 if __name__ == "__main__":
