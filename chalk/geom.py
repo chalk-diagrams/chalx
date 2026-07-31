@@ -18,7 +18,6 @@ from jax.experimental.hijax import (
     VJPHiPrimitive,
     Zero,
     apply_derived_linearization,
-    aval_method,
     linearize_from_jvp,
     register_hitype,
     transpose_jvp,
@@ -1432,7 +1431,11 @@ def _xf_matmul(t, other):
     return xf_apply_hom(t, other)
 
 
-XfTy._matmul = aval_method(_xf_matmul)
+def _xf_aval_matmul(_aval, t, other):
+    return _xf_matmul(t, other)
+
+
+XfTy._matmul = _xf_aval_matmul
 
 # Constant unit values as hijax (eager).
 unit_x = Vec(jnp.asarray([1.0, 0.0, 0.0], dtype=_DT).reshape(3, 1))
