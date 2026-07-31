@@ -3,7 +3,7 @@
 # with install_import_hook("chalk", "typeguard.typechecked"):
 #     import chalk
 from chalk import *
-import numpy as np
+import jax.numpy as jnp
 from typing import List
 
 # %%
@@ -17,10 +17,10 @@ def f(subs: List[Subdiagram], d: Diagram) -> Diagram:
 d.with_names(["a"], f)
 
 # %%
-v = circle(np.arange(1, 5)).get_envelope()
+v = circle(jnp.arange(1, 5)).get_envelope()
 
 # %%
-d = circle(np.arange(1, 5)).fill_color("black").named("a").hcat()
+d = circle(jnp.arange(1, 5)).fill_color("black").named("a").hcat()
 
 
 # %%

@@ -3,12 +3,12 @@
 # with install_import_hook("chalk", "typeguard.typechecked"):
 #     import chalk
 from chalk import *
-import numpy as np
+import jax.numpy as jnp
 
 # %%
 env = circle(1).get_envelope()
-print(V2(np.arange(1, 6), np.arange(1, 6)).shape)
-env(V2(np.arange(1, 6), np.arange(1, 6)))
+print(V2(jnp.arange(1, 6), jnp.arange(1, 6)).shape)
+env(V2(jnp.arange(1, 6), jnp.arange(1, 6)))
 
 
 # %%
@@ -32,7 +32,7 @@ assert int(env.height) == 4
 
 
 # %%
-c = circle(np.arange(1, 5)).translate(np.arange(1, 5), np.arange(1, 5))
+c = circle(jnp.arange(1, 5)).translate(jnp.arange(1, 5), jnp.arange(1, 5))
 c
 
 
