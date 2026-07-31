@@ -11,22 +11,25 @@ import numpy as onp
 from PIL import Image
 
 from chalk import circle
-from chalk.measure import trace_measure
-from chalk.raster import scanline_direction, scanline_origins
+from chalk.measure import measure_from_splits, trace_splits_batched
+from chalk.raster import scanline_origins
+from chalk.segment import segment_parts
 from chalk.style import composite
-from chalk.trace import transform_trace
+from chalk.trace import trace_segment
 
 H = W = 80
 KERNEL = 11
-N = 300
-STEPS = 300
-LR = 0.03
-LOSS_EVERY = 25
+N = 1000
+STEPS = 1000
+LR = 0.02
+LOSS_EVERY = 50
 PHOTO_URL = "https://avatars0.githubusercontent.com/u/35882?s=460&v=4"
 
-tr0 = circle(1.0).get_trace()
+# Peel unit-circle geometry once; JIT path stays pure jnp (no hijax in the loop).
+_xf0, _ang0 = segment_parts(trace_segment(circle(1.0).get_trace()))
+_xf0, _ang0 = jnp.asarray(_xf0), jnp.asarray(_ang0)
 _px = scanline_origins(H, axis="x")
-_vx = scanline_direction("x")
+_vx = jnp.array([[1.0], [0.0], [0.0]])
 
 
 def _circle_affine(lx, ly, r):
@@ -56,8 +59,9 @@ def render(params):
     paints = jax.nn.sigmoid(color)
 
     def cover(_carry, A):
-        tr = transform_trace(tr0, A)
-        alpha = trace_measure(tr, _px, _vx, W, kernel=KERNEL, boundary=False)
+        xf = jnp.einsum("ij,sjk->sik", A, _xf0)
+        dists, mask = trace_splits_batched(xf, _ang0, _px, _vx)
+        alpha = measure_from_splits(dists, mask, W, kernel=KERNEL, boundary=False)
         return None, alpha
 
     _, alphas = jax.lax.scan(cover, None, As)
@@ -93,7 +97,7 @@ def init_params(seed=42):
     loc = jnp.array(
         [[8.0 + (W - 16.0) * random.random(), 8.0 + (H - 16.0) * random.random()] for _ in range(N)]
     )
-    radii = jnp.array([0.35 + 10.0 * random.random() ** 1.8 for _ in range(N)])
+    radii = jnp.array([0.25 + 8.0 * random.random() ** 2.0 for _ in range(N)])
     color = jnp.array([[random.uniform(-2.0, 2.0) for _ in range(3)] for _ in range(N)])
     return (loc, radii, color)
 
@@ -145,7 +149,7 @@ def main():
         loc = jnp.clip(loc, -5.0, float(W + 5))
         color = jnp.clip(color, -6.0, 6.0)
         params = (loc, radii, color)
-        if i % 15 == 0 or i == 1:
+        if i % 25 == 0 or i == 1:
             history.append(params)
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             cur_loss = float(loss_jit(params, goal))

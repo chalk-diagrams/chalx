@@ -19,6 +19,61 @@ import chalk.transform as tx
 from chalk.trace import Trace, TraceTy, get_trace, trace_ray
 
 
+def trace_splits_batched(xf, ang, p, v):
+    """Pure-JAX ray hits. ``xf [S,3,3]``, ``ang [S,2]``, ``p [H,3,1]``, ``v [3,1]|[H,3,1]``.
+
+    Returns ``dists, mask`` with shape ``[H, 2S]``, sorted by distance.
+    No hijax / nested jit — safe inside ``lax.scan`` + ``jit(grad)``.
+    """
+    xf = jnp.asarray(xf)
+    ang = jnp.asarray(ang)
+    p = jnp.asarray(p)
+    v = jnp.asarray(v)
+    if v.ndim == 2:
+        v = jnp.broadcast_to(v, p.shape)
+    inv_xf = jnp.linalg.inv(xf)
+    pl = inv_xf[None, ...] @ p[:, None, ...]
+    vl = inv_xf[None, ...] @ v[:, None, ...]
+    ax, ay = pl[..., 0, 0], pl[..., 1, 0]
+    dx, dy = vl[..., 0, 0], vl[..., 1, 0]
+    a = dx * dx + dy * dy
+    bcoe = 2.0 * (ax * dx + ay * dy)
+    ccoe = ax * ax + ay * ay - 1.0
+    disc = bcoe * bcoe - 4.0 * a * ccoe
+    eps = 1e-10
+    mid = (-eps <= disc) & (disc < 0)
+    miss1 = disc < 0
+    miss2 = disc < -eps
+    ret1 = (-bcoe - jnp.sqrt(disc + 1e9 * miss1)) / (2.0 * a)
+    ret2 = (-bcoe + jnp.sqrt(jnp.where(mid, 0.0, disc) + 1e9 * miss2)) / (2.0 * a)
+    ret1 = jnp.where(miss1, -bcoe / (2.0 * a), ret1)
+    ret2 = jnp.where(miss2, -bcoe / (2.0 * a), ret2)
+    m1 = jnp.logical_not(miss1)
+    m2 = jnp.logical_not(miss2)
+
+    def _on_arc(t):
+        hit = pl + vl * t[..., None, None]
+        deg = jnp.degrees(jnp.arctan2(hit[..., 1, 0], hit[..., 0, 0]))
+        a0 = ang[None, :, 0]
+        a1 = a0 + ang[None, :, 1]
+        low = jnp.minimum(a0, a1)
+        high = jnp.maximum(a0, a1)
+        span = (high - low) % 360.0
+        return ((deg - low) % 360.0) <= span
+
+    m1 = m1 & _on_arc(ret1)
+    m2 = m2 & _on_arc(ret2)
+    dists = jnp.stack([ret1, ret2], axis=-1)
+    mask = jnp.stack([m1, m2], axis=-1)
+    h = dists.shape[0]
+    dists = dists.reshape(h, -1)
+    mask = mask.reshape(h, -1).astype(dists.dtype)
+    order = jnp.argsort(dists + (1.0 - mask) * 1e10, axis=-1)
+    dists = jnp.take_along_axis(dists, order, axis=-1)
+    mask = jnp.take_along_axis(mask, order, axis=-1)
+    return dists, mask
+
+
 def _fill_rows(splits, mask, n_bins: int):
     """Even-odd fill. ``splits, mask: [B, K]`` → coverage ``[B, n_bins]``."""
     splits = jnp.asarray(splits)
