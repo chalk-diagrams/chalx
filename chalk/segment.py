@@ -72,10 +72,10 @@ class SegTy(HiType):
         ]
 
     def lower_val(self, seg: Segment):
-        return [seg.transform, seg.angles]
+        return [tx.data(seg.transform), seg.angles]
 
     def raise_val(self, transform, angles) -> Segment:
-        return Segment(transform, angles)
+        return Segment(geom.make_xf(transform), angles)
 
     def to_tangent_aval(self):
         return SegTy(self.batch_shape, self.n_segs, self.dtype_name)
@@ -83,7 +83,9 @@ class SegTy(HiType):
     def vspace_zero(self):
         dt = jnp.dtype(self.dtype_name)
         return Segment(
-            jnp.zeros(self.batch_shape + (self.n_segs, 3, 3), dt),
+            geom.make_xf(
+                jnp.zeros(self.batch_shape + (self.n_segs, 3, 3), dt)
+            ),
             jnp.zeros(self.batch_shape + (self.n_segs, 2), dt),
         )
 
@@ -132,13 +134,13 @@ class Segment:
 
     @staticmethod
     def make(transform: Affine, angles: Angles) -> Segment:
-        transform = tx.data(transform)
         assert angles.shape[-1] == 2
-        angles = tx.prefix_broadcast(angles, transform.shape[:-2], 1)  # type: ignore
+        transform = tx._as_xf(transform)
+        angles = tx.prefix_broadcast(angles, jax.typeof(transform).batch, 1)
         return make_segment(transform, angles.astype(float))
 
     def promote(self) -> Segment:
-        return make_segment(_ensure_3d(self.transform), _ensure_2d(self.angles))
+        return make_segment(_ensure_3d(tx.data(self.transform)), _ensure_2d(self.angles))
 
     def map_prefix(self, fn: Callable[[Any], Any]) -> Segment:
         t, a = fn(self.transform), fn(self.angles)
@@ -155,7 +157,7 @@ class Segment:
     def reduce(self, axis: int = 0) -> Segment:
         shape = self.shape
         return make_segment(
-            self.transform.reshape(*shape[:-2], -1, 3, 3),
+            tx.data(self.transform).reshape(*shape[:-2], -1, 3, 3),
             self.angles.reshape(*shape[:-2], -1, 2),
         )
 
@@ -196,9 +198,9 @@ def _is_in_mod_360(angles: Angles, d: V2_t) -> tx.Mask:
 register_hitype(
     Segment,
     lambda s: SegTy(
-        tuple(s.transform.shape[:-3]) if s.transform.ndim >= 3 else (),
-        int(s.transform.shape[-3]) if s.transform.ndim >= 3 else int(s.transform.shape[0]),
-        jnp.asarray(s.transform).dtype.name,
+        tuple(tx.data(s.transform).shape[:-3]),
+        int(tx.data(s.transform).shape[-3]),
+        tx.data(s.transform).dtype.name,
     ),
 )
 
@@ -276,30 +278,30 @@ def _seg_typeof(transform, angles) -> SegTy:
 class MakeSegment(VJPHiPrimitive):
     def __init__(self, t_aval, a_aval):
         self.in_avals = (t_aval, a_aval)
-        t_shape = t_aval.shape
-        if len(t_shape) == 2:
+        a_shape = a_aval.shape
+        if len(a_shape) == 1:
             batch, n = (), 1
         else:
-            batch, n = tuple(t_shape[:-3]), int(t_shape[-3])
-        self.out_aval = SegTy(batch, n, t_aval.dtype.name)
+            batch, n = tuple(a_shape[:-2]), int(a_shape[-2])
+        self.out_aval = SegTy(batch, n, t_aval.dtype_name)
         self.params = {}
         super().__init__()
 
     def expand(self, transform, angles):
-        t = jnp.asarray(transform)
+        t = tx.data(transform)
         a = jnp.asarray(angles)
         if t.ndim == 2:
             t = t[None, ...]
         if a.ndim == 1:
             a = a[None, ...]
-        return Segment(t, a)
+        return Segment(geom.make_xf(t), a)
 
     def jvp(self, primals, tangents):
         xf, ang = primals
         dxf, dang = tangents
         prim = make_segment(xf, ang)
         if isinstance(dxf, Zero):
-            dxf = jnp.zeros_like(jnp.asarray(xf))
+            dxf = jax.typeof(xf).vspace_zero()
         if isinstance(dang, Zero):
             dang = jnp.zeros_like(jnp.asarray(ang))
         return prim, make_segment(dxf, dang)
@@ -326,11 +328,12 @@ class ConcatSegments(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, a: Segment, b: Segment):
-        if a.transform.shape[0] == 0:
+        ta_raw, tb_raw = tx.data(a.transform), tx.data(b.transform)
+        if ta_raw.shape[0] == 0:
             return b
-        if b.transform.shape[0] == 0:
+        if tb_raw.shape[0] == 0:
             return a
-        ta, tb = _ensure_3d(a.transform), _ensure_3d(b.transform)
+        ta, tb = _ensure_3d(ta_raw), _ensure_3d(tb_raw)
         aa, ab = _ensure_2d(a.angles), _ensure_2d(b.angles)
 
         def broadcast_ex(x, y, axis):
@@ -345,7 +348,7 @@ class ConcatSegments(VJPHiPrimitive):
 
         trans = broadcast_ex(jnp.asarray(ta), jnp.asarray(tb), -3)
         angs = broadcast_ex(jnp.asarray(aa), jnp.asarray(ab), -2)
-        return Segment(
+        return make_segment(
             jnp.concatenate(trans, axis=-3), jnp.concatenate(angs, axis=-2)
         )
 
@@ -369,7 +372,7 @@ class TransformSegment(VJPHiPrimitive):
     def expand(self, seg: Segment, t):
         from chalk.geom import data as geom_data
 
-        return Segment(geom_data(t) @ jnp.asarray(seg.transform), seg.angles)
+        return make_segment(geom_data(t) @ tx.data(seg.transform), seg.angles)
 
     def jvp(self, primals, tangents):
         from chalk.geom import data as geom_data
@@ -400,7 +403,7 @@ class TransformSegment(VJPHiPrimitive):
 
 
 def make_segment(transform, angles) -> Segment:
-    transform = tx.data(transform)
+    transform = tx._as_xf(transform)
     angles = jnp.asarray(angles)
     return MakeSegment(jax.typeof(transform), jax.typeof(angles))(
         transform, angles
@@ -427,15 +430,15 @@ class SegmentParts(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, seg: Segment):
-        return jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        return tx.data(seg.transform), jnp.asarray(seg.angles)
 
     def jvp(self, primals, tangents):
         (seg,), (dseg,) = primals, tangents
-        xf, ang = jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        xf, ang = tx.data(seg.transform), jnp.asarray(seg.angles)
         if isinstance(dseg, Zero):
             return (xf, ang), (Zero(jax.typeof(xf)), Zero(jax.typeof(ang)))
         return (xf, ang), (
-            jnp.asarray(dseg.transform),
+            tx.data(dseg.transform),
             jnp.asarray(dseg.angles),
         )
 
@@ -466,7 +469,7 @@ class SegmentQ(VJPHiPrimitive):
 
     def expand(self, seg: Segment):
         angles = jnp.asarray(seg.angles)
-        transform = jnp.asarray(seg.transform)
+        transform = tx.data(seg.transform)
         ang = angles.sum(-1)
         rad = jnp.deg2rad(ang)
         x, y = jnp.cos(rad), jnp.sin(rad)
@@ -495,7 +498,7 @@ class SegmentCenter(VJPHiPrimitive):
         super().__init__()
 
     def expand(self, seg: Segment):
-        transform = jnp.asarray(seg.transform)
+        transform = tx.data(seg.transform)
         origin = jnp.zeros(transform.shape[:-2] + (3, 1), dtype=transform.dtype)
         origin = origin.at[..., 2, 0].set(1.0)
         return geom.make_p2_from_data(transform @ origin)
