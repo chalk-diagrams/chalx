@@ -194,7 +194,7 @@ class TransformTrace(VJPHiPrimitive):
 
     def vjp_fwd(self, nzs_in, tr, t):
         xf, ang = segment_parts(trace_segment(tr))
-        t_arr = jnp.asarray(t)
+        t_arr = tx.data(t)
 
         def f(xf_, ang_, t_):
             return t_ @ xf_, ang_
@@ -210,10 +210,10 @@ class TransformTrace(VJPHiPrimitive):
                     jnp.zeros(self.out_aval.seg_ty.batch_shape + (self.out_aval.seg_ty.n_segs, 2)),
                 )
             )
-            return make_trace(make_segment(dxf, dang)), dt
+            return make_trace(make_segment(dxf, dang)), geom.make_xf(dt)
         gxf, gang = segment_parts(trace_segment(g))
         dxf, dang, dt = vjp((gxf, gang))
-        return make_trace(make_segment(dxf, dang)), dt
+        return make_trace(make_segment(dxf, dang)), geom.make_xf(dt)
 
     def batch(self, axis_data, args, in_dims):
         tr, t = args
