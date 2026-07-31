@@ -464,6 +464,12 @@ class MakeLocated(VJPHiPrimitive):
         trail, loc = args
         if all(d is None for d in in_dims):
             return make_located(trail, loc), None
+        _, loc_dim = in_dims
+        if loc_dim is None:
+            loc_data = tx.data(loc)
+            loc = geom.make_p2_from_data(
+                jnp.broadcast_to(loc_data, (axis_data.size, *loc_data.shape))
+            )
         return make_located(trail, loc), LocatedSpec()
 
 
