@@ -471,6 +471,11 @@ class MakeLocated(VJPHiPrimitive):
         trail, loc = args
         if all(d is None for d in in_dims):
             return make_located(trail, loc), None
+        _, loc_dim = in_dims
+        if loc_dim is None:
+            loc = jnp.broadcast_to(loc, (axis_data.size, *loc.shape))
+        elif loc_dim != 0:
+            loc = jnp.moveaxis(loc, loc_dim, 0)
         return make_located(trail, loc), LocatedSpec()
 
 
