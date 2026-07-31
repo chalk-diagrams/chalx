@@ -276,14 +276,16 @@ def _seg_typeof(transform, angles) -> SegTy:
 
 
 class MakeSegment(VJPHiPrimitive):
-    def __init__(self, t_aval, a_aval):
+    def __init__(self, t_aval, a_aval, out_aval=None):
         self.in_avals = (t_aval, a_aval)
-        a_shape = a_aval.shape
-        if len(a_shape) == 1:
-            batch, n = (), 1
-        else:
-            batch, n = tuple(a_shape[:-2]), int(a_shape[-2])
-        self.out_aval = SegTy(batch, n, t_aval.dtype_name)
+        if out_aval is None:
+            a_shape = a_aval.shape
+            if len(a_shape) == 1:
+                batch, n = (), 1
+            else:
+                batch, n = tuple(a_shape[:-2]), int(a_shape[-2])
+            out_aval = SegTy(batch, n, t_aval.dtype_name)
+        self.out_aval = out_aval
         self.params = {}
         super().__init__()
 
@@ -316,7 +318,9 @@ class MakeSegment(VJPHiPrimitive):
         dt, da = in_dims
         if dt is None and da is None:
             return make_segment(t, a), None
-        return make_segment(t, a), SegSpec()
+        size = a.shape[0] if da is not None else tx.data(t).shape[0]
+        out_aval = self.out_aval.inc_rank(size, SegSpec())
+        return MakeSegment(jax.typeof(t), jax.typeof(a), out_aval)(t, a), SegSpec()
 
 
 class ConcatSegments(VJPHiPrimitive):
