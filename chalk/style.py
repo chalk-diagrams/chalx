@@ -528,15 +528,20 @@ def soft_perm_ascending(scores, temperature: float = 0.25):
     return jax.nn.softmax(logits, axis=-1)
 
 
-def composite_by_z(img, coverages, paints, z, *, temperature: float = 0.25, hard: bool = False):
+def modulate_opacity(opacity, z, *, floor: float = 0.2, sharpness: float = 1.5):
+    """Scale fill opacity by frontness of ``z`` (high z → nearer 1)."""
+    gate = floor + (1.0 - floor) * jax.nn.sigmoid(sharpness * jnp.asarray(z))
+    return jnp.asarray(opacity) * gate
+
+
+def composite_by_z(img, coverages, paints, z, *, temperature: float = 0.25, hard: bool = True):
     """Porter-Duff over after sorting layers by ``z`` (low = behind).
 
     ``coverages`` is ``[N, H, W]``, ``paints`` RGB ``[N, 3]`` or a pair
     ``(rgb[N,3], opacity[N])``, ``z`` is ``[N]``.
 
-    Soft path (``hard=False``): NeuralSort mixes layers into paint slots,
-    then the same sequential over as :func:`composite`. Hard path: argsort
-    ``z`` and over in that order — this is what Cairo should do.
+    Opacity is also gated by ``z`` so Cairo (hard argsort + the same gate)
+    matches the scanline. Soft NeuralSort mixing is opt-in via ``hard=False``.
     """
     img = jnp.asarray(img)
     coverages = jnp.asarray(coverages)
@@ -547,6 +552,7 @@ def composite_by_z(img, coverages, paints, z, *, temperature: float = 0.25, hard
         rgb, opacity = _paint_rgba(paints)
         rgb = jnp.asarray(rgb)
         opacity = jnp.broadcast_to(jnp.asarray(opacity), z.shape)
+    opacity = modulate_opacity(opacity, z)
 
     if hard:
         order = jnp.argsort(z)
@@ -575,5 +581,6 @@ __all__ = [
     "style_to_mpl",
     "composite",
     "soft_perm_ascending",
+    "modulate_opacity",
     "composite_by_z",
 ]

@@ -29,6 +29,27 @@ def test_trace_measure_circle_row():
     assert float(α[50].max()) > 0.5
 
 
+def test_trace_measure_keeps_rows_crossing_left_edge():
+    d = circle(20).translate(0, 50)
+    p = scanline_origins(100, axis="x")
+    α = trace_measure(d, p, scanline_direction("x"), 100, kernel=1)
+    assert float(α[50, 4]) > 0.5
+    assert float(α[50, 30]) < 0.5
+
+
+def test_trace_measure_xy_averages_axes():
+    from chalk.raster import trace_measure_xy
+
+    d = circle(1.0).scale_x(22.0).scale_y(8.0).rotate_rad(0.4).translate(40.0, 40.0)
+    α = trace_measure_xy(d, 80, 80, kernel=3)
+    assert α.shape == (80, 80)
+    assert float(α[40, 40]) > 0.5
+    ax = trace_measure(
+        d, scanline_origins(80, axis="x"), scanline_direction("x"), 80, kernel=3
+    )
+    assert float(jnp.mean(jnp.abs(α - ax))) > 1e-4
+
+
 def test_composite_over():
     img = jnp.ones((4, 4, 3))
     α = jnp.zeros((4, 4)).at[1:3, 1:3].set(1.0)

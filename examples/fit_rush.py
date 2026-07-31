@@ -1,7 +1,8 @@
 """Fit ellipses to a photo with a learnable differentiable z-order.
 
-Each ellipse keeps a scalar ``z`` (low = behind). Scanline compositing
-soft-sorts by ``z`` then Porter-Duff overs. Cairo hard-sorts by ``z``.
+Each ellipse keeps a scalar ``z`` (low = behind). Scanline and Cairo both
+hard-sort by ``z`` and gate fill opacity with ``modulate_opacity(z)``.
+Coverage is the average of a left-to-right and top-to-bottom scan.
 Init is size-ordered so ``z`` starts as large-behind / small-in-front.
 """
 
@@ -15,9 +16,8 @@ import numpy as onp
 from PIL import Image, ImageDraw, ImageFont
 
 from chalk import circle, rectangle
-from chalk.measure import trace_measure
-from chalk.raster import scanline_origins
-from chalk.style import composite_by_z
+from chalk.raster import trace_measure_xy
+from chalk.style import composite_by_z, modulate_opacity
 
 W, H = 96, 72  # 4:3, matches the highland-cow photo
 N = 100
@@ -30,14 +30,10 @@ PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-
 LIB_HEIGHT = 360
 LIB_WIDTH = 480
 OUT = "/opt/cursor/artifacts"
-PREFIX = "cow4"
+PREFIX = "cow5"
 KERNELS = (7, 5, 3)
-TAU0 = 0.7
-TAU1 = 0.15
 
 _unit = circle(1.0).line_width(0)
-_px = scanline_origins(H, axis="x")
-_vx = jnp.array([[1.0], [0.0], [0.0]])
 
 
 def load_goal():
@@ -64,20 +60,15 @@ def kernel_at(step: int) -> int:
     return 3
 
 
-def tau_at(step: int) -> float:
-    t = (step - 1) / max(STEPS - 1, 1)
-    return TAU0 * (1.0 - t) + TAU1 * t
-
-
 def split_geom(params):
     loc, radii, rots, color, opacity, _z = params
     return loc, radii, rots, color, opacity
 
 
 def diagram(params):
-    loc, radii, rots, color, opacity = split_geom(params)
+    loc, radii, rots, color, opacity, z = params
     paints = jax.nn.sigmoid(color)
-    opac = jax.nn.sigmoid(opacity)
+    opac = modulate_opacity(jax.nn.sigmoid(opacity), z)
     return (
         _unit.fill_color(paints)
         .fill_opacity(opac)
@@ -103,7 +94,7 @@ def diagram_stacked(params):
 
 
 def make_raster(kernel: int):
-    def raster(params, tau):
+    def raster(params):
         loc, radii, rots, color, opacity, z = params
         paints = jax.nn.sigmoid(color)
         opac = jax.nn.sigmoid(opacity)
@@ -111,16 +102,14 @@ def make_raster(kernel: int):
         def cover(_, xs):
             (lx, ly), (rx, ry), (rot,) = xs
             d = _unit.scale_x(rx).scale_y(ry).rotate_rad(rot).translate(lx, ly)
-            α = trace_measure(d, _px, _vx, W, kernel=kernel)
+            α = trace_measure_xy(d, H, W, kernel=kernel)
             return None, α
 
         _, alphas = jax.lax.scan(cover, None, (loc, radii, rots))
-        return composite_by_z(
-            jnp.ones((H, W, 3)), alphas, (paints, opac), z, temperature=tau
-        )
+        return composite_by_z(jnp.ones((H, W, 3)), alphas, (paints, opac), z, hard=True)
 
-    def loss_fn(params, goal, tau):
-        return jnp.sum((raster(params, tau) - goal) ** 2)
+    def loss_fn(params, goal):
+        return jnp.sum((raster(params) - goal) ** 2)
 
     return raster, loss_fn
 
@@ -188,8 +177,8 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
     except TypeError:
         font = ImageFont.load_default()
     labels = [
-        f"scanline soft-z (k={k_label})",
-        "cairo argsort(z)",
+        f"scanline xy+z (k={k_label})",
+        "cairo argsort(z)+α(z)",
         "target photo",
     ]
     for i, label in enumerate(labels):
@@ -199,8 +188,8 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
 
 def main():
     print(
-        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} learnable z (soft-sort) stills-only "
-        f"LR/kernel 7→5→3 after {DECAY_START} tau {TAU0}→{TAU1}",
+        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} z-order+α(z) xy-scan stills-only "
+        f"LR/kernel 7→5→3 after {DECAY_START}",
         flush=True,
     )
     goal = reduce_color(load_goal())
@@ -211,15 +200,14 @@ def main():
     fns = {}
     import time as _time
 
-    tau_warm = jnp.asarray(TAU0)
     for k in KERNELS:
         raster, loss_fn = make_raster(k)
         t0 = _time.perf_counter()
         raster_jit = jax.jit(raster)
         loss_jit = jax.jit(loss_fn)
         grad_jit = jax.jit(jax.grad(loss_fn))
-        start_img = raster_jit(params, tau_warm).block_until_ready()
-        jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal, tau_warm))
+        start_img = raster_jit(params).block_until_ready()
+        jax.tree.map(lambda x: x.block_until_ready(), grad_jit(params, goal))
         print(f"  kernel={k} compiled in {_time.perf_counter() - t0:.1f}s", flush=True)
         fns[k] = (raster_jit, loss_jit, grad_jit)
         if k == KERNELS[0]:
@@ -235,9 +223,8 @@ def main():
     for i in range(1, STEPS + 1):
         lr = lr_at(i)
         kern = kernel_at(i)
-        tau = jnp.asarray(tau_at(i))
         raster_jit, loss_jit, grad_jit = fns[kern]
-        g = grad_jit(params, goal, tau)
+        g = grad_jit(params, goal)
 
         def adam(pi, gi, mi, vi):
             mi = b1 * mi + (1 - b1) * gi
@@ -270,13 +257,13 @@ def main():
             if kern != prev_kern:
                 best_loss = float("inf")
                 prev_kern = kern
-            cur_loss = float(loss_jit(params, goal, tau))
+            cur_loss = float(loss_jit(params, goal))
             if cur_loss < best_loss:
                 best_loss, best = cur_loss, params
-            curve.append((i, cur_loss, best_loss, lr, kern, float(tau)))
+            curve.append((i, cur_loss, best_loss, lr, kern))
             print(
                 f"step {i:4d}  loss={cur_loss:.1f}  best={best_loss:.1f}  "
-                f"lr={lr:.4f}  k={kern}  tau={float(tau):.3f}",
+                f"lr={lr:.4f}  k={kern}",
                 flush=True,
             )
 
@@ -292,9 +279,8 @@ def main():
         curve=onp.asarray(curve),
     )
     final_k = kernel_at(STEPS)
-    final_tau = jnp.asarray(tau_at(STEPS))
     raster_jit, loss_jit, _ = fns[final_k]
-    final = raster_jit(params, final_tau)
+    final = raster_jit(params)
     to_png(final, f"{OUT}/{PREFIX}_final.png")
     to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/{PREFIX}_compare.png")
 
@@ -319,14 +305,14 @@ def main():
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
-        steps, losses, bests, lrs, ks, taus = zip(*curve)
+        steps, losses, bests, lrs, ks = zip(*curve)
         fig, ax = plt.subplots(figsize=(8, 4.2), dpi=140)
         ax.plot(steps, losses, color="#4c78a8", lw=1.5, marker="o", ms=3, label="loss")
         ax.plot(steps, bests, color="#f58518", lw=2, label="best")
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title("100 ellipses · cow · learnable z · 7→5→3")
+        ax.set_title("100 ellipses · cow · z+α(z) · xy scan · 7→5→3")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)

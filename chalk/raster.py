@@ -31,6 +31,42 @@ def scanline_direction(axis: str = "x"):
     raise ValueError(axis)
 
 
+def trace_measure_xy(
+    shape,
+    height: int,
+    width: int,
+    *,
+    kernel: int = 11,
+    pixel: float = 1.0,
+    boundary: bool = True,
+):
+    """Average coverage from a left-to-right scan and a top-to-bottom scan.
+
+    1D AA on one axis misses edges parallel to that axis; averaging the two
+    directions matches the DiffRast plug. Also covers rows/cols that one
+    scan drops when a hit starts off-frame.
+    """
+    ax = trace_measure(
+        shape,
+        scanline_origins(height, axis="x", pixel=pixel),
+        scanline_direction("x"),
+        width,
+        kernel=kernel,
+        pixel=pixel,
+        boundary=boundary,
+    )
+    ay = trace_measure(
+        shape,
+        scanline_origins(width, axis="y", pixel=pixel),
+        scanline_direction("y"),
+        height,
+        kernel=kernel,
+        pixel=pixel,
+        boundary=boundary,
+    )
+    return 0.5 * (ax + ay.T)
+
+
 def rasterize(
     shapes: Union[Any, Iterable[Any]],
     height: int,
@@ -53,12 +89,25 @@ def rasterize(
             from chalk.style import to_color
 
             color = to_color("black")
-        for axis in axes:
-            if axis == "x":
-                p, n = scanline_origins(height, axis="x"), width
-                α = trace_measure(shape, p, scanline_direction("x"), n, kernel=kernel)
-            else:
-                p, n = scanline_origins(width, axis="y"), height
-                α = trace_measure(shape, p, scanline_direction("y"), n, kernel=kernel).T
-            img = composite(img, α, color)
+        if tuple(axes) == ("x", "y") or tuple(axes) == ("y", "x"):
+            α = trace_measure_xy(shape, height, width, kernel=kernel)
+        elif axes == ("x",):
+            α = trace_measure(
+                shape,
+                scanline_origins(height, axis="x"),
+                scanline_direction("x"),
+                width,
+                kernel=kernel,
+            )
+        elif axes == ("y",):
+            α = trace_measure(
+                shape,
+                scanline_origins(width, axis="y"),
+                scanline_direction("y"),
+                height,
+                kernel=kernel,
+            ).T
+        else:
+            raise ValueError(axes)
+        img = composite(img, α, color)
     return img

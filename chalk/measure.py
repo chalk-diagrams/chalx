@@ -20,10 +20,17 @@ from chalk.trace import Trace, TraceTy, get_trace, trace_ray
 
 
 def _fill_rows(splits, mask, n_bins: int):
-    """Even-odd fill. ``splits, mask: [B, K]`` → coverage ``[B, n_bins]``."""
+    """Even-odd fill. ``splits, mask: [B, K]`` → coverage ``[B, n_bins]``.
+
+    Hits with ``t < 0`` are off-frame to the left (or above) of the ray
+    origin. They still toggle winding so a shape that straddles column 0
+    stays filled inside the framebuffer.
+    """
     splits = jnp.asarray(splits)
     mask = jnp.asarray(mask) > 0
     b, k = splits.shape
+    n_before = jnp.sum(mask & (splits < 0), axis=-1)
+    inside0 = jnp.mod(n_before, 2) == 1
     split_int = jnp.floor(splits).astype(jnp.int32)
     valid = mask & (split_int >= 0) & (split_int < n_bins)
     loc = jnp.arange(k) % 2
@@ -31,13 +38,14 @@ def _fill_rows(splits, mask, n_bins: int):
     ind = jnp.where(valid, split_int, n_bins)
     batch_ix = jnp.arange(b)[:, None]
     row = jnp.zeros((b, n_bins + 1))
+    row = row.at[:, 0].add(inside0.astype(row.dtype))
     row = row.at[batch_ix, ind].add(jnp.where(valid, inout, 0.0))
     scene = jnp.cumsum(row[:, :-1], axis=-1)
     frac = splits - split_int
     edge = jnp.where(loc == 0, 1.0, 0.0) - inout * frac
     scene = scene.at[batch_ix, ind].set(jnp.where(valid, edge, 0.0), mode="drop")
     ok = jnp.mod(jnp.sum(mask.astype(jnp.int32), axis=-1), 2) == 0
-    return jnp.where(ok[:, None], scene, jnp.zeros((b, n_bins)))
+    return jnp.where(ok[:, None], jnp.clip(scene, 0.0, 1.0), jnp.zeros((b, n_bins)))
 
 
 def _kernel(offset, kern: int):

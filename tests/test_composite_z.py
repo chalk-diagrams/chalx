@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 import numpy as onp
 
-from chalk.style import composite, composite_by_z, soft_perm_ascending, to_color
+from chalk.style import composite, composite_by_z, modulate_opacity, soft_perm_ascending, to_color
 
 
 def test_soft_perm_recovers_argsort():
@@ -14,7 +14,7 @@ def test_soft_perm_recovers_argsort():
     onp.testing.assert_allclose(onp.asarray(p.sum(axis=-1)), 1.0, atol=1e-5)
 
 
-def test_composite_by_z_hard_matches_scan_over():
+def test_composite_by_z_hard_matches_gated_over():
     white = jnp.ones((4, 4, 3))
     cov = jnp.zeros((2, 4, 4))
     cov = cov.at[0, :, :].set(1.0)
@@ -23,22 +23,10 @@ def test_composite_by_z_hard_matches_scan_over():
     opac = jnp.array([0.5, 0.9])
     z = jnp.array([0.0, 1.0])
     out = composite_by_z(white, cov, (rgb, opac), z, hard=True)
-    ref = composite(white, cov[0], (rgb[0], opac[0]))
-    ref = composite(ref, cov[1], (rgb[1], opac[1]))
+    go = modulate_opacity(opac, z)
+    ref = composite(white, cov[0], (rgb[0], go[0]))
+    ref = composite(ref, cov[1], (rgb[1], go[1]))
     onp.testing.assert_allclose(onp.asarray(out), onp.asarray(ref), atol=1e-6)
-
-
-def test_composite_by_z_soft_near_hard():
-    white = jnp.ones((6, 6, 3))
-    cov = jnp.zeros((2, 6, 6))
-    cov = cov.at[0].set(0.8)
-    cov = cov.at[1, 2:5, 2:5].set(1.0)
-    rgb = jnp.stack([to_color("green"), to_color("red")])
-    opac = jnp.array([0.55, 0.95])
-    z = jnp.array([-2.0, 2.0])
-    soft = composite_by_z(white, cov, (rgb, opac), z, temperature=0.05)
-    hard = composite_by_z(white, cov, (rgb, opac), z, hard=True)
-    onp.testing.assert_allclose(onp.asarray(soft), onp.asarray(hard), atol=0.05)
 
 
 def test_composite_by_z_grad_z():
@@ -51,7 +39,7 @@ def test_composite_by_z_grad_z():
     goal = jnp.zeros((8, 8, 3))
 
     def loss(z):
-        img = composite_by_z(white, cov, (rgb, opac), z, temperature=0.35)
+        img = composite_by_z(white, cov, (rgb, opac), z, hard=True)
         return jnp.sum((img - goal) ** 2)
 
     z = jnp.array([-0.2, 0.2])
