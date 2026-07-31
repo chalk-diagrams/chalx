@@ -7,7 +7,6 @@ order ``diagram.concat()`` uses. No per-step size sort.
 from __future__ import annotations
 
 import random
-import subprocess
 
 import jax
 import jax.numpy as jnp
@@ -20,12 +19,11 @@ from chalk.raster import scanline_origins
 from chalk.style import composite
 
 W, H = 96, 72  # 4:3, matches the highland-cow photo
-N = 500
+N = 100
 STEPS = 750
 MIN_SIZE = 1.0
 LR0 = 0.03
 LOSS_EVERY = 10
-GIF_EVERY = 10
 DECAY_START = 500  # last 250 steps taper LR and kernel 7→5→3
 PHOTO = "/home/ubuntu/.cursor/projects/workspace/assets/019fb880-e393-7efc-a666-974299a8fcb2.jpg"
 LIB_HEIGHT = 360
@@ -122,35 +120,6 @@ def to_png(img, path):
     Image.fromarray(to_uint8(img)).save(path)
 
 
-def write_gif(imgs, path, duration=0.08):
-    import imageio
-
-    imageio.mimsave(path, [to_uint8(im) for im in imgs], loop=0, duration=duration)
-
-
-def write_video(frames_uint8, path, fps=12):
-    h, w = frames_uint8[0].shape[:2]
-    if h % 2:
-        h -= 1
-    if w % 2:
-        w -= 1
-    cmd = [
-        "ffmpeg", "-y", "-f", "rawvideo", "-vcodec", "rawvideo",
-        "-s", f"{w}x{h}", "-pix_fmt", "rgb24", "-r", str(fps), "-i", "-",
-        "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path,
-    ]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    assert proc.stdin is not None and proc.stderr is not None
-    try:
-        for fr in frames_uint8:
-            proc.stdin.write(onp.ascontiguousarray(fr[:h, :w]).tobytes())
-    finally:
-        proc.stdin.close()
-    err = proc.stderr.read()
-    if proc.wait() != 0:
-        raise RuntimeError(err.decode("utf-8", errors="replace")[-2000:])
-
-
 def init_params(seed=42):
     random.seed(seed)
     cx, cy = W / 2.0, H / 2.0
@@ -205,15 +174,9 @@ def write_compare_strip(raster_img, library_path, goal, out_path, k_label: int):
     strip.save(out_path)
 
 
-def cairo_frame(params):
-    path = "/tmp/cow_ell_frame.png"
-    diagram_stacked(params).render(path, height=LIB_HEIGHT, width=LIB_WIDTH)
-    return onp.asarray(Image.open(path).convert("RGB"))
-
-
 def main():
     print(
-        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} index z-order "
+        f"{PREFIX} N={N} STEPS={STEPS} {W}x{H} index z-order stills-only "
         f"LR/kernel 7→5→3 after {DECAY_START}",
         flush=True,
     )
@@ -239,7 +202,6 @@ def main():
             to_png(start_img, f"{OUT}/{PREFIX}_start.png")
             start_img0 = start_img
 
-    history = [(0, params)]
     curve = []
     best, best_loss = params, float("inf")
     prev_kern = kernel_at(1)
@@ -278,8 +240,6 @@ def main():
         color = jnp.clip(color, -6.0, 6.0)
         opacity = jnp.clip(opacity, -6.0, 6.0)
         params = (loc, radii, rots, color, opacity)
-        if i % GIF_EVERY == 0 or i == 1:
-            history.append((i, params))
         if i == 1 or i % LOSS_EVERY == 0 or i == STEPS:
             if kern != prev_kern:
                 best_loss = float("inf")
@@ -309,28 +269,6 @@ def main():
     to_png(final, f"{OUT}/{PREFIX}_final.png")
     to_png(jnp.concatenate([goal, start_img0, final], axis=1), f"{OUT}/{PREFIX}_compare.png")
 
-    scan_side = [
-        jnp.concatenate([goal, fns[kernel_at(max(step, 1))][0](p)], axis=1)
-        for step, p in history
-    ]
-    # history[0] is init (treat as step 0 -> kernel 11), history[1] is step 1, then every 10
-    write_gif(scan_side, f"{OUT}/{PREFIX}.gif", duration=0.08)
-    gh, gw = int(goal.shape[0]), int(goal.shape[1])
-    scan_u8 = [
-        onp.asarray(Image.fromarray(to_uint8(fr)).resize((gw * 4, gh * 4), Image.Resampling.NEAREST))
-        for fr in scan_side
-    ]
-    write_video(scan_u8, f"{OUT}/{PREFIX}_scan.mp4", fps=10)
-    print(f"wrote scan video ({len(scan_u8)} frames)", flush=True)
-
-    print("cairo video…", flush=True)
-    cairo_u8 = []
-    for i, (_step, p) in enumerate(history):
-        cairo_u8.append(cairo_frame(p))
-        if i % 8 == 0 or i == len(history) - 1:
-            print(f"  cairo frame {i + 1}/{len(history)}", flush=True)
-    write_video(cairo_u8, f"{OUT}/{PREFIX}_cairo.mp4", fps=10)
-
     dia = diagram_stacked(params)
     lib_path = f"{OUT}/{PREFIX}_cairo.png"
     dia.render(lib_path, height=LIB_HEIGHT, width=LIB_WIDTH)
@@ -352,7 +290,7 @@ def main():
         ax.axvline(DECAY_START, color="#54a24b", ls="--", lw=1, label="decay start")
         ax.set_xlabel("Adam step")
         ax.set_ylabel("L2")
-        ax.set_title("500 ellipses · cow · index z-order · 7→5→3")
+        ax.set_title("100 ellipses · cow · index z-order · 7→5→3")
         ax.legend(frameon=False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
