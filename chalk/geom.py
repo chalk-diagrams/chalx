@@ -1339,15 +1339,16 @@ class Length2(VJPHiPrimitive):
         (v,), (dv,) = primals, tangents
         prim_out = length2(v)
         if isinstance(dv, Zero):
-            return prim_out, jnp.zeros(jax.typeof(v).batch, dtype=jnp.dtype(jax.typeof(v).dtype_name))
-        return prim_out, 2 * ((v.data * dv.data)[..., :2, 0].sum(-1))
+            return prim_out, jnp.zeros(
+                jax.typeof(v).batch, dtype=jnp.dtype(jax.typeof(v).dtype_name)
+            )
+        va, da = v2_to_array(v), v2_to_array(dv)
+        return prim_out, 2 * ((va * da)[..., :2, 0].sum(-1))
 
     lin = linearize_from_jvp
     linearized = apply_derived_linearization
     vjp_fwd = vjp_fwd_from_jvp
-
-    def vjp_bwd_retval(self, res, g):
-        raise NotImplementedError
+    vjp_bwd_retval = transpose_jvp
 
     def batch(self, axis_data, args, in_dims):
         out = length2(args[0])

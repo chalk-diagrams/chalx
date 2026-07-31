@@ -376,10 +376,12 @@ class TransformSegment(VJPHiPrimitive):
         seg, t = primals
         dseg, dt = tangents
         prim = transform_segment(seg, t)
-        xf, ang = jnp.asarray(seg.transform), jnp.asarray(seg.angles)
+        xf, ang = segment_parts(seg)
         t_arr = geom_data(t)
-        dxf = jnp.zeros_like(xf) if isinstance(dseg, Zero) else jnp.asarray(dseg.transform)
-        dang = jnp.zeros_like(ang) if isinstance(dseg, Zero) else jnp.asarray(dseg.angles)
+        if isinstance(dseg, Zero):
+            dxf, dang = jnp.zeros_like(xf), jnp.zeros_like(ang)
+        else:
+            dxf, dang = segment_parts(dseg)
         dt_arr = jnp.zeros_like(t_arr) if isinstance(dt, Zero) else geom_data(dt)
         return prim, make_segment(dt_arr @ xf + t_arr @ dxf, dang)
 

@@ -83,11 +83,7 @@ class BaseDiagram(chalk.types.Diagram):
     def apply_transform(self: BatchDiagram, t: Affine) -> BroadDiagram:
         from chalk.diag import diag_xf
 
-        t = tx.data(t)
-        new_diagram = ApplyTransform(t, Empty())
-        new, other = broadcast_diagrams(new_diagram, self)
-        assert isinstance(new, ApplyTransform)
-        return diag_xf(other, new.transform)
+        return diag_xf(self, tx.data(t))
 
     def _compose_axis(self: BatchDiagram) -> Diagram:
         from chalk.diag import diag_axis
@@ -276,20 +272,7 @@ class Primitive(BaseDiagram):
         return diag_prim(shape, tx.data(tx.make_ident(shape.shape)))
 
     def apply_transform(self: BatchPrimitive, t: Affine) -> BroadDiagram:
-        from jax.core import Tracer
-
-        from chalk.diag import diag_prim
-
-        if isinstance(t, Tracer):
-            return BaseDiagram.apply_transform(self, t)
-        t = tx.data(t)
-        if isinstance(t, Tracer):
-            return BaseDiagram.apply_transform(self, t)
-        chalk.broadcast.check(t.shape[:-2], self.shape, str(type(self)), "Transform")
-        new_transform = t @ self.transform
-        new_diagram = ApplyTransform(new_transform, Empty())
-        new_diagram, self = broadcast_diagrams(new_diagram, self)
-        return diag_prim(self.prim_shape, new_diagram.transform, self.style)
+        return BaseDiagram.apply_transform(self, t)
 
     def apply_style(self: BatchPrimitive, other_style: StyleHolder) -> BatchPrimitive:
         from chalk.diag import diag_prim
@@ -352,12 +335,7 @@ class ApplyTransform(BaseDiagram):
         return visitor.visit_apply_transform(self, args)
 
     def apply_transform(self, t: Affine) -> ApplyTransform:
-        from chalk.diag import diag_xf
-
-        t = tx.data(t)
-        new_diagram = ApplyTransform(t @ self.transform, Empty())
-        new, other = broadcast_diagrams(new_diagram, self.diagram)
-        return diag_xf(other, new.transform)
+        return BaseDiagram.apply_transform(self, t)  # type: ignore[return-value]
 
 
 @dataclass(frozen=True)

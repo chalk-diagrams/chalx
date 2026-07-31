@@ -107,9 +107,13 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     A_type = OrderList
 
     def visit_primitive(self, diagram: Primitive, t: Affine) -> OrderList:
-        size = diagram.size()
+        from chalk.core import Primitive as Prim
+
+        xf = tx.np.asarray(t) @ tx.np.asarray(diagram.transform)
+        size = tuple(tx.np.asarray(xf).shape[:-2])
+        prim = Prim(diagram.prim_shape, diagram.style, xf, diagram.order)
         return OrderList(
-            [diagram.apply_transform(t).set_order(tx.np.zeros(size))],
+            [prim.set_order(tx.np.zeros(size))],
             tx.np.ones(size),
         )
 

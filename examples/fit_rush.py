@@ -11,7 +11,7 @@ import jax.numpy as jnp
 import numpy as onp
 from PIL import Image, ImageDraw, ImageFont
 
-from chalk import concat, rectangle, triangle
+from chalk import rectangle, triangle
 from chalk.measure import trace_measure
 from chalk.raster import scanline_origins
 from chalk.style import composite
@@ -64,28 +64,13 @@ def diagram(params):
 
 
 def diagram_stacked(params):
-    from colour import Color
-
-    loc, sizes, rots, color, opacity = (onp.asarray(x) for x in sort_params(params))
-    paints = 1.0 / (1.0 + onp.exp(-color))
-    opac = 1.0 / (1.0 + onp.exp(-opacity))
-    dias = []
-    for i in range(len(paints)):
-        rgb = tuple(float(c) for c in paints[i])
-        dias.append(
-            _unit.fill_color(Color(rgb=rgb))
-            .fill_opacity(float(opac[i]))
-            .rotate_rad(float(rots[i, 0]))
-            .scale(float(sizes[i]))
-            .translate(float(loc[i, 0]), float(loc[i, 1]))
-        )
     frame = (
         rectangle(float(W), float(H))
         .line_width(0)
         .fill_opacity(0)
         .translate(float(W) / 2.0, float(H) / 2.0)
     )
-    return concat(dias).with_envelope(frame)
+    return diagram(params).concat().with_envelope(frame)
 
 
 def raster(params):
@@ -96,7 +81,7 @@ def raster(params):
     def cover(_, xs):
         (lx, ly), size, (rot,) = xs
         d = _unit.rotate_rad(rot).scale(size).translate(lx, ly)
-        α = trace_measure(d, _px, _vx, W, kernel=KERNEL, boundary=False)
+        α = trace_measure(d, _px, _vx, W, kernel=KERNEL)
         return None, α
 
     _, alphas = jax.lax.scan(cover, None, (loc, sizes, rots))

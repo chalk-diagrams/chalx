@@ -51,7 +51,7 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
     from chalk.core import BaseDiagram
     from chalk.diag import map_diag_prefix
     from chalk.envelope import Envelope
-    from chalk.geom import Affine, Pt, Vec, make_p2_from_data, make_v2_from_data, make_xf
+    from chalk.geom import Affine, Pt, Vec, data, make_p2_from_data, make_v2_from_data, make_xf
     from chalk.path import Path
     from chalk.segment import Segment, make_segment
     from chalk.style import StyleHolder, make_style
@@ -91,21 +91,21 @@ def tree_map(fn, tree, *rest):  # type: ignore[no-untyped-def]
             return map_diag_prefix(x, fn)
         if isinstance(x, Vec):
             return (
-                make_v2_from_data(fn(x.data, *[o.data for o in xs]))
+                make_v2_from_data(fn(data(x), *[data(o) for o in xs]))
                 if xs
-                else make_v2_from_data(fn(x.data))
+                else make_v2_from_data(fn(data(x)))
             )
         if isinstance(x, Pt):
             return (
-                make_p2_from_data(fn(x.data, *[o.data for o in xs]))
+                make_p2_from_data(fn(data(x), *[data(o) for o in xs]))
                 if xs
-                else make_p2_from_data(fn(x.data))
+                else make_p2_from_data(fn(data(x)))
             )
         if isinstance(x, Affine):
             return (
-                make_xf(fn(x.data, *[o.data for o in xs]))
+                make_xf(fn(data(x), *[data(o) for o in xs]))
                 if xs
-                else make_xf(fn(x.data))
+                else make_xf(fn(data(x)))
             )
         if isinstance(x, (Trail, Located, Envelope, Trace, Path)):
             return x.map_prefix(fn)
