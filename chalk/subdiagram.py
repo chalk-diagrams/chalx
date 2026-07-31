@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 import chalk.transform as tx
+import chalk.geom as geom
 from chalk.monoid import Maybe
 from chalk.trace import Trace
 from chalk.transform import Affine, P2_t, V2_t
@@ -85,7 +86,10 @@ class GetSubdiagram(DiagramVisitor[Maybe[Subdiagram], Affine]):
 
     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> Maybe[Subdiagram]:
         size = diagram.diagrams.size()
-        batched = tx.make_ident((size[0],)) @ t
+        data = tx.data(t)[..., None, :, :]
+        batched = geom.make_xf(
+            tx.np.broadcast_to(data, (*data.shape[:-3], size[0], 3, 3))
+        )
         return diagram.diagrams._accept(self, batched)
 
     def visit_apply_transform(

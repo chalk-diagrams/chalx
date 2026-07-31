@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 
 import jax
 
+import chalk.geom as geom
 import chalk.transform as tx
 from chalk.backend.patch import Patch, patch_from_prim
 from chalk.style import StyleHolder
@@ -138,7 +139,8 @@ class ToListOrder(DiagramVisitor[OrderList, Affine]):
     def visit_compose_axis(self, diagram: ComposeAxis, t: Affine) -> OrderList:
         s = diagram.diagrams.size()
         stride = s[-1]
-        internal = diagram.diagrams._accept(self, t[..., None, :, :])
+        expanded = geom.make_xf(tx.data(t)[..., None, :, :])
+        internal = diagram.diagrams._accept(self, expanded)
 
         last_counter = tx.np.where(
             tx.np.arange(stride) == 0,
