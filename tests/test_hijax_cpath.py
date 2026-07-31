@@ -2,8 +2,7 @@ import jax
 import pytest
 
 from chalk import circle
-from chalk.path import Path, concat_paths, make_path, path_located_segments
-from chalk.trail import Trail
+from chalk.path import Path, concat_paths
 
 
 def test_typeof_path():
